@@ -1,26 +1,100 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fbf4ea;
+  --foreground: #1b1714;
+  --surface: #fffaf4;
+  --surface-strong: #f7e2c7;
+  --muted: #655b53;
+  --line: rgba(56, 35, 18, 0.12);
+  --brand: #d95d39;
+  --brand-deep: #9f3416;
+  --accent: #1f6b5a;
+  --accent-soft: #d7eee7;
+  --gold: #f0b44c;
+  --sky: #87c8f2;
+  --rose: #f6b7a6;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-manrope);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-manrope), sans-serif;
+  background-image:
+    radial-gradient(circle at 15% 12%, rgba(217, 93, 57, 0.28), transparent 24%),
+    radial-gradient(circle at 85% 14%, rgba(135, 200, 242, 0.24), transparent 20%),
+    radial-gradient(circle at 70% 36%, rgba(240, 180, 76, 0.18), transparent 18%),
+    linear-gradient(180deg, #fff7ed 0%, #f9f2e6 48%, #f5efe5 100%);
+}
+
+::selection {
+  background: rgba(200, 91, 43, 0.2);
+}
+
+a,
+button {
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.display-font {
+  font-family: var(--font-space-grotesk), sans-serif;
+}
+
+.card-shadow {
+  box-shadow: 0 24px 70px rgba(93, 55, 22, 0.1);
+}
+
+.soft-grid {
+  background-image:
+    linear-gradient(to right, rgba(31, 107, 90, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(217, 93, 57, 0.07) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.sunrise-panel {
+  background:
+    linear-gradient(135deg, rgba(255, 250, 244, 0.92), rgba(255, 240, 220, 0.88)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
+}
+
+.glass-warm {
+  background: rgba(255, 250, 244, 0.72);
+  backdrop-filter: blur(16px);
+}
+
+.float-card {
+  animation: float-card 7s ease-in-out infinite;
+}
+
+.float-card-delay {
+  animation: float-card 8.5s ease-in-out infinite 0.8s;
+}
+
+@keyframes float-card {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }
