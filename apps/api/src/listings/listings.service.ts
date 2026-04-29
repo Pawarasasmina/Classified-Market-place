@@ -2,20 +2,83 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { ListingStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { QueryListingsDto } from './dto/query-listings.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
+import { defaultListings, demoSellers } from './listings.seed';
 
 function toJsonValue(value: Record<string, unknown> | undefined) {
   return value as Prisma.InputJsonValue | undefined;
 }
 
 @Injectable()
-export class ListingsService {
+export class ListingsService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
+
+  async onModuleInit() {
+    await this.seedDefaults();
+  }
+
+  async seedDefaults() {
+    const listingCount = await this.prisma.listing.count();
+
+    if (listingCount > 0) {
+      return;
+    }
+
+    for (const seller of demoSellers) {
+      await this.prisma.user.upsert({
+        where: { email: seller.email },
+        update: {
+          displayName: seller.displayName,
+          phone: seller.phone,
+          phoneVerified: seller.phoneVerified,
+          emailVerified: seller.emailVerified,
+          role: seller.role,
+        },
+        create: {
+          email: seller.email,
+          displayName: seller.displayName,
+          phone: seller.phone,
+          phoneVerified: seller.phoneVerified,
+          emailVerified: seller.emailVerified,
+          role: seller.role,
+          passwordHash: null,
+        },
+      });
+    }
+
+    for (const listing of defaultListings) {
+      const seller = await this.prisma.user.findUnique({
+        where: { email: listing.sellerEmail },
+      });
+      const category = await this.prisma.category.findUnique({
+        where: { slug: listing.categorySlug },
+      });
+
+      if (!seller || !category) {
+        continue;
+      }
+
+      await this.prisma.listing.create({
+        data: {
+          title: listing.title,
+          description: listing.description,
+          price: listing.price,
+          currency: listing.currency,
+          location: listing.location,
+          status: listing.status,
+          attributes: listing.attributes,
+          sellerId: seller.id,
+          categoryId: category.id,
+        },
+      });
+    }
+  }
 
   async create(userId: string, createListingDto: CreateListingDto) {
     const category = await this.prisma.category.findUnique({
@@ -47,7 +110,9 @@ export class ListingsService {
 
   async findAll(query: QueryListingsDto) {
     const where: Prisma.ListingWhereInput = {
-      ...(query.status ? { status: query.status } : { status: ListingStatus.ACTIVE }),
+      ...(query.status
+        ? { status: query.status }
+        : { status: ListingStatus.ACTIVE }),
       ...(query.sellerId ? { sellerId: query.sellerId } : {}),
       ...(query.categorySlug
         ? {

@@ -1,13 +1,17 @@
+import Image from "next/image";
 import Link from "next/link";
+import { CategoryIcon } from "@/components/marketplace/category-icon";
 import { ListingCard } from "@/components/marketplace/listing-card";
-import {
-  categories,
-  listings,
-  quickStats,
-  savedSearches,
-} from "@/lib/phase1-data";
+import { getListingMedia } from "@/lib/listing-media";
+import { fetchCategories, fetchListings } from "@/lib/marketplace-api";
+import { quickStats, savedSearches } from "@/lib/phase1-data";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const [categories, listings] = await Promise.all([
+    fetchCategories(),
+    fetchListings({ take: 3 }),
+  ]);
+
   return (
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
       <section className="grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
@@ -72,6 +76,46 @@ export default function HomePage() {
               Post your ad
             </Link>
           </div>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {listings.map((listing) => {
+              const media = getListingMedia(listing);
+
+              return (
+                <Link
+                  key={listing.id}
+                  href={`/listings/${listing.id}`}
+                  className="group overflow-hidden rounded-[1.75rem] border border-[var(--line)] bg-white"
+                >
+                  <div className="relative h-36">
+                    <Image
+                      src={media.src}
+                      alt={media.alt}
+                      fill
+                      unoptimized
+                      sizes="(max-width: 768px) 100vw, 20vw"
+                      className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                    />
+                    <div
+                      className="absolute inset-0"
+                      style={{ background: media.overlay }}
+                    />
+                    <span className="absolute left-3 top-3 rounded-full bg-[rgba(255,255,255,0.86)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--brand-deep)]">
+                      {listing.subcategory}
+                    </span>
+                  </div>
+                  <div className="space-y-2 p-4">
+                    <p className="text-sm font-semibold text-[var(--foreground)]">
+                      {listing.title}
+                    </p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+                      {listing.priceLabel}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         </div>
 
         <div className="grid gap-5">
@@ -104,7 +148,7 @@ export default function HomePage() {
                 Why it works
               </h2>
               <Link href="/search" className="text-sm font-semibold text-[var(--accent)]">
-                Explore now →
+                Explore now
               </Link>
             </div>
             <ul className="mt-5 grid gap-3 text-sm leading-6 text-[var(--muted)]">
@@ -137,7 +181,7 @@ export default function HomePage() {
             </h2>
           </div>
           <Link href="/categories" className="text-sm font-semibold text-[var(--accent)]">
-            View all categories →
+            View all categories
           </Link>
         </div>
 
@@ -149,8 +193,8 @@ export default function HomePage() {
               className="card-shadow rounded-[1.75rem] border border-[var(--line)] p-5"
               style={{ background: category.accent }}
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(255,255,255,0.82)] text-lg font-bold text-[var(--brand-deep)]">
-                {category.icon}
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(255,255,255,0.82)] text-[var(--brand-deep)]">
+                <CategoryIcon slug={category.slug} className="h-6 w-6" />
               </div>
               <h3 className="display-font mt-5 text-xl font-bold text-[var(--foreground)]">
                 {category.name}
@@ -178,17 +222,14 @@ export default function HomePage() {
               </h2>
             </div>
             <Link href="/search" className="text-sm font-semibold text-[var(--accent)]">
-              See more →
+              See more
             </Link>
           </div>
 
           <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
-            {listings
-              .filter((listing) => listing.status === "Active")
-              .slice(0, 3)
-              .map((listing) => (
-                <ListingCard key={listing.id} listing={listing} compact />
-              ))}
+            {listings.map((listing) => (
+              <ListingCard key={listing.id} listing={listing} compact />
+            ))}
           </div>
         </div>
 

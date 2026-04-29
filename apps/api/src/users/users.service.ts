@@ -55,9 +55,24 @@ export class UsersService {
   }
 
   async updateCurrentUser(userId: string, updateUserDto: UpdateUserDto) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!existingUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    const phoneChanged =
+      typeof updateUserDto.phone === 'string' &&
+      updateUserDto.phone !== existingUser.phone;
+
     const user = await this.prisma.user.update({
       where: { id: userId },
-      data: updateUserDto,
+      data: {
+        ...updateUserDto,
+        ...(phoneChanged ? { phoneVerified: false } : {}),
+      },
     });
 
     return sanitizeUser(user);

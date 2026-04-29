@@ -1,7 +1,10 @@
 import Link from "next/link";
-import { categories } from "@/lib/phase1-data";
+import { CategoryIcon } from "@/components/marketplace/category-icon";
+import { fetchCategories } from "@/lib/marketplace-api";
 
-export default function CategoriesPage() {
+export default async function CategoriesPage() {
+  const categories = await fetchCategories();
+
   return (
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
       <div className="mb-8 max-w-4xl">
@@ -9,13 +12,11 @@ export default function CategoriesPage() {
           Category schema system
         </p>
         <h1 className="mt-3 text-4xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
-          Categories and dynamic form definitions for the Phase 1 marketplace.
+          Categories and dynamic form definitions from the live marketplace API.
         </h1>
         <p className="mt-4 text-base leading-8 text-[var(--muted)]">
-          The delivery plan calls for a seed category tree, schema-driven forms,
-          and APIs that let web and mobile render listing inputs dynamically.
-          This page mirrors that setup with Phase 1 categories and sample field
-          definitions.
+          The web app now loads the active category catalog from the backend,
+          including the schema payload used to drive listing creation.
         </p>
       </div>
 
@@ -28,8 +29,8 @@ export default function CategoriesPage() {
           >
             <div className="grid gap-6 xl:grid-cols-[0.38fr_0.62fr]">
               <div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[rgba(255,255,255,0.82)] text-xl font-bold text-[var(--brand-deep)]">
-                  {category.icon}
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[rgba(255,255,255,0.82)] text-[var(--brand-deep)]">
+                  <CategoryIcon slug={category.slug} className="h-7 w-7" />
                 </div>
                 <h2 className="display-font mt-5 text-3xl font-bold text-[var(--foreground)]">
                   {category.name}
@@ -56,48 +57,51 @@ export default function CategoriesPage() {
                     Schema fields
                   </p>
                   <div className="mt-4 space-y-3">
-                    {category.schema.map((field) => (
-                      <div
-                        key={field.key}
-                        className="rounded-[1.25rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] px-4 py-3"
-                      >
-                        <p className="font-semibold text-[var(--foreground)]">
-                          {field.label}
-                        </p>
-                        <p className="text-sm text-[var(--muted)]">
-                          {field.type}
-                          {field.required ? " • required" : " • optional"}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-[1.75rem] border border-[var(--line)] bg-white p-5">
-                  <p className="display-font text-sm font-semibold uppercase tracking-[0.2em] text-[var(--brand-deep)]">
-                    Child browse nodes
-                  </p>
-                  <div className="mt-4 space-y-3">
-                    {category.children?.length ? (
-                      category.children.map((child) => (
+                    {category.schema.length ? (
+                      category.schema.map((field) => (
                         <div
-                          key={child.id}
+                          key={field.key}
                           className="rounded-[1.25rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] px-4 py-3"
                         >
                           <p className="font-semibold text-[var(--foreground)]">
-                            {child.name}
+                            {field.label}
                           </p>
                           <p className="text-sm text-[var(--muted)]">
-                            {child.description}
+                            {field.type}
+                            {field.required ? " - required" : " - optional"}
                           </p>
                         </div>
                       ))
                     ) : (
                       <div className="rounded-[1.25rem] border border-dashed border-[var(--line)] px-4 py-6 text-sm text-[var(--muted)]">
-                        Child nodes can be seeded later through admin category
-                        management and the schema API.
+                        This category does not currently expose dynamic fields.
                       </div>
                     )}
+                  </div>
+                </div>
+
+                <div className="rounded-[1.75rem] border border-[var(--line)] bg-white p-5">
+                  <p className="display-font text-sm font-semibold uppercase tracking-[0.2em] text-[var(--brand-deep)]">
+                    API-backed notes
+                  </p>
+                  <div className="mt-4 space-y-3">
+                    <div className="rounded-[1.25rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] px-4 py-3">
+                      <p className="font-semibold text-[var(--foreground)]">Slug</p>
+                      <p className="text-sm text-[var(--muted)]">{category.slug}</p>
+                    </div>
+                    <div className="rounded-[1.25rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] px-4 py-3">
+                      <p className="font-semibold text-[var(--foreground)]">
+                        Listing status
+                      </p>
+                      <p className="text-sm text-[var(--muted)]">
+                        {category.countLabel}
+                      </p>
+                    </div>
+                    <div className="rounded-[1.25rem] border border-dashed border-[var(--line)] px-4 py-6 text-sm text-[var(--muted)]">
+                      Child browse nodes are not exposed by the current backend yet,
+                      so this route focuses on the live category catalog and schema
+                      payload used by listing creation.
+                    </div>
                   </div>
                 </div>
               </div>

@@ -48,6 +48,8 @@ export type Listing = {
   description: string;
   featureBullets: string[];
   sellerId: string;
+  imageUrl?: string;
+  imageUrls?: string[];
   imagePalette: string[];
   attributes: Record<string, string | number | boolean>;
   viewCount: string;

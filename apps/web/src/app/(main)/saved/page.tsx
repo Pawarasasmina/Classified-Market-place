@@ -1,8 +1,16 @@
 import { ListingCard } from "@/components/marketplace/listing-card";
-import { getSavedListings, savedSearches } from "@/lib/phase1-data";
+import { requireSessionContext } from "@/lib/auth-dal";
+import { fetchListings } from "@/lib/marketplace-api";
 
-export default function SavedPage() {
-  const savedListings = getSavedListings();
+const fallbackSavedSearches = [
+  "2BR apartment in Marina under AED 9k",
+  "Toyota Camry 2020+ under AED 75k",
+  "iPhone 15 Pro Max in Sharjah",
+];
+
+export default async function SavedPage() {
+  await requireSessionContext("/saved");
+  const savedListings = await fetchListings({ take: 6 });
 
   return (
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
@@ -12,12 +20,13 @@ export default function SavedPage() {
             Saved items
           </p>
           <h1 className="mt-3 text-4xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
-            Favorites and saved-search placeholders for the MVP journey.
+            Live listings ready for saved-state persistence.
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-8 text-[var(--muted)]">
-            Sprint 4 in the delivery plan calls for favourites, saved items,
-            and my listings. This page brings those bookmarks into a working
-            browse flow alongside saved search reminders planned for alerts.
+            The backend does not expose favorites yet, so this screen now uses the
+            authenticated session and live listings API instead of mock saved items.
+            Once saved-item persistence lands, this same surface can swap from
+            browse-ready inventory to the user&apos;s real bookmarks.
           </p>
 
           <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -33,12 +42,12 @@ export default function SavedPage() {
               Saved searches
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
-              {savedSearches.map((savedSearch) => (
+              {fallbackSavedSearches.map((savedSearch) => (
                 <span
-                  key={savedSearch.id}
+                  key={savedSearch}
                   className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm text-[var(--muted)]"
                 >
-                  {savedSearch.label}
+                  {savedSearch}
                 </span>
               ))}
             </div>
@@ -46,12 +55,12 @@ export default function SavedPage() {
 
           <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)] p-6">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
-              Next delivery step
+              Backend status
             </p>
             <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
-              Push, email, and event-based saved search alerts are planned for
-              later delivery. The UI is present now so the Phase 1 navigation
-              and user habits can form early.
+              Favorites and saved-search alerts are still missing backend routes.
+              This page is now session-aware and API-backed, so it is ready for
+              those endpoints when they are added.
             </p>
           </div>
         </aside>

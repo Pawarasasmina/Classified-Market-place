@@ -1,11 +1,13 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ListingCard } from "@/components/marketplace/listing-card";
+import { getListingMedia } from "@/lib/listing-media";
 import {
-  getListingById,
-  getRelatedListings,
-  getSellerById,
-} from "@/lib/phase1-data";
+  fetchListing,
+  fetchListings,
+  fetchSellerProfile,
+} from "@/lib/marketplace-api";
 
 type ListingDetailPageProps = {
   params: Promise<{ listingId: string }>;
@@ -15,26 +17,41 @@ export default async function ListingDetailPage(
   props: ListingDetailPageProps
 ) {
   const { listingId } = await props.params;
-  const listing = getListingById(listingId);
+  const listing = await fetchListing(listingId);
 
   if (!listing) {
     notFound();
   }
 
-  const seller = getSellerById(listing.sellerId);
-  const related = getRelatedListings(listing);
+  const [seller, relatedListings] = await Promise.all([
+    fetchSellerProfile(listing.sellerId),
+    fetchListings({
+      categorySlug: listing.categorySlug || undefined,
+      take: 4,
+    }),
+  ]);
+
+  const related = relatedListings
+    .filter((item) => item.id !== listing.id)
+    .slice(0, 3);
+  const media = getListingMedia(listing);
 
   return (
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
       <div className="grid gap-8 xl:grid-cols-[0.7fr_0.3fr]">
         <div className="space-y-6">
           <section className="overflow-hidden rounded-[2.5rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)]">
-            <div
-              className="h-72"
-              style={{
-                background: `linear-gradient(135deg, ${listing.imagePalette[0]}, ${listing.imagePalette[1]} 50%, ${listing.imagePalette[2]})`,
-              }}
-            />
+            <div className="relative h-72">
+              <Image
+                src={media.src}
+                alt={media.alt}
+                fill
+                unoptimized
+                sizes="(max-width: 1280px) 100vw, 70vw"
+                className="object-cover"
+              />
+              <div className="absolute inset-0" style={{ background: media.overlay }} />
+            </div>
 
             <div className="space-y-5 p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -135,22 +152,27 @@ export default async function ListingDetailPage(
             </p>
             <div className="mt-4 flex items-center gap-4">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d95d39,#1f6b5a)] font-bold text-white">
-                {seller?.avatar}
+                {(seller?.name ?? listing.sellerDisplayName ?? "Seller")
+                  .split(" ")
+                  .slice(0, 2)
+                  .map((part) => part.charAt(0).toUpperCase())
+                  .join("")}
               </div>
               <div>
                 <h2 className="text-xl font-bold text-[var(--foreground)]">
-                  {seller?.name}
+                  {seller?.name ?? listing.sellerDisplayName ?? "Seller"}
                 </h2>
                 <p className="text-sm text-[var(--muted)]">
-                  {seller?.verified ? "Verified seller" : "Private seller"}
+                  {seller?.verified || listing.sellerVerified
+                    ? "Verified seller"
+                    : "Marketplace seller"}
                 </p>
               </div>
             </div>
             <div className="mt-5 space-y-3 text-sm text-[var(--muted)]">
-              <p>{seller?.responseRate} response rate</p>
-              <p>{seller?.joinedLabel}</p>
-              <p>{seller?.totalListings} active listings</p>
-              <p>{seller?.location}</p>
+              <p>{seller?.joinedLabel ?? listing.sellerJoinedLabel ?? "Joined recently"}</p>
+              <p>{seller?.totalListings ?? listing.sellerTotalListings ?? 0} active listings</p>
+              <p>Seller conversations and ratings are the next profile integration step.</p>
             </div>
 
             <div className="mt-6 grid gap-3">

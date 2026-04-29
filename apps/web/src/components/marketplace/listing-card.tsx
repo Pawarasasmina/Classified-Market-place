@@ -1,23 +1,50 @@
+import Image from "next/image";
 import Link from "next/link";
-import { getSellerById, type Listing } from "@/lib/phase1-data";
+import {
+  getSellerById,
+  type Listing as MockListing,
+} from "@/lib/phase1-data";
+import { type MarketplaceListing } from "@/lib/marketplace";
+import { getListingMedia } from "@/lib/listing-media";
+
+type ListingCardListing = MarketplaceListing | MockListing;
 
 export function ListingCard({
   listing,
   compact = false,
 }: {
-  listing: Listing;
+  listing: ListingCardListing;
   compact?: boolean;
 }) {
-  const seller = getSellerById(listing.sellerId);
+  const media = getListingMedia(listing);
+  const fallbackSeller = getSellerById(listing.sellerId);
+  const sellerName =
+    "sellerDisplayName" in listing && listing.sellerDisplayName
+      ? listing.sellerDisplayName
+      : fallbackSeller?.name;
+  const sellerMeta =
+    "sellerVerified" in listing && listing.sellerVerified
+      ? "verified seller"
+      : fallbackSeller?.responseRate
+        ? `${fallbackSeller.responseRate} response rate`
+        : undefined;
 
   return (
     <article className="card-shadow overflow-hidden rounded-[1.75rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)]">
-      <div
-        className="h-44"
-        style={{
-          background: `linear-gradient(135deg, ${listing.imagePalette[0]}, ${listing.imagePalette[1]} 55%, ${listing.imagePalette[2]})`,
-        }}
-      />
+      <div className="relative h-44 overflow-hidden">
+        <Image
+          src={media.src}
+          alt={media.alt}
+          fill
+          unoptimized
+          sizes={compact ? "(max-width: 1024px) 100vw, 33vw" : "100vw"}
+          className="object-cover transition-transform duration-500 hover:scale-[1.03]"
+        />
+        <div
+          className="absolute inset-0"
+          style={{ background: media.overlay }}
+        />
+      </div>
 
       <div className="space-y-4 p-5">
         <div className="flex items-start justify-between gap-4">
@@ -59,7 +86,7 @@ export function ListingCard({
 
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm text-[var(--muted)]">
-            {seller ? `${seller.name} • ${seller.responseRate} response rate` : ""}
+            {sellerName ? `${sellerName}${sellerMeta ? ` - ${sellerMeta}` : ""}` : ""}
           </div>
           <Link
             href={`/listings/${listing.id}`}

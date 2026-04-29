@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ListingCard } from "@/components/marketplace/listing-card";
-import { categories, listings } from "@/lib/phase1-data";
+import { fetchCategories, fetchListings } from "@/lib/marketplace-api";
 
 type SearchPageProps = {
   searchParams: Promise<{
@@ -10,47 +10,46 @@ type SearchPageProps = {
   }>;
 };
 
-function matchesSearch(source: string, query: string) {
-  return source.toLowerCase().includes(query.toLowerCase());
+function normalizeSort(sort: string | undefined) {
+  if (sort === "price-asc" || sort === "price_asc") {
+    return "price_asc" as const;
+  }
+
+  if (sort === "price-desc" || sort === "price_desc") {
+    return "price_desc" as const;
+  }
+
+  return "newest" as const;
 }
 
 export default async function SearchPage(props: SearchPageProps) {
   const searchParams = await props.searchParams;
   const q = searchParams.q ?? "";
   const category = searchParams.category ?? "";
-  const sort = searchParams.sort ?? "newest";
+  const sort = normalizeSort(searchParams.sort);
 
-  const filtered = listings
-    .filter((listing) => listing.status === "Active")
-    .filter((listing) => (category ? listing.categorySlug === category : true))
-    .filter((listing) =>
-      q
-        ? matchesSearch(
-            `${listing.title} ${listing.description} ${listing.location}`,
-            q
-          )
-        : true
-    )
-    .sort((left, right) => {
-      if (sort === "price-asc") return left.priceValue - right.priceValue;
-      if (sort === "price-desc") return right.priceValue - left.priceValue;
-      return 0;
-    });
+  const [categories, filtered] = await Promise.all([
+    fetchCategories(),
+    fetchListings({
+      search: q || undefined,
+      categorySlug: category || undefined,
+      sort,
+    }),
+  ]);
 
   return (
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
       <div className="mb-8 grid gap-6 xl:grid-cols-[0.74fr_0.26fr]">
         <div className="rounded-[2.25rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)] p-6">
           <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
-            Search MVP
+            Search API
           </p>
           <h1 className="mt-3 text-4xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
-            Browse active listings with category filters and Phase 1 sort options.
+            Browse live listings with real category filters and backend sorting.
           </h1>
           <p className="mt-4 text-base leading-8 text-[var(--muted)]">
-            Phase 1 search covers browse results, category filtering, basic
-            sorting, active listing enforcement, and a clear path into listing
-            detail and chat.
+            Results now come directly from the listings endpoint, including
+            category filtering, keyword search, and server-side sort order.
           </p>
         </div>
 
@@ -107,8 +106,8 @@ export default async function SearchPage(props: SearchPageProps) {
             <div className="mt-3 grid gap-2">
               {[
                 ["newest", "Newest"],
-                ["price-asc", "Price low to high"],
-                ["price-desc", "Price high to low"],
+                ["price_asc", "Price low to high"],
+                ["price_desc", "Price high to low"],
               ].map(([value, label]) => (
                 <Link
                   key={value}
@@ -126,7 +125,7 @@ export default async function SearchPage(props: SearchPageProps) {
           </div>
 
           <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] p-4 text-sm leading-7 text-[var(--muted)]">
-            Additional Phase 1 placeholders:
+            Additional marketplace filters can be layered on next:
             <br />
             price range
             <br />
@@ -154,9 +153,16 @@ export default async function SearchPage(props: SearchPageProps) {
           </div>
 
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {filtered.map((listing) => (
-              <ListingCard key={listing.id} listing={listing} compact />
-            ))}
+            {filtered.length ? (
+              filtered.map((listing) => (
+                <ListingCard key={listing.id} listing={listing} compact />
+              ))
+            ) : (
+              <div className="md:col-span-2 xl:col-span-3 rounded-[2rem] border border-dashed border-[var(--line)] bg-[rgba(255,255,255,0.7)] px-6 py-10 text-sm text-[var(--muted)]">
+                No listings matched this search. Try another keyword or reset the
+                category filter.
+              </div>
+            )}
           </div>
         </div>
       </div>

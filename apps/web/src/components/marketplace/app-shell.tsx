@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import type { SessionUser } from "@/lib/marketplace";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -19,7 +20,13 @@ function isActive(pathname: string, href: string) {
   return pathname.startsWith(href);
 }
 
-export function MarketplaceShell({ children }: { children: ReactNode }) {
+export function MarketplaceShell({
+  children,
+  user,
+}: {
+  children: ReactNode;
+  user: SessionUser | null;
+}) {
   const pathname = usePathname();
 
   return (
@@ -60,20 +67,55 @@ export function MarketplaceShell({ children }: { children: ReactNode }) {
             })}
           </nav>
 
-          <div className="flex items-center gap-2">
-            <Link
-              href="/login"
-              className="rounded-full border border-[var(--line)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-white"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/register"
-              className="rounded-full bg-[linear-gradient(135deg,#d95d39,#f08a49)] px-4 py-2 text-sm font-semibold text-white"
-            >
-              Create account
-            </Link>
-          </div>
+          {user ? (
+            <div className="flex items-center gap-3">
+              <Link
+                href="/profile"
+                aria-label="Open profile"
+                className={`flex h-11 w-11 items-center justify-center rounded-full border transition ${
+                  isActive(pathname, "/profile")
+                    ? "border-transparent bg-[var(--foreground)] text-[var(--surface)]"
+                    : "border-[var(--line)] bg-white text-[var(--foreground)] hover:bg-[rgba(31,107,90,0.08)]"
+                }`}
+                title="Profile"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                  aria-hidden="true"
+                >
+                  <path d="M18 20a6 6 0 0 0-12 0" />
+                  <circle cx="12" cy="8" r="4" />
+                </svg>
+              </Link>
+              <Link
+                href="/profile"
+                className="hidden rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[rgba(31,107,90,0.08)] sm:inline-flex"
+              >
+                {user.displayName}
+              </Link>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link
+                href="/login"
+                className="rounded-full border border-[var(--line)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-white"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/register"
+                className="rounded-full bg-[linear-gradient(135deg,#d95d39,#f08a49)] px-4 py-2 text-sm font-semibold text-white"
+              >
+                Create account
+              </Link>
+            </div>
+          )}
         </div>
 
         <div className="border-t border-[var(--line)] lg:hidden">
