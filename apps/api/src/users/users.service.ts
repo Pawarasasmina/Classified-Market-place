@@ -6,6 +6,7 @@ function sanitizeUser(user: {
   id: string;
   email: string;
   displayName: string;
+  passwordHash?: string | null;
   role: string;
   phone: string | null;
   phoneVerified: boolean;
@@ -14,7 +15,9 @@ function sanitizeUser(user: {
   createdAt: Date;
   updatedAt: Date;
 }) {
-  return user;
+  const { passwordHash: _passwordHash, ...safeUser } = user;
+
+  return safeUser;
 }
 
 @Injectable()
@@ -52,6 +55,23 @@ export class UsersService {
       ...sanitizeUser(user),
       listings: user.listings,
     };
+  }
+
+  async findChatUsers(currentUserId: string, roles?: string[]) {
+    const users = await this.prisma.user.findMany({
+      where: {
+        id: {
+          not: currentUserId,
+        },
+        ...(roles?.length ? { role: { in: roles } } : {}),
+      },
+      orderBy: {
+        displayName: 'asc',
+      },
+      take: 100,
+    });
+
+    return users.map((user) => sanitizeUser(user));
   }
 
   async updateCurrentUser(userId: string, updateUserDto: UpdateUserDto) {

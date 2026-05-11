@@ -13,7 +13,7 @@ import {
 } from "@/lib/marketplace-api";
 import { type FormActionState } from "@/lib/marketplace";
 import { requireSessionContext } from "@/lib/auth-dal";
-import { appendNextParam, getSafeNextPath } from "@/lib/redirects";
+import { getSafeNextPath } from "@/lib/redirects";
 import { clearAccessToken, setAccessToken } from "@/lib/session";
 
 const loginSchema = z.object({
@@ -178,11 +178,7 @@ export async function loginAction(
     const session = await loginUser(parsed.data);
     await setAccessToken(session.accessToken);
 
-    redirect(
-      session.user.phoneVerified
-        ? nextPath
-        : appendNextParam("/verify", nextPath)
-    );
+    redirect(nextPath);
   } catch (error) {
     return {
       message: getActionMessage(error, "We could not sign you in."),
@@ -216,11 +212,7 @@ export async function registerAction(
     });
     await setAccessToken(session.accessToken);
 
-    redirect(
-      session.user.phoneVerified
-        ? nextPath
-        : appendNextParam("/verify", nextPath)
-    );
+    redirect(nextPath);
   } catch (error) {
     return {
       message: getActionMessage(error, "We could not create your account."),
@@ -305,11 +297,7 @@ export async function createListingAction(
     };
   }
 
-  const { accessToken, user } = await requireSessionContext("/sell");
-
-  if (!user.phoneVerified) {
-    redirect(appendNextParam("/verify", "/sell"));
-  }
+  const { accessToken } = await requireSessionContext("/sell");
 
   try {
     const attributes = parseAttributes(formData);

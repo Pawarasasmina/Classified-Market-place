@@ -15,6 +15,42 @@ function toJsonValue(value: Record<string, unknown> | undefined) {
   return value as Prisma.InputJsonValue | undefined;
 }
 
+const safeSellerSelect = {
+  id: true,
+  email: true,
+  phone: true,
+  displayName: true,
+  emailVerified: true,
+  phoneVerified: true,
+  role: true,
+  reputationScore: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
+function withoutListHeavyAttributes<T extends { attributes: Prisma.JsonValue }>(
+  listing: T,
+) {
+  if (
+    !listing.attributes ||
+    typeof listing.attributes !== 'object' ||
+    Array.isArray(listing.attributes) ||
+    !('__photos' in listing.attributes)
+  ) {
+    return listing;
+  }
+
+  const { __photos: _photos, ...attributes } = listing.attributes as Record<
+    string,
+    unknown
+  >;
+
+  return {
+    ...listing,
+    attributes,
+  };
+}
+
 @Injectable()
 export class ListingsService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
@@ -139,15 +175,19 @@ export class ListingsService implements OnModuleInit {
           ? { price: 'desc' }
           : { createdAt: 'desc' };
 
-    return this.prisma.listing.findMany({
+    const listings = await this.prisma.listing.findMany({
       where,
       orderBy,
       take: query.take ?? 25,
       include: {
         category: true,
-        seller: true,
+        seller: {
+          select: safeSellerSelect,
+        },
       },
     });
+
+    return listings.map((listing) => withoutListHeavyAttributes(listing));
   }
 
   async findOne(id: string) {
@@ -155,7 +195,9 @@ export class ListingsService implements OnModuleInit {
       where: { id },
       include: {
         category: true,
-        seller: true,
+        seller: {
+          select: safeSellerSelect,
+        },
       },
     });
 
@@ -216,12 +258,14 @@ export class ListingsService implements OnModuleInit {
   }
 
   async findMine(userId: string) {
-    return this.prisma.listing.findMany({
+    const listings = await this.prisma.listing.findMany({
       where: { sellerId: userId },
       orderBy: { createdAt: 'desc' },
       include: {
         category: true,
       },
     });
+
+    return listings.map((listing) => withoutListHeavyAttributes(listing));
   }
 }
