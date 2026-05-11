@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
@@ -21,6 +23,19 @@ export class UsersController {
     @Body() updateUserDto: UpdateUserDto,
   ) {
     return this.usersService.updateCurrentUser(user.id, updateUserDto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'admin')
+  @Get('admin/chat-users')
+  findAdminChatUsers(@CurrentUser() user: { id: string }) {
+    return this.usersService.findChatUsers(user.id, ['USER', 'user']);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('support/admins')
+  findSupportAdmins(@CurrentUser() user: { id: string }) {
+    return this.usersService.findChatUsers(user.id, ['ADMIN', 'admin']);
   }
 
   @Get(':id')

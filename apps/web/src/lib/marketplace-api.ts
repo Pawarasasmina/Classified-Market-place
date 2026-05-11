@@ -9,7 +9,15 @@ import {
   type ApiListing,
   type ApiListingStatus,
   type ApiUser,
+  type MarketplaceListing,
+  type MarketplaceSeller,
 } from "@/lib/marketplace";
+import {
+  categories as phaseOneCategories,
+  getListingById,
+  getSellerById,
+  listings as phaseOneListings,
+} from "@/lib/phase1-data";
 
 export class MarketplaceApiError extends Error {
   constructor(
@@ -34,6 +42,69 @@ type AuthResponse = {
   accessToken: string;
   user: ApiUser;
 };
+
+function isApiUnavailable(error: unknown) {
+  return error instanceof MarketplaceApiError && error.status === 503;
+}
+
+function toPhaseOneMarketplaceListing(listing: (typeof phaseOneListings)[number]): MarketplaceListing {
+  const seller = getSellerById(listing.sellerId);
+
+  return {
+    ...listing,
+    sellerDisplayName: seller?.name,
+    sellerVerified: seller?.verified,
+    sellerJoinedLabel: seller?.joinedLabel,
+    sellerTotalListings: seller?.totalListings,
+  };
+}
+
+function filterPhaseOneListings(query: ListingQuery = {}): MarketplaceListing[] {
+  const search = query.search?.trim().toLowerCase();
+
+  return phaseOneListings
+    .filter((listing) => {
+      if (query.categorySlug && listing.categorySlug !== query.categorySlug) {
+        return false;
+      }
+
+      if (query.sellerId && listing.sellerId !== query.sellerId) {
+        return false;
+      }
+
+      if (query.status && listing.status.toUpperCase() !== query.status) {
+        return false;
+      }
+
+      if (!search) {
+        return true;
+      }
+
+      return [
+        listing.title,
+        listing.description,
+        listing.location,
+        listing.subcategory,
+        listing.categorySlug,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(search);
+    })
+    .sort((a, b) => {
+      if (query.sort === "price_asc") {
+        return a.priceValue - b.priceValue;
+      }
+
+      if (query.sort === "price_desc") {
+        return b.priceValue - a.priceValue;
+      }
+
+      return 0;
+    })
+    .slice(0, query.take ?? phaseOneListings.length)
+    .map(toPhaseOneMarketplaceListing);
+}
 
 function getApiBaseUrl() {
   return process.env.MARKETPLACE_API_URL ?? "http://127.0.0.1:3001";
@@ -62,10 +133,14 @@ async function apiRequest<T>(
     accessToken,
     headers,
     searchParams,
+    next,
     ...init
   }: RequestInit & {
     accessToken?: string;
     searchParams?: Record<string, string | number | undefined>;
+    next?: {
+      revalidate?: number;
+    };
   } = {}
 ) {
   const url = new URL(path, getApiBaseUrl());
@@ -83,9 +158,13 @@ async function apiRequest<T>(
   let response: Response;
 
   try {
+    const method = init.method?.toUpperCase() ?? "GET";
+    const cacheMode = accessToken || method !== "GET" ? "no-store" : "force-cache";
+
     response = await fetch(url, {
       ...init,
-      cache: "no-store",
+      cache: cacheMode,
+      ...(next && cacheMode !== "no-store" ? { next } : {}),
       headers: {
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         ...headers,
@@ -106,30 +185,56 @@ async function apiRequest<T>(
 }
 
 export async function fetchCategories() {
-  const categories = await apiRequest<ApiCategory[]>("/categories");
-  return categories.map(mapCategory);
+  try {
+    const categories = await apiRequest<ApiCategory[]>("/categories", {
+      next: { revalidate: 60 },
+    });
+    return categories.map(mapCategory);
+  } catch (error) {
+    if (isApiUnavailable(error)) {
+      return phaseOneCategories;
+    }
+
+    throw error;
+  }
 }
 
 export async function fetchListings(query: ListingQuery = {}) {
-  const listings = await apiRequest<ApiListing[]>("/listings", {
-    searchParams: {
-      search: query.search,
-      categorySlug: query.categorySlug,
-      sellerId: query.sellerId,
-      status: query.status,
-      sort: query.sort,
-      take: query.take,
-    },
-  });
+  try {
+    const listings = await apiRequest<ApiListing[]>("/listings", {
+      next: { revalidate: 20 },
+      searchParams: {
+        search: query.search,
+        categorySlug: query.categorySlug,
+        sellerId: query.sellerId,
+        status: query.status,
+        sort: query.sort,
+        take: query.take,
+      },
+    });
 
-  return listings.map(mapListing);
+    return listings.map(mapListing);
+  } catch (error) {
+    if (isApiUnavailable(error)) {
+      return filterPhaseOneListings(query);
+    }
+
+    throw error;
+  }
 }
 
 export async function fetchListing(listingId: string) {
   try {
-    const listing = await apiRequest<ApiListing>(`/listings/${listingId}`);
+    const listing = await apiRequest<ApiListing>(`/listings/${listingId}`, {
+      next: { revalidate: 20 },
+    });
     return mapListing(listing);
   } catch (error) {
+    if (isApiUnavailable(error)) {
+      const listing = getListingById(listingId);
+      return listing ? toPhaseOneMarketplaceListing(listing) : null;
+    }
+
     if (error instanceof MarketplaceApiError && error.status === 404) {
       return null;
     }
@@ -148,9 +253,25 @@ export async function fetchMyListings(accessToken: string) {
 
 export async function fetchSellerProfile(userId: string) {
   try {
-    const profile = await apiRequest<ApiUser>(`/users/${userId}`);
+    const profile = await apiRequest<ApiUser>(`/users/${userId}`, {
+      next: { revalidate: 60 },
+    });
     return mapSeller(profile);
   } catch (error) {
+    if (isApiUnavailable(error)) {
+      const seller = getSellerById(userId);
+
+      return seller
+        ? ({
+            id: seller.id,
+            name: seller.name,
+            verified: seller.verified,
+            joinedLabel: seller.joinedLabel,
+            totalListings: seller.totalListings,
+          } satisfies MarketplaceSeller)
+        : null;
+    }
+
     if (error instanceof MarketplaceApiError && error.status === 404) {
       return null;
     }

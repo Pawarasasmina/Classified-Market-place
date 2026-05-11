@@ -3,6 +3,8 @@
 :root {
   --background: #fbf4ea;
   --foreground: #1b1714;
+  --font-manrope: Arial, Helvetica, sans-serif;
+  --font-space-grotesk: Arial, Helvetica, sans-serif;
   --surface: #fffaf4;
   --surface-strong: #f7e2c7;
   --muted: #655b53;

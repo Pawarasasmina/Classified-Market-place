@@ -17,7 +17,10 @@ export const getSessionContext = cache(async () => {
     const user = await fetchCurrentUser(accessToken);
     return { accessToken, user };
   } catch (error) {
-    if (error instanceof MarketplaceApiError && error.status === 401) {
+    if (
+      error instanceof MarketplaceApiError &&
+      (error.status === 401 || error.status === 503)
+    ) {
       return null;
     }
 
@@ -41,11 +44,5 @@ export async function requireSessionContext(nextPath = "/") {
 }
 
 export async function requireVerifiedSession(nextPath = "/sell") {
-  const session = await requireSessionContext(nextPath);
-
-  if (!session.user.phoneVerified) {
-    redirect(appendNextParam("/verify", nextPath));
-  }
-
-  return session;
+  return requireSessionContext(nextPath);
 }

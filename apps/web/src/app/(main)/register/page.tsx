@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { RegisterForm } from "@/components/marketplace/register-form";
 import { getSessionUser } from "@/lib/auth-dal";
-import { appendNextParam, getSafeNextPath } from "@/lib/redirects";
+import { getSafeNextPath } from "@/lib/redirects";
 
 type RegisterPageProps = {
   searchParams: Promise<{
@@ -15,7 +15,7 @@ export default async function RegisterPage(props: RegisterPageProps) {
   const user = await getSessionUser();
 
   if (user) {
-    redirect(user.phoneVerified ? nextPath : appendNextParam("/verify", nextPath));
+    redirect(nextPath);
   }
 
   return (
