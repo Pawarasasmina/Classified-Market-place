@@ -1,6 +1,9 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import { AuthService } from './auth.service';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import { LoginDto } from './dto/login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RequestPhoneOtpDto } from './dto/request-phone-otp.dto';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyPhoneDto } from './dto/verify-phone.dto';
@@ -12,13 +15,34 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+  register(@Body() registerDto: RegisterDto, @Req() request: Request) {
+    return this.authService.register(registerDto, this.getTokenContext(request));
   }
 
   @Post('login')
-  login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  login(@Body() loginDto: LoginDto, @Req() request: Request) {
+    return this.authService.login(loginDto, this.getTokenContext(request));
+  }
+
+  @Post('google')
+  googleLogin(@Body() googleLoginDto: GoogleLoginDto, @Req() request: Request) {
+    return this.authService.googleLogin(
+      googleLoginDto,
+      this.getTokenContext(request),
+    );
+  }
+
+  @Post('refresh')
+  refresh(@Body() refreshTokenDto: RefreshTokenDto, @Req() request: Request) {
+    return this.authService.refresh(
+      refreshTokenDto,
+      this.getTokenContext(request),
+    );
+  }
+
+  @Post('logout')
+  logout(@Body() refreshTokenDto: RefreshTokenDto) {
+    return this.authService.logout(refreshTokenDto);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -37,5 +61,12 @@ export class AuthController {
     @Body() verifyPhoneDto: VerifyPhoneDto,
   ) {
     return this.authService.verifyPhone(user.id, verifyPhoneDto);
+  }
+
+  private getTokenContext(request: Request) {
+    return {
+      userAgent: request.get('user-agent'),
+      ipAddress: request.ip,
+    };
   }
 }

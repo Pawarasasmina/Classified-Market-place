@@ -1,14 +1,18 @@
 import {
   IsEnum,
+  IsArray,
   IsNotEmpty,
   IsNumber,
   IsObject,
   IsOptional,
   IsString,
   Min,
+  ArrayMaxSize,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ListingStatus } from '@prisma/client';
+import { ListingImageInputDto } from './listing-image-input.dto';
 
 export class CreateListingDto {
   @IsString()
@@ -43,4 +47,11 @@ export class CreateListingDto {
   @IsOptional()
   @IsObject()
   attributes?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => ListingImageInputDto)
+  images?: ListingImageInputDto[];
 }

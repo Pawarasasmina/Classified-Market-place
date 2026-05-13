@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { fetchCategories, fetchListings } from "@/lib/marketplace-api";
 
@@ -7,164 +6,76 @@ type SearchPageProps = {
     q?: string;
     category?: string;
     sort?: string;
+    location?: string;
+    minPrice?: string;
+    maxPrice?: string;
   }>;
 };
 
 function normalizeSort(sort: string | undefined) {
-  if (sort === "price-asc" || sort === "price_asc") {
-    return "price_asc" as const;
-  }
-
-  if (sort === "price-desc" || sort === "price_desc") {
-    return "price_desc" as const;
-  }
-
+  if (sort === "price_asc") return "price_asc" as const;
+  if (sort === "price_desc") return "price_desc" as const;
   return "newest" as const;
+}
+
+function numberParam(value: string | undefined) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : undefined;
 }
 
 export default async function SearchPage(props: SearchPageProps) {
   const searchParams = await props.searchParams;
   const q = searchParams.q ?? "";
   const category = searchParams.category ?? "";
+  const location = searchParams.location ?? "";
   const sort = normalizeSort(searchParams.sort);
-
-  const [categories, filtered] = await Promise.all([
+  const [categories, listings] = await Promise.all([
     fetchCategories(),
     fetchListings({
       search: q || undefined,
       categorySlug: category || undefined,
+      location: location || undefined,
+      minPrice: numberParam(searchParams.minPrice),
+      maxPrice: numberParam(searchParams.maxPrice),
       sort,
     }),
   ]);
 
   return (
-    <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
-      <div className="mb-8 grid gap-6 xl:grid-cols-[0.74fr_0.26fr]">
-        <div className="rounded-[2.25rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)] p-6">
-          <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
-            Search API
-          </p>
-          <h1 className="mt-3 text-4xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
-            Browse live listings with real category filters and backend sorting.
-          </h1>
-          <p className="mt-4 text-base leading-8 text-[var(--muted)]">
-            Results now come directly from the listings endpoint, including
-            category filtering, keyword search, and server-side sort order.
-          </p>
-        </div>
-
-        <div className="rounded-[2.25rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)] p-6">
-          <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
-            Result summary
-          </p>
-          <p className="mt-3 text-3xl font-bold text-[var(--foreground)]">
-            {filtered.length}
-          </p>
-          <p className="mt-2 text-sm text-[var(--muted)]">
-            active listings match your current filters
-          </p>
-        </div>
+    <div className="page grid gap-6">
+      <div>
+        <h1 className="text-2xl font-bold">Search Results</h1>
+        <p className="mt-2 text-slate-600">{listings.length} active listings found.</p>
       </div>
 
-      <div className="grid gap-8 xl:grid-cols-[0.24fr_0.76fr]">
-        <aside className="space-y-5 rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)] p-5">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-              Category
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Link
-                href="/search"
-                className={`rounded-full px-4 py-2 text-sm font-semibold ${
-                  category === ""
-                    ? "bg-[var(--foreground)] text-[var(--surface)]"
-                    : "border border-[var(--line)] bg-white text-[var(--foreground)]"
-                }`}
-              >
-                All
-              </Link>
-              {categories.map((item) => (
-                <Link
-                  key={item.slug}
-                  href={`/search?category=${item.slug}`}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold ${
-                    category === item.slug
-                      ? "bg-[var(--foreground)] text-[var(--surface)]"
-                      : "border border-[var(--line)] bg-white text-[var(--foreground)]"
-                  }`}
-                >
-                  {item.name}
-                </Link>
-              ))}
-            </div>
-          </div>
+      <form className="panel grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <input name="q" defaultValue={q} placeholder="Keyword" className="rounded-md border border-slate-300 px-3 py-2 text-sm lg:col-span-2" />
+        <select name="category" defaultValue={category} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+          <option value="">All categories</option>
+          {categories.map((item) => (
+            <option key={item.slug} value={item.slug}>
+              {item.parentSlug ? "- " : ""}
+              {item.name}
+            </option>
+          ))}
+        </select>
+        <input name="location" defaultValue={location} placeholder="Location" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        <select name="sort" defaultValue={sort} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+          <option value="newest">Newest</option>
+          <option value="price_asc">Price low to high</option>
+          <option value="price_desc">Price high to low</option>
+        </select>
+        <button className="action-primary px-4 py-2 text-sm font-semibold">
+          Apply
+        </button>
+      </form>
 
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-              Sort
-            </p>
-            <div className="mt-3 grid gap-2">
-              {[
-                ["newest", "Newest"],
-                ["price_asc", "Price low to high"],
-                ["price_desc", "Price high to low"],
-              ].map(([value, label]) => (
-                <Link
-                  key={value}
-                  href={`/search${category ? `?category=${category}&sort=${value}` : `?sort=${value}`}`}
-                  className={`rounded-[1.25rem] px-4 py-3 text-sm font-semibold ${
-                    sort === value
-                      ? "bg-[var(--foreground)] text-[var(--surface)]"
-                      : "border border-[var(--line)] bg-white text-[var(--foreground)]"
-                  }`}
-                >
-                  {label}
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] p-4 text-sm leading-7 text-[var(--muted)]">
-            Additional marketplace filters can be layered on next:
-            <br />
-            price range
-            <br />
-            distance filter
-            <br />
-            posting date
-            <br />
-            saved search alerts
-          </div>
-        </aside>
-
-        <div className="space-y-5">
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)] p-5">
-            <div className="flex flex-wrap gap-3">
-              <span className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm text-[var(--muted)]">
-                Query: {q || "none"}
-              </span>
-              <span className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm text-[var(--muted)]">
-                Category: {category || "all"}
-              </span>
-              <span className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm text-[var(--muted)]">
-                Sort: {sort}
-              </span>
-            </div>
-          </div>
-
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {filtered.length ? (
-              filtered.map((listing) => (
-                <ListingCard key={listing.id} listing={listing} compact />
-              ))
-            ) : (
-              <div className="md:col-span-2 xl:col-span-3 rounded-[2rem] border border-dashed border-[var(--line)] bg-[rgba(255,255,255,0.7)] px-6 py-10 text-sm text-[var(--muted)]">
-                No listings matched this search. Try another keyword or reset the
-                category filter.
-              </div>
-            )}
-          </div>
-        </div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {listings.length ? (
+          listings.map((listing) => <ListingCard key={listing.id} listing={listing} compact />)
+        ) : (
+          <div className="panel md:col-span-2 lg:col-span-3">No active listings matched this search.</div>
+        )}
       </div>
     </div>
   );

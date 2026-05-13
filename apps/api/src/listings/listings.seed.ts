@@ -2,12 +2,22 @@ import { ListingStatus, Prisma } from '@prisma/client';
 
 export const demoSellers = [
   {
+    email: 'admin@classified.local',
+    displayName: 'Marketplace Admin',
+    phone: '+971500000000',
+    phoneVerified: true,
+    emailVerified: true,
+    role: 'ADMIN',
+    password: 'Admin123!',
+  },
+  {
     email: 'samira@classified.local',
     displayName: 'Samira Hassan',
     phone: '+971501111111',
     phoneVerified: true,
     emailVerified: true,
     role: 'USER',
+    password: 'Password123!',
   },
   {
     email: 'amira@classified.local',
@@ -16,6 +26,7 @@ export const demoSellers = [
     phoneVerified: true,
     emailVerified: true,
     role: 'USER',
+    password: 'Password123!',
   },
   {
     email: 'faisal@classified.local',
@@ -24,13 +35,14 @@ export const demoSellers = [
     phoneVerified: true,
     emailVerified: true,
     role: 'USER',
+    password: 'Password123!',
   },
 ] as const;
 
 export const defaultListings = [
   {
     sellerEmail: 'samira@classified.local',
-    categorySlug: 'motors',
+    categorySlug: 'cars',
     title: '2022 Toyota Camry SE',
     description:
       'Single-owner Camry in excellent condition with full service history, lane assist, and Apple CarPlay.',
@@ -46,10 +58,13 @@ export const defaultListings = [
       transmission: 'Automatic',
       condition: 'Used',
     },
+    imageUrls: [
+      'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?auto=format&fit=crop&w=900&q=80',
+    ],
   },
   {
     sellerEmail: 'amira@classified.local',
-    categorySlug: 'property',
+    categorySlug: 'apartments',
     title: '2BR Marina apartment with balcony',
     description:
       'Bright two-bedroom apartment with balcony, pool access, covered parking, and a short walk to the tram.',
@@ -64,6 +79,9 @@ export const defaultListings = [
       area: 1240,
       furnished: true,
     },
+    imageUrls: [
+      'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=900&q=80',
+    ],
   },
   {
     sellerEmail: 'faisal@classified.local',
@@ -81,6 +99,9 @@ export const defaultListings = [
       condition: 'Like new',
       warranty: false,
     },
+    imageUrls: [
+      'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=900&q=80',
+    ],
   },
   {
     sellerEmail: 'samira@classified.local',
@@ -97,6 +118,9 @@ export const defaultListings = [
       onsite: true,
       availability: 'Today',
     },
+    imageUrls: [
+      'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=900&q=80',
+    ],
   },
   {
     sellerEmail: 'samira@classified.local',
@@ -113,5 +137,8 @@ export const defaultListings = [
       experience: 'Mid',
       salary: 9000,
     },
+    imageUrls: [
+      'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=900&q=80',
+    ],
   },
 ] as const;

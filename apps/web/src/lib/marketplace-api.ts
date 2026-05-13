@@ -9,15 +9,7 @@ import {
   type ApiListing,
   type ApiListingStatus,
   type ApiUser,
-  type MarketplaceListing,
-  type MarketplaceSeller,
 } from "@/lib/marketplace";
-import {
-  categories as phaseOneCategories,
-  getListingById,
-  getSellerById,
-  listings as phaseOneListings,
-} from "@/lib/phase1-data";
 
 export class MarketplaceApiError extends Error {
   constructor(
@@ -34,77 +26,36 @@ type ListingQuery = {
   categorySlug?: string;
   sellerId?: string;
   status?: ApiListingStatus;
+  location?: string;
+  minPrice?: number;
+  maxPrice?: number;
   sort?: "newest" | "price_asc" | "price_desc";
   take?: number;
 };
 
 type AuthResponse = {
   accessToken: string;
+  refreshToken: string;
   user: ApiUser;
 };
 
-function isApiUnavailable(error: unknown) {
-  return error instanceof MarketplaceApiError && error.status === 503;
-}
+type ListingImagePayload = {
+  url: string;
+  altText?: string;
+  isPrimary?: boolean;
+};
 
-function toPhaseOneMarketplaceListing(listing: (typeof phaseOneListings)[number]): MarketplaceListing {
-  const seller = getSellerById(listing.sellerId);
-
-  return {
-    ...listing,
-    sellerDisplayName: seller?.name,
-    sellerVerified: seller?.verified,
-    sellerJoinedLabel: seller?.joinedLabel,
-    sellerTotalListings: seller?.totalListings,
-  };
-}
-
-function filterPhaseOneListings(query: ListingQuery = {}): MarketplaceListing[] {
-  const search = query.search?.trim().toLowerCase();
-
-  return phaseOneListings
-    .filter((listing) => {
-      if (query.categorySlug && listing.categorySlug !== query.categorySlug) {
-        return false;
-      }
-
-      if (query.sellerId && listing.sellerId !== query.sellerId) {
-        return false;
-      }
-
-      if (query.status && listing.status.toUpperCase() !== query.status) {
-        return false;
-      }
-
-      if (!search) {
-        return true;
-      }
-
-      return [
-        listing.title,
-        listing.description,
-        listing.location,
-        listing.subcategory,
-        listing.categorySlug,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(search);
-    })
-    .sort((a, b) => {
-      if (query.sort === "price_asc") {
-        return a.priceValue - b.priceValue;
-      }
-
-      if (query.sort === "price_desc") {
-        return b.priceValue - a.priceValue;
-      }
-
-      return 0;
-    })
-    .slice(0, query.take ?? phaseOneListings.length)
-    .map(toPhaseOneMarketplaceListing);
-}
+type ListingPayload = {
+  categorySlug: string;
+  title: string;
+  description: string;
+  price: number;
+  currency: string;
+  location: string;
+  status?: ApiListingStatus;
+  attributes: Record<string, unknown>;
+  images?: ListingImagePayload[];
+};
 
 function getApiBaseUrl() {
   return process.env.MARKETPLACE_API_URL ?? "http://127.0.0.1:3001";
@@ -133,14 +84,10 @@ async function apiRequest<T>(
     accessToken,
     headers,
     searchParams,
-    next,
     ...init
   }: RequestInit & {
     accessToken?: string;
     searchParams?: Record<string, string | number | undefined>;
-    next?: {
-      revalidate?: number;
-    };
   } = {}
 ) {
   const url = new URL(path, getApiBaseUrl());
@@ -158,13 +105,9 @@ async function apiRequest<T>(
   let response: Response;
 
   try {
-    const method = init.method?.toUpperCase() ?? "GET";
-    const cacheMode = accessToken || method !== "GET" ? "no-store" : "force-cache";
-
     response = await fetch(url, {
       ...init,
-      cache: cacheMode,
-      ...(next && cacheMode !== "no-store" ? { next } : {}),
+      cache: "no-store",
       headers: {
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         ...headers,
@@ -172,7 +115,7 @@ async function apiRequest<T>(
     });
   } catch {
     throw new MarketplaceApiError(
-      `Marketplace API is unavailable. Start the API server and confirm it is reachable at ${getApiBaseUrl()}.`,
+      `Marketplace API is unavailable at ${getApiBaseUrl()}.`,
       503
     );
   }
@@ -181,60 +124,122 @@ async function apiRequest<T>(
     throw new MarketplaceApiError(await parseErrorMessage(response), response.status);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return (await response.json()) as T;
 }
 
-export async function fetchCategories() {
-  try {
-    const categories = await apiRequest<ApiCategory[]>("/categories", {
-      next: { revalidate: 60 },
-    });
-    return categories.map(mapCategory);
-  } catch (error) {
-    if (isApiUnavailable(error)) {
-      return phaseOneCategories;
-    }
+function mapAuthResponse(response: AuthResponse) {
+  return {
+    accessToken: response.accessToken,
+    refreshToken: response.refreshToken,
+    user: mapSessionUser(response.user),
+  };
+}
 
-    throw error;
+export async function fetchCategories() {
+  const categories = await apiRequest<ApiCategory[]>("/categories");
+  return categories.map(mapCategory);
+}
+
+export async function fetchAdminCategories(accessToken: string) {
+  const categories = await apiRequest<ApiCategory[]>("/categories/admin/all", {
+    accessToken,
+  });
+  return categories.map(mapCategory);
+}
+
+export async function createCategory(
+  accessToken: string,
+  payload: {
+    name: string;
+    slug?: string;
+    description?: string;
+    parentSlug?: string;
   }
+) {
+  const category = await apiRequest<ApiCategory>("/categories/admin", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return mapCategory(category);
+}
+
+export async function updateCategory(
+  accessToken: string,
+  slug: string,
+  payload: {
+    name?: string;
+    description?: string;
+    parentSlug?: string;
+    isActive?: boolean;
+  }
+) {
+  const category = await apiRequest<ApiCategory>(`/categories/admin/${slug}`, {
+    method: "PATCH",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return mapCategory(category);
+}
+
+export async function deleteCategory(accessToken: string, slug: string) {
+  const category = await apiRequest<ApiCategory>(`/categories/admin/${slug}`, {
+    method: "DELETE",
+    accessToken,
+  });
+  return mapCategory(category);
 }
 
 export async function fetchListings(query: ListingQuery = {}) {
-  try {
-    const listings = await apiRequest<ApiListing[]>("/listings", {
-      next: { revalidate: 20 },
-      searchParams: {
-        search: query.search,
-        categorySlug: query.categorySlug,
-        sellerId: query.sellerId,
-        status: query.status,
-        sort: query.sort,
-        take: query.take,
-      },
-    });
+  const listings = await apiRequest<ApiListing[]>("/listings", {
+    searchParams: {
+      search: query.search,
+      categorySlug: query.categorySlug,
+      sellerId: query.sellerId,
+      location: query.location,
+      minPrice: query.minPrice,
+      maxPrice: query.maxPrice,
+      sort: query.sort,
+      take: query.take,
+    },
+  });
 
-    return listings.map(mapListing);
-  } catch (error) {
-    if (isApiUnavailable(error)) {
-      return filterPhaseOneListings(query);
-    }
+  return listings.map(mapListing);
+}
 
-    throw error;
-  }
+export async function fetchAdminListings(
+  accessToken: string,
+  query: ListingQuery = {}
+) {
+  const listings = await apiRequest<ApiListing[]>("/listings/admin/all", {
+    accessToken,
+    searchParams: {
+      search: query.search,
+      categorySlug: query.categorySlug,
+      sellerId: query.sellerId,
+      status: query.status,
+      location: query.location,
+      minPrice: query.minPrice,
+      maxPrice: query.maxPrice,
+      sort: query.sort,
+      take: query.take,
+    },
+  });
+
+  return listings.map(mapListing);
 }
 
 export async function fetchListing(listingId: string) {
   try {
-    const listing = await apiRequest<ApiListing>(`/listings/${listingId}`, {
-      next: { revalidate: 20 },
-    });
+    const listing = await apiRequest<ApiListing>(`/listings/${listingId}`);
     return mapListing(listing);
   } catch (error) {
-    if (isApiUnavailable(error)) {
-      const listing = getListingById(listingId);
-      return listing ? toPhaseOneMarketplaceListing(listing) : null;
-    }
-
     if (error instanceof MarketplaceApiError && error.status === 404) {
       return null;
     }
@@ -253,25 +258,9 @@ export async function fetchMyListings(accessToken: string) {
 
 export async function fetchSellerProfile(userId: string) {
   try {
-    const profile = await apiRequest<ApiUser>(`/users/${userId}`, {
-      next: { revalidate: 60 },
-    });
+    const profile = await apiRequest<ApiUser>(`/users/${userId}`);
     return mapSeller(profile);
   } catch (error) {
-    if (isApiUnavailable(error)) {
-      const seller = getSellerById(userId);
-
-      return seller
-        ? ({
-            id: seller.id,
-            name: seller.name,
-            verified: seller.verified,
-            joinedLabel: seller.joinedLabel,
-            totalListings: seller.totalListings,
-          } satisfies MarketplaceSeller)
-        : null;
-    }
-
     if (error instanceof MarketplaceApiError && error.status === 404) {
       return null;
     }
@@ -293,14 +282,15 @@ export async function updateCurrentUser(
   payload: {
     displayName?: string;
     phone?: string;
+    avatarUrl?: string;
+    bio?: string;
+    location?: string;
   }
 ) {
   const user = await apiRequest<ApiUser>("/users/me", {
     method: "PATCH",
     accessToken,
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
@@ -308,18 +298,13 @@ export async function updateCurrentUser(
 }
 
 export async function loginUser(payload: { email: string; password: string }) {
-  const response = await apiRequest<AuthResponse>("/auth/login", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return {
-    accessToken: response.accessToken,
-    user: mapSessionUser(response.user),
-  };
+  return mapAuthResponse(
+    await apiRequest<AuthResponse>("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+  );
 }
 
 export async function registerUser(payload: {
@@ -328,18 +313,46 @@ export async function registerUser(payload: {
   phone?: string;
   password: string;
 }) {
-  const response = await apiRequest<AuthResponse>("/auth/register", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  return mapAuthResponse(
+    await apiRequest<AuthResponse>("/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+  );
+}
 
-  return {
-    accessToken: response.accessToken,
-    user: mapSessionUser(response.user),
-  };
+export async function googleLoginUser(payload: {
+  idToken?: string;
+  email?: string;
+  displayName?: string;
+  googleId?: string;
+}) {
+  return mapAuthResponse(
+    await apiRequest<AuthResponse>("/auth/google", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+  );
+}
+
+export async function refreshSession(refreshToken: string) {
+  return mapAuthResponse(
+    await apiRequest<AuthResponse>("/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    })
+  );
+}
+
+export async function logoutSession(refreshToken: string) {
+  return apiRequest<{ message: string }>("/auth/logout", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken }),
+  });
 }
 
 export async function verifyPhone(
@@ -354,9 +367,7 @@ export async function verifyPhone(
     {
       method: "POST",
       accessToken,
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }
   );
@@ -380,34 +391,60 @@ export async function requestPhoneOtp(
   }>("/auth/request-phone-otp", {
     method: "POST",
     accessToken,
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 }
 
-export async function createListing(
-  accessToken: string,
-  payload: {
-    categorySlug: string;
-    title: string;
-    description: string;
-    price: number;
-    currency: string;
-    location: string;
-    status: ApiListingStatus;
-    attributes: Record<string, unknown>;
-  }
-) {
+export async function createListing(accessToken: string, payload: ListingPayload) {
   const listing = await apiRequest<ApiListing>("/listings", {
     method: "POST",
     accessToken,
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
+  return mapListing(listing);
+}
+
+export async function updateListing(
+  accessToken: string,
+  listingId: string,
+  payload: Partial<ListingPayload>
+) {
+  const listing = await apiRequest<ApiListing>(`/listings/${listingId}`, {
+    method: "PATCH",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return mapListing(listing);
+}
+
+export async function deleteListing(accessToken: string, listingId: string) {
+  const listing = await apiRequest<ApiListing>(`/listings/${listingId}`, {
+    method: "DELETE",
+    accessToken,
+  });
+
+  return mapListing(listing);
+}
+
+export async function moderateListing(
+  accessToken: string,
+  listingId: string,
+  status: ApiListingStatus
+) {
+  const listing = await apiRequest<ApiListing>(
+    `/listings/admin/${listingId}/moderate`,
+    {
+      method: "PATCH",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    }
+  );
 
   return mapListing(listing);
 }

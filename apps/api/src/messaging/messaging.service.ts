@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { MessageType, OfferStatus, Prisma } from '@prisma/client';
@@ -57,6 +58,8 @@ function isAdminRole(role: string) {
 
 @Injectable()
 export class MessagingService {
+  private readonly logger = new Logger(MessagingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly encryption: MessagingEncryptionService,
@@ -81,13 +84,41 @@ export class MessagingService {
     return participant;
   }
 
-  private serializeMessage(message: Prisma.MessageGetPayload<{ include: typeof messageInclude }>) {
-    const decrypted = this.encryption.decrypt({
-      encryptedBody: message.encryptedBody,
-      encryptedPayload: message.encryptedPayload,
-      encryptionIv: message.encryptionIv,
-      encryptionAuthTag: message.encryptionAuthTag,
-    });
+  private decryptMessage(
+    message: Prisma.MessageGetPayload<{ include: typeof messageInclude }>,
+  ) {
+    if (!message.encryptedBody && message.legacyBody) {
+      return {
+        body: message.legacyBody,
+        payload: null,
+      };
+    }
+
+    try {
+      return this.encryption.decrypt({
+        encryptedBody: message.encryptedBody,
+        encryptedPayload: message.encryptedPayload,
+        encryptionIv: message.encryptionIv,
+        encryptionAuthTag: message.encryptionAuthTag,
+      });
+    } catch (error) {
+      this.logger.warn(`Could not decrypt message ${message.id}`);
+
+      return {
+        body:
+          message.legacyBody ??
+          (message.type === MessageType.TEXT
+            ? 'Message could not be decrypted.'
+            : null),
+        payload: null,
+      };
+    }
+  }
+
+  private serializeMessage(
+    message: Prisma.MessageGetPayload<{ include: typeof messageInclude }>,
+  ) {
+    const decrypted = this.decryptMessage(message);
 
     return {
       id: message.id,
@@ -120,7 +151,9 @@ export class MessagingService {
   }
 
   private serializeConversation(
-    conversation: Prisma.ConversationGetPayload<{ include: typeof conversationInclude }>,
+    conversation: Prisma.ConversationGetPayload<{
+      include: typeof conversationInclude;
+    }>,
     currentUserId: string,
   ) {
     const currentParticipant = conversation.participants.find(
@@ -153,7 +186,9 @@ export class MessagingService {
       })),
       title:
         conversation.listing?.title ??
-        otherParticipants.map((participant) => participant.user.displayName).join(', ') ??
+        otherParticipants
+          .map((participant) => participant.user.displayName)
+          .join(', ') ??
         'Conversation',
       lastMessage,
       updatedAt: conversation.updatedAt,
@@ -249,7 +284,9 @@ export class MessagingService {
         !isAdminRole(currentUser.role) &&
         !isAdminRole(directParticipantRole)
       ) {
-        throw new ForbiddenException('Direct conversations must include an admin');
+        throw new ForbiddenException(
+          'Direct conversations must include an admin',
+        );
       }
 
       const directParticipantIds = [...participantIds];
@@ -274,7 +311,10 @@ export class MessagingService {
         include: conversationInclude,
       });
 
-      if (existing && existing.participants.length === directParticipantIds.length) {
+      if (
+        existing &&
+        existing.participants.length === directParticipantIds.length
+      ) {
         return this.serializeConversation(existing, userId);
       }
     }
@@ -310,7 +350,11 @@ export class MessagingService {
     return messages.map((message) => this.serializeMessage(message));
   }
 
-  async sendMessage(userId: string, conversationId: string, dto: SendMessageDto) {
+  async sendMessage(
+    userId: string,
+    conversationId: string,
+    dto: SendMessageDto,
+  ) {
     await this.assertParticipant(conversationId, userId);
 
     const body = dto.body?.trim() || null;
@@ -331,7 +375,8 @@ export class MessagingService {
             ? new Prisma.Decimal(dto.offerAmount)
             : undefined,
         offerCurrency: dto.offerCurrency,
-        offerStatus: dto.type === MessageType.OFFER ? OfferStatus.PENDING : undefined,
+        offerStatus:
+          dto.type === MessageType.OFFER ? OfferStatus.PENDING : undefined,
         readReceipts: {
           create: {
             userId,
@@ -428,7 +473,9 @@ export class MessagingService {
     await this.assertParticipant(message.conversationId, userId);
 
     if (message.senderId === userId) {
-      throw new ForbiddenException('Offer senders cannot accept or decline their own offer');
+      throw new ForbiddenException(
+        'Offer senders cannot accept or decline their own offer',
+      );
     }
 
     const updated = await this.prisma.message.update({

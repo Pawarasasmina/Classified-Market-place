@@ -27,6 +27,10 @@ export type ApiCategory = {
     fields?: ApiCategoryField[] | null;
   } | null;
   isActive: boolean;
+  parentId?: string | null;
+  parent?: ApiCategory | null;
+  children?: ApiCategory[];
+  sortOrder?: number;
   createdAt?: string;
   updatedAt?: string;
   _count?: {
@@ -37,7 +41,11 @@ export type ApiCategory = {
 export type ApiUser = {
   id: string;
   email: string;
+  googleId?: string | null;
   displayName: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  location: string | null;
   role: string;
   phone: string | null;
   phoneVerified: boolean;
@@ -49,11 +57,21 @@ export type ApiUser = {
 };
 
 export type ApiListingStatus =
-  | "DRAFT"
+  | "PENDING"
   | "ACTIVE"
+  | "REJECTED"
+  | "DELETED"
   | "EXPIRED"
   | "SOLD"
-  | "REMOVED";
+  | "DRAFT";
+
+export type ApiListingImage = {
+  id: string;
+  url: string;
+  altText: string | null;
+  sortOrder: number;
+  isPrimary: boolean;
+};
 
 export type ApiListing = {
   id: string;
@@ -70,6 +88,7 @@ export type ApiListing = {
   categoryId: string;
   category?: ApiCategory;
   seller?: ApiUser;
+  images?: ApiListingImage[];
 };
 
 export type SessionUser = {
@@ -78,6 +97,9 @@ export type SessionUser = {
   displayName: string;
   role: string;
   phone: string | null;
+  avatarUrl: string | null;
+  bio: string | null;
+  location: string | null;
   phoneVerified: boolean;
   emailVerified: boolean;
   reputationScore: number;
@@ -93,6 +115,9 @@ export type MarketplaceCategory = {
   icon: string;
   countLabel: string;
   schema: AttributeField[];
+  parentSlug?: string | null;
+  children?: MarketplaceCategory[];
+  isActive: boolean;
 };
 
 export type MarketplaceListing = {
@@ -105,7 +130,7 @@ export type MarketplaceListing = {
   priceValue: number;
   location: string;
   condition: string;
-  status: "Draft" | "Active" | "Expired" | "Sold" | "Removed";
+  status: "Pending" | "Active" | "Rejected" | "Deleted" | "Expired" | "Sold" | "Draft";
   postedLabel: string;
   description: string;
   featureBullets: string[];
@@ -115,7 +140,7 @@ export type MarketplaceListing = {
   sellerJoinedLabel?: string;
   sellerTotalListings?: number;
   imageUrl?: string;
-  imageUrls?: string[];
+  imageUrls: string[];
   imagePalette: string[];
   attributes: Record<string, string | number | boolean>;
   viewCount: string;
@@ -126,6 +151,9 @@ export type MarketplaceListing = {
 export type MarketplaceSeller = {
   id: string;
   name: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  location?: string | null;
   verified: boolean;
   joinedLabel: string;
   totalListings: number;
@@ -355,14 +383,18 @@ function buildFeatureBullets(attributes: Record<string, string | number | boolea
 
 function humanizeListingStatus(status: ApiListingStatus): MarketplaceListing["status"] {
   switch (status) {
+    case "PENDING":
+      return "Pending";
     case "ACTIVE":
       return "Active";
+    case "REJECTED":
+      return "Rejected";
+    case "DELETED":
+      return "Deleted";
     case "EXPIRED":
       return "Expired";
     case "SOLD":
       return "Sold";
-    case "REMOVED":
-      return "Removed";
     default:
       return "Draft";
   }
@@ -375,6 +407,9 @@ export function mapSessionUser(user: ApiUser): SessionUser {
     displayName: user.displayName,
     role: user.role,
     phone: user.phone,
+    avatarUrl: user.avatarUrl,
+    bio: user.bio,
+    location: user.location,
     phoneVerified: user.phoneVerified,
     emailVerified: user.emailVerified,
     reputationScore: user.reputationScore,
@@ -416,12 +451,17 @@ export function mapCategory(category: ApiCategory): MarketplaceCategory {
       ? formatCountLabel(category._count.listings)
       : preset?.countLabel ?? "Live inventory",
     schema,
+    parentSlug: category.parent?.slug ?? null,
+    children: category.children?.map(mapCategory),
+    isActive: category.isActive,
   };
 }
 
 export function mapListing(listing: ApiListing): MarketplaceListing {
   const priceValue = Number(listing.price);
-  const imageUrls = extractListingImageUrls(listing.attributes);
+  const imageUrls =
+    listing.images?.map((image) => image.url).filter(Boolean) ??
+    extractListingImageUrls(listing.attributes);
   const attributes = normalizeAttributes(removeReservedListingAttributes(listing.attributes));
   const preset = categoryPresets[listing.category?.slug ?? ""];
   const featureBullets = buildFeatureBullets(attributes);
@@ -464,6 +504,9 @@ export function mapSeller(user: ApiUser): MarketplaceSeller {
   return {
     id: user.id,
     name: user.displayName,
+    avatarUrl: user.avatarUrl,
+    bio: user.bio,
+    location: user.location,
     verified: user.phoneVerified || user.emailVerified,
     joinedLabel: formatJoinedLabel(user.createdAt),
     totalListings: user.listings?.length ?? 0,

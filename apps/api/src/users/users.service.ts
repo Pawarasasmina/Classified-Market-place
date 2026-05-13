@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ListingStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -7,6 +8,10 @@ function sanitizeUser(user: {
   email: string;
   displayName: string;
   passwordHash?: string | null;
+  googleId?: string | null;
+  avatarUrl: string | null;
+  bio: string | null;
+  location: string | null;
   role: string;
   phone: string | null;
   phoneVerified: boolean;
@@ -41,8 +46,17 @@ export class UsersService {
       where: { id: userId },
       include: {
         listings: {
+          where: {
+            status: ListingStatus.ACTIVE,
+          },
           orderBy: { createdAt: 'desc' },
           take: 10,
+          include: {
+            images: {
+              orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+            },
+            category: true,
+          },
         },
       },
     });
@@ -90,7 +104,11 @@ export class UsersService {
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
-        ...updateUserDto,
+        displayName: updateUserDto.displayName,
+        phone: updateUserDto.phone,
+        avatarUrl: updateUserDto.avatarUrl,
+        bio: updateUserDto.bio,
+        location: updateUserDto.location,
         ...(phoneChanged ? { phoneVerified: false } : {}),
       },
     });

@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState, type ChangeEvent } from "react";
 import { updateProfileAction } from "@/app/(main)/actions";
 import { type FormActionState, type SessionUser } from "@/lib/marketplace";
 
@@ -9,108 +8,116 @@ const initialState: FormActionState = {
   message: null,
 };
 
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 export function ProfileForm({ user }: { user: SessionUser }) {
   const [state, formAction, pending] = useActionState(
     updateProfileAction,
     initialState
   );
+  const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl ?? "");
+
+  async function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      event.target.value = "";
+      return;
+    }
+
+    setAvatarUrl(await readFileAsDataUrl(file));
+    event.target.value = "";
+  }
 
   return (
-    <form action={formAction} className="mt-6">
-      <div className="grid gap-6 lg:grid-cols-[0.62fr_0.38fr]">
-        <div className="space-y-4">
-          <label className="space-y-2 rounded-[1.5rem] border border-[var(--line)] bg-white p-4">
-            <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
-              Display name
-            </span>
-            <input
-              name="displayName"
-              defaultValue={user.displayName}
-              className="w-full bg-transparent text-sm font-semibold text-[var(--foreground)] outline-none"
-            />
-            <p className="text-sm text-[var(--muted)]">
-              This is the public-facing name shown on your listings.
-            </p>
-            {state.fieldErrors?.displayName ? (
-              <p className="text-sm text-[#b93820]">{state.fieldErrors.displayName}</p>
-            ) : null}
-          </label>
+    <form action={formAction} className="grid gap-4 rounded-md border border-slate-200 bg-white p-5">
+      <input type="hidden" name="avatarUrl" value={avatarUrl} readOnly />
 
-          <label className="space-y-2 rounded-[1.5rem] border border-[var(--line)] bg-white p-4">
-            <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
-              Phone
-            </span>
-            <input
-              name="phone"
-              defaultValue={user.phone ?? ""}
-              placeholder="+971551234567"
-              className="w-full bg-transparent text-sm font-semibold text-[var(--foreground)] outline-none"
-            />
-            <p className="text-sm text-[var(--muted)]">
-              Use international format. Updating this number will require a fresh
-              verification pass.
-            </p>
-            {state.fieldErrors?.phone ? (
-              <p className="text-sm text-[#b93820]">{state.fieldErrors.phone}</p>
-            ) : null}
-          </label>
-
-          <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(255,250,244,0.78)] p-4 text-sm leading-7 text-[var(--muted)]">
-            Email is currently read-only because the live profile API only supports
-            updating your display name and phone number in this phase.
-          </div>
+      <div className="flex items-center gap-4">
+        <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-xl font-bold">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            user.displayName.charAt(0).toUpperCase()
+          )}
         </div>
-
-        <div className="space-y-4">
-          <div className="rounded-[1.5rem] border border-[var(--line)] bg-white p-4">
-            <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
-              Email address
-            </span>
-            <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">
-              {user.email}
-            </p>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              {user.emailVerified
-                ? "Email verification is complete."
-                : "Email verification is still pending."}
-            </p>
-          </div>
-
-          <div className="rounded-[1.5rem] border border-[var(--line)] bg-white p-4">
-            <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
-              Phone verification
-            </span>
-            <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">
-              {user.phoneVerified ? "Verified and ready" : "Verification pending"}
-            </p>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              {user.phoneVerified
-                ? "Your account is ready for phone-gated marketplace flows."
-                : "Complete OTP verification to keep listing creation friction-free."}
-            </p>
-            {!user.phoneVerified ? (
-              <Link
-                href="/verify?next=%2Fprofile"
-                className="mt-4 inline-flex rounded-full border border-[var(--line)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]"
-              >
-                Verify phone
-              </Link>
-            ) : null}
-          </div>
-        </div>
+        <label className="cursor-pointer rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold">
+          Upload avatar
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(event) => void handleAvatarChange(event)}
+            className="hidden"
+          />
+        </label>
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-3">
+      <label className="space-y-2">
+        <span className="text-sm font-semibold">Display name</span>
+        <input
+          name="displayName"
+          defaultValue={user.displayName}
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
+        {state.fieldErrors?.displayName ? (
+          <p className="text-sm text-red-700">{state.fieldErrors.displayName}</p>
+        ) : null}
+      </label>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="space-y-2">
+          <span className="text-sm font-semibold">Phone</span>
+          <input
+            name="phone"
+            defaultValue={user.phone ?? ""}
+            placeholder="+971551234567"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+          {state.fieldErrors?.phone ? (
+            <p className="text-sm text-red-700">{state.fieldErrors.phone}</p>
+          ) : null}
+        </label>
+        <label className="space-y-2">
+          <span className="text-sm font-semibold">Location</span>
+          <input
+            name="location"
+            defaultValue={user.location ?? ""}
+            placeholder="Dubai"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </label>
+      </div>
+
+      <label className="space-y-2">
+        <span className="text-sm font-semibold">Bio</span>
+        <textarea
+          name="bio"
+          defaultValue={user.bio ?? ""}
+          className="min-h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          placeholder="Short public seller bio"
+        />
+      </label>
+
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"
           disabled={pending}
-          className="rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-70"
+          className="action-primary px-4 py-2 text-sm font-semibold disabled:opacity-60"
         >
           {pending ? "Saving..." : "Save profile"}
         </button>
-        {state.message ? (
-          <p className="text-sm text-[var(--muted)]">{state.message}</p>
-        ) : null}
+        {state.message ? <p className="text-sm text-slate-600">{state.message}</p> : null}
       </div>
     </form>
   );

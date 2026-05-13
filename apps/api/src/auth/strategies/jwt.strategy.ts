@@ -38,6 +38,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       displayName: user.displayName,
       role: user.role,
       phone: user.phone,
+      avatarUrl: user.avatarUrl,
+      bio: user.bio,
+      location: user.location,
       phoneVerified: user.phoneVerified,
       emailVerified: user.emailVerified,
     };

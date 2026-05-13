@@ -1,113 +1,61 @@
-import Image from "next/image";
 import Link from "next/link";
-import { getListingMedia } from "@/lib/listing-media";
+import { deleteListingAction } from "@/app/(main)/actions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchMyListings } from "@/lib/marketplace-api";
 
 export default async function MyListingsPage() {
   const { accessToken } = await requireSessionContext("/my-listings");
-  const myListings = await fetchMyListings(accessToken);
+  const listings = await fetchMyListings(accessToken);
 
   return (
-    <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="page grid gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
-            Listing management
-          </p>
-          <h1 className="mt-3 text-4xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
-            Drafts, active listings, and owner actions powered by the live API.
-          </h1>
+          <h1 className="text-2xl font-bold">User Dashboard</h1>
+          <p className="mt-2 text-slate-600">Manage your listings and moderation status.</p>
         </div>
-        <Link
-          href="/sell"
-          className="rounded-full bg-[linear-gradient(135deg,#d95d39,#f08a49)] px-5 py-3 text-sm font-semibold text-white"
-        >
-          Create new listing
+        <Link href="/sell" className="action-primary px-4 py-2 text-sm font-semibold">
+          Create listing
         </Link>
       </div>
 
-      <div className="mt-8 grid gap-5">
-        {myListings.length ? (
-          myListings.map((listing) => {
-            const media = getListingMedia(listing);
-
-            return (
-              <section
-                key={listing.id}
-                className="grid gap-5 rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)] p-6 xl:grid-cols-[0.18fr_0.55fr_0.27fr]"
-              >
-                <div className="relative h-36 overflow-hidden rounded-[1.75rem]">
-                  <Image
-                    src={media.src}
-                    alt={media.alt}
-                    fill
-                    unoptimized
-                    sizes="(max-width: 1280px) 100vw, 18vw"
-                    className="object-cover"
-                  />
-                  <div
-                    className="absolute inset-0"
-                    style={{ background: media.overlay }}
-                  />
+      <div className="grid gap-3">
+        {listings.length ? (
+          listings.map((listing) => (
+            <section key={listing.id} className="panel grid gap-4 md:grid-cols-[8rem_1fr_auto] md:items-center">
+              <div className="h-28 overflow-hidden rounded-md bg-slate-100">
+                {listing.imageUrls[0] ? (
+                  <img src={listing.imageUrls[0]} alt="" className="h-full w-full object-cover" />
+                ) : null}
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="font-semibold">{listing.title}</h2>
+                  <span className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold">
+                    {listing.status}
+                  </span>
                 </div>
-
-                <div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-2xl font-bold text-[var(--foreground)]">
-                      {listing.title}
-                    </h2>
-                    <span className="rounded-full bg-[rgba(31,107,90,0.1)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
-                      {listing.status}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-                    {listing.description}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {listing.featureBullets.map((feature) => (
-                      <span
-                        key={feature}
-                        className="rounded-full border border-[var(--line)] bg-white px-3 py-1 text-xs text-[var(--muted)]"
-                      >
-                        {feature}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-col justify-between gap-4">
-                  <div>
-                    <p className="display-font text-xl font-bold text-[var(--foreground)]">
-                      {listing.priceLabel}
-                    </p>
-                    <p className="mt-2 text-sm text-[var(--muted)]">
-                      {listing.postedLabel}
-                    </p>
-                  </div>
-                  <div className="grid gap-2">
-                    <Link
-                      href={`/listings/${listing.id}`}
-                      className="rounded-full bg-[var(--foreground)] px-4 py-3 text-center text-sm font-semibold text-[var(--surface)]"
-                    >
-                      View listing
-                    </Link>
-                    <Link
-                      href="/sell"
-                      className="rounded-full border border-[var(--line)] px-4 py-3 text-center text-sm font-semibold text-[var(--foreground)]"
-                    >
-                      Create another
-                    </Link>
-                  </div>
-                </div>
-              </section>
-            );
-          })
+                <p className="mt-1 text-sm text-slate-600">{listing.priceLabel} · {listing.location}</p>
+                <p className="mt-2 line-clamp-2 text-sm text-slate-600">{listing.description}</p>
+              </div>
+              <div className="grid gap-2">
+                <Link href={`/listings/${listing.id}`} className="rounded-md border border-slate-300 px-3 py-2 text-center text-sm font-semibold">
+                  View
+                </Link>
+                <Link href={`/listings/${listing.id}/edit`} className="rounded-md border border-slate-300 px-3 py-2 text-center text-sm font-semibold">
+                  Edit
+                </Link>
+                <form action={deleteListingAction}>
+                  <input type="hidden" name="listingId" value={listing.id} />
+                  <button className="w-full rounded-md border border-red-300 px-3 py-2 text-sm font-semibold text-red-700">
+                    Delete
+                  </button>
+                </form>
+              </div>
+            </section>
+          ))
         ) : (
-          <div className="rounded-[2rem] border border-dashed border-[var(--line)] bg-[rgba(255,255,255,0.7)] px-6 py-10 text-sm text-[var(--muted)]">
-            You have not published any listings yet. Start with your first post to
-            see it here.
-          </div>
+          <div className="panel">You have not created any listings yet.</div>
         )}
       </div>
     </div>

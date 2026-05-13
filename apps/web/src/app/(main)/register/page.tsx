@@ -19,15 +19,10 @@ export default async function RegisterPage(props: RegisterPageProps) {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
-      <div className="rounded-[2.5rem] border border-[var(--line)] bg-[rgba(255,255,255,0.88)] p-8">
-        <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
-          Registration
-        </p>
-        <h1 className="mt-3 text-4xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
-          Create a marketplace account with email, phone, and role basics.
-        </h1>
-
+    <div className="page max-w-3xl">
+      <div>
+        <h1 className="text-2xl font-bold">Register</h1>
+        <p className="mt-2 text-slate-600">Create an account to post listings and chat.</p>
         <RegisterForm nextPath={nextPath} />
       </div>
     </div>
