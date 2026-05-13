@@ -1,4 +1,9 @@
-import { IsOptional, IsPhoneNumber, IsString, MinLength } from 'class-validator';
+import {
+  IsOptional,
+  IsPhoneNumber,
+  IsString,
+  MinLength,
+} from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional()

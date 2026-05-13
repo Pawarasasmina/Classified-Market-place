@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   IsEnum,
   IsNotEmpty,
   IsNumber,
@@ -6,9 +7,11 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ListingStatus } from '@prisma/client';
+import { ListingMediaDto } from './listing-media.dto';
 
 export class CreateListingDto {
   @IsString()
@@ -43,4 +46,10 @@ export class CreateListingDto {
   @IsOptional()
   @IsObject()
   attributes?: Record<string, unknown>;
+
+  @IsOptional()
+  @ArrayMaxSize(3)
+  @ValidateNested({ each: true })
+  @Type(() => ListingMediaDto)
+  media?: ListingMediaDto[];
 }

@@ -70,9 +70,8 @@ export function ProfileForm({ user }: { user: SessionUser }) {
               {user.email}
             </p>
             <p className="mt-2 text-sm text-[var(--muted)]">
-              {user.emailVerified
-                ? "Email verification is complete."
-                : "Email verification is still pending."}
+              Email remains your sign-in address in this phase. The live account
+              verification flow currently uses phone OTP.
             </p>
           </div>
 

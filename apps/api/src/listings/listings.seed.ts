@@ -25,6 +25,14 @@ export const demoSellers = [
     emailVerified: true,
     role: 'USER',
   },
+  {
+    email: 'corporate.hr@classified.local',
+    displayName: 'Omar Hiring Team',
+    phone: '+971505555555',
+    phoneVerified: true,
+    emailVerified: true,
+    role: 'USER',
+  },
 ] as const;
 
 export const defaultListings = [
@@ -112,6 +120,22 @@ export const defaultListings = [
       jobType: 'Full-time',
       experience: 'Mid',
       salary: 9000,
+    },
+  },
+  {
+    sellerEmail: 'corporate.hr@classified.local',
+    categorySlug: 'jobs',
+    title: 'Senior React Developer',
+    description:
+      'Product engineering team hiring a senior React developer for dashboard architecture, performance tuning, and mentoring across a fast-moving commerce platform.',
+    price: new Prisma.Decimal(18000),
+    currency: 'AED',
+    location: 'Dubai Internet City',
+    status: ListingStatus.ACTIVE,
+    attributes: {
+      jobType: 'Full-time',
+      experience: 'Senior',
+      salary: 18000,
     },
   },
 ] as const;

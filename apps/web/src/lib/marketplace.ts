@@ -54,6 +54,28 @@ export type ApiListingStatus =
   | "EXPIRED"
   | "SOLD"
   | "REMOVED";
+export type ApiSavedSearchSort = "newest" | "price_asc" | "price_desc";
+
+export type ApiConversationRole = "BUYER" | "SELLER";
+export type ApiListingReportReason =
+  | "SPAM"
+  | "FRAUD"
+  | "OFFENSIVE"
+  | "MISLEADING"
+  | "PROHIBITED_ITEM"
+  | "OTHER";
+export type ApiListingReportStatus =
+  | "OPEN"
+  | "UNDER_REVIEW"
+  | "RESOLVED"
+  | "DISMISSED";
+export type ApiModerationActionType =
+  | "REPORT_CREATED"
+  | "REPORT_UNDER_REVIEW"
+  | "LISTING_APPROVED"
+  | "LISTING_REJECTED"
+  | "LISTING_REMOVED"
+  | "REPORT_DISMISSED";
 
 export type ApiListing = {
   id: string;
@@ -68,8 +90,168 @@ export type ApiListing = {
   updatedAt: string;
   sellerId: string;
   categoryId: string;
+  saved?: boolean;
+  media?: ApiListingMedia[];
   category?: ApiCategory;
   seller?: ApiUser;
+};
+
+export type ApiListingResults = {
+  items: ApiListing[];
+  pagination: {
+    page: number;
+    take: number;
+    totalItems: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+};
+
+export type ApiSavedSearch = {
+  id: string;
+  label: string;
+  query: string;
+  categorySlug: string;
+  sort: ApiSavedSearchSort;
+  alertsEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  category?: {
+    slug: string;
+    name: string;
+  } | null;
+};
+
+export type ApiListingMedia = {
+  id: string;
+  originalFileName: string;
+  publicUrl: string;
+  mimeType: string;
+  byteSize: number;
+  width?: number | null;
+  height?: number | null;
+  sortOrder: number;
+  isPrimary: boolean;
+};
+
+export type ApiConversationListing = {
+  id: string;
+  title: string;
+  description: string;
+  price: number | string;
+  currency: string;
+  location: string;
+  status: ApiListingStatus;
+  categoryId: string;
+  sellerId: string;
+  createdAt: string;
+  updatedAt: string;
+  category?: {
+    id: string;
+    name: string;
+    slug: string;
+  } | null;
+  seller: ApiUser;
+};
+
+export type ApiConversationParticipant = {
+  id: string;
+  role: ApiConversationRole;
+  unreadCount: number;
+  lastReadAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user: ApiUser;
+};
+
+export type ApiConversationMessage = {
+  id: string;
+  body: string;
+  senderId: string;
+  readAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sender: ApiUser;
+};
+
+export type ApiConversationSummary = {
+  id: string;
+  listingId: string;
+  buyerId: string;
+  sellerId: string;
+  createdAt: string;
+  updatedAt: string;
+  lastMessageAt: string | null;
+  listing: ApiConversationListing;
+  viewerParticipant: {
+    role: ApiConversationRole;
+    unreadCount: number;
+    lastReadAt: string | null;
+  };
+  counterpart:
+    | (ApiUser & {
+        participantRole: ApiConversationRole;
+      })
+    | null;
+  participants: ApiConversationParticipant[];
+  latestMessage: ApiConversationMessage | null;
+};
+
+export type ApiConversationDetail = ApiConversationSummary & {
+  messages: ApiConversationMessage[];
+};
+
+export type ApiModerationReport = {
+  id: string;
+  reason: ApiListingReportReason;
+  details: string | null;
+  status: ApiListingReportStatus;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+  resolutionAction: ApiModerationActionType | null;
+  resolutionNote: string | null;
+  reporter: ApiUser | null;
+  resolvedBy: ApiUser | null;
+};
+
+export type ApiModerationEvent = {
+  id: string;
+  action: ApiModerationActionType;
+  notes: string | null;
+  previousListingStatus: ApiListingStatus | null;
+  nextListingStatus: ApiListingStatus | null;
+  resultingReportStatus: ApiListingReportStatus | null;
+  createdAt: string;
+  actor: ApiUser | null;
+  reportId: string | null;
+};
+
+export type ApiModerationQueueItem = {
+  id: string;
+  title: string;
+  description: string;
+  price: number | string;
+  currency: string;
+  location: string;
+  status: ApiListingStatus;
+  createdAt: string;
+  updatedAt: string;
+  sellerId: string;
+  categoryId: string;
+  category?: {
+    id: string;
+    name: string;
+    slug: string;
+  } | null;
+  seller: ApiUser | null;
+  reportCount: number;
+  openReportCount: number;
+  latestReport: ApiModerationReport | null;
+  reports: ApiModerationReport[];
+  latestModerationEvent: ApiModerationEvent | null;
+  moderationEvents: ApiModerationEvent[];
 };
 
 export type SessionUser = {
@@ -116,11 +298,30 @@ export type MarketplaceListing = {
   sellerTotalListings?: number;
   imageUrl?: string;
   imageUrls?: string[];
+  media?: Array<{
+    id: string;
+    url: string;
+    isPrimary: boolean;
+    sortOrder: number;
+    fileName: string;
+  }>;
   imagePalette: string[];
   attributes: Record<string, string | number | boolean>;
   viewCount: string;
   chatCount: number;
   saved: boolean;
+};
+
+export type MarketplaceListingResults = {
+  items: MarketplaceListing[];
+  pagination: {
+    page: number;
+    take: number;
+    totalItems: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
 };
 
 export type MarketplaceSeller = {
@@ -129,6 +330,79 @@ export type MarketplaceSeller = {
   verified: boolean;
   joinedLabel: string;
   totalListings: number;
+};
+
+export type MarketplaceSavedSearch = {
+  id: string;
+  label: string;
+  query: string;
+  categorySlug: string;
+  categoryName: string | null;
+  sort: ApiSavedSearchSort;
+  alertsEnabled: boolean;
+  href: string;
+  summary: string;
+  createdAtLabel: string;
+  updatedAtLabel: string;
+};
+
+export type MarketplaceConversationMessage = {
+  id: string;
+  body: string;
+  mine: boolean;
+  senderId: string;
+  senderDisplayName: string;
+  sentLabel: string;
+  readLabel: string | null;
+};
+
+export type MarketplaceConversation = {
+  id: string;
+  listingId: string;
+  listing: MarketplaceListing;
+  viewerRole: "Buyer" | "Seller";
+  counterpartName: string;
+  counterpartVerified: boolean;
+  counterpartRole: "Buyer" | "Seller" | null;
+  latestMessagePreview: string;
+  latestMessageSentLabel: string;
+  updatedLabel: string;
+  unreadCount: number;
+  messages: MarketplaceConversationMessage[];
+};
+
+export type MarketplaceModerationReport = {
+  id: string;
+  reason: string;
+  status: string;
+  details: string | null;
+  reportedAtLabel: string;
+  resolvedAtLabel: string | null;
+  reporterName: string;
+  resolvedByName: string | null;
+  resolutionActionLabel: string | null;
+  resolutionNote: string | null;
+};
+
+export type MarketplaceModerationEvent = {
+  id: string;
+  actionLabel: string;
+  notes: string | null;
+  createdAtLabel: string;
+  actorName: string;
+  previousListingStatus: MarketplaceListing["status"] | null;
+  nextListingStatus: MarketplaceListing["status"] | null;
+  resultingReportStatus: string | null;
+};
+
+export type MarketplaceModerationQueueItem = {
+  listing: MarketplaceListing;
+  reportCount: number;
+  openReportCount: number;
+  latestReport: MarketplaceModerationReport | null;
+  reports: MarketplaceModerationReport[];
+  latestModerationEvent: MarketplaceModerationEvent | null;
+  moderationEvents: MarketplaceModerationEvent[];
 };
 
 export type FormActionState = {
@@ -215,6 +489,14 @@ function humanizeLabel(value: string) {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function humanizeEnumValue(value: string) {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function toAttributeFieldType(value: string | null | undefined): AttributeFieldType {
@@ -329,6 +611,24 @@ function extractListingImageUrls(attributes: Record<string, unknown> | null | un
     .slice(0, 3);
 }
 
+function extractListingMediaUrls(media: ApiListingMedia[] | undefined) {
+  if (!media?.length) {
+    return [];
+  }
+
+  return [...media]
+    .sort((left, right) => {
+      if (left.isPrimary !== right.isPrimary) {
+        return left.isPrimary ? -1 : 1;
+      }
+
+      return left.sortOrder - right.sortOrder;
+    })
+    .map((item) => item.publicUrl)
+    .filter((value) => typeof value === "string" && value.length > 0)
+    .slice(0, 3);
+}
+
 function removeReservedListingAttributes(
   attributes: Record<string, unknown> | null | undefined
 ) {
@@ -366,6 +666,54 @@ function humanizeListingStatus(status: ApiListingStatus): MarketplaceListing["st
     default:
       return "Draft";
   }
+}
+
+export function formatSavedSearchSortLabel(sort: ApiSavedSearchSort) {
+  switch (sort) {
+    case "price_asc":
+      return "Price low to high";
+    case "price_desc":
+      return "Price high to low";
+    default:
+      return "Newest";
+  }
+}
+
+export function buildSavedSearchHref(search: {
+  query?: string;
+  categorySlug?: string;
+  sort?: ApiSavedSearchSort;
+}) {
+  const params = new URLSearchParams();
+
+  if (search.query) {
+    params.set("q", search.query);
+  }
+
+  if (search.categorySlug) {
+    params.set("category", search.categorySlug);
+  }
+
+  if (search.sort && search.sort !== "newest") {
+    params.set("sort", search.sort);
+  }
+
+  const queryString = params.toString();
+  return queryString ? `/search?${queryString}` : "/search";
+}
+
+function buildSavedSearchSummary(search: {
+  query: string;
+  categoryName: string | null;
+  sort: ApiSavedSearchSort;
+}) {
+  const parts = [
+    search.query ? `Keyword: ${search.query}` : null,
+    search.categoryName ? `Category: ${search.categoryName}` : null,
+    `Sort: ${formatSavedSearchSortLabel(search.sort)}`,
+  ].filter((value): value is string => Boolean(value));
+
+  return parts.join(" | ");
 }
 
 export function mapSessionUser(user: ApiUser): SessionUser {
@@ -421,7 +769,11 @@ export function mapCategory(category: ApiCategory): MarketplaceCategory {
 
 export function mapListing(listing: ApiListing): MarketplaceListing {
   const priceValue = Number(listing.price);
-  const imageUrls = extractListingImageUrls(listing.attributes);
+  const mediaImageUrls = extractListingMediaUrls(listing.media);
+  const normalizedImageUrls =
+    mediaImageUrls.length > 0
+      ? mediaImageUrls
+      : extractListingImageUrls(listing.attributes);
   const attributes = normalizeAttributes(removeReservedListingAttributes(listing.attributes));
   const preset = categoryPresets[listing.category?.slug ?? ""];
   const featureBullets = buildFeatureBullets(attributes);
@@ -450,13 +802,197 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
     sellerDisplayName: listing.seller?.displayName,
     sellerVerified: Boolean(listing.seller?.phoneVerified || listing.seller?.emailVerified),
     sellerJoinedLabel: listing.seller ? formatJoinedLabel(listing.seller.createdAt) : undefined,
-    imageUrl: imageUrls[0],
-    imageUrls,
+    imageUrl: normalizedImageUrls[0],
+    imageUrls: normalizedImageUrls,
+    media: listing.media?.map((item) => ({
+      id: item.id,
+      url: item.publicUrl,
+      isPrimary: item.isPrimary,
+      sortOrder: item.sortOrder,
+      fileName: item.originalFileName,
+    })),
     imagePalette: preset?.palette ?? ["#d95d39", "#f2d3a6", "#1f6b5a"],
     attributes,
     viewCount: "Fresh listing",
     chatCount: 0,
-    saved: false,
+    saved: listing.saved ?? false,
+  };
+}
+
+export function mapListingResults(results: ApiListingResults): MarketplaceListingResults {
+  return {
+    items: results.items.map(mapListing),
+    pagination: results.pagination,
+  };
+}
+
+export function mapLegacyListingResults(
+  listings: ApiListing[],
+  fallback: {
+    page: number;
+    take: number;
+  }
+): MarketplaceListingResults {
+  return {
+    items: listings.map(mapListing),
+    pagination: {
+      page: fallback.page,
+      take: fallback.take,
+      totalItems: listings.length,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: fallback.page > 1,
+    },
+  };
+}
+
+function mapConversationListing(listing: ApiConversationListing): MarketplaceListing {
+  return mapListing({
+    ...listing,
+    attributes: null,
+    category: listing.category
+      ? {
+          id: listing.category.id,
+          name: listing.category.name,
+          slug: listing.category.slug,
+          description: null,
+          isActive: true,
+        }
+      : undefined,
+    seller: listing.seller,
+  });
+}
+
+function humanizeConversationRole(role: ApiConversationRole): "Buyer" | "Seller" {
+  return role === "BUYER" ? "Buyer" : "Seller";
+}
+
+export function mapConversation(
+  conversation: ApiConversationSummary | ApiConversationDetail,
+  currentUserId: string
+): MarketplaceConversation {
+  const listing = mapConversationListing(conversation.listing);
+  const counterpartRole = conversation.counterpart?.participantRole
+    ? humanizeConversationRole(conversation.counterpart.participantRole)
+    : null;
+  const counterpartName =
+    conversation.counterpart?.displayName ?? conversation.listing.seller.displayName;
+  const counterpartVerified = Boolean(
+    conversation.counterpart?.phoneVerified ||
+      conversation.counterpart?.emailVerified ||
+      conversation.listing.seller.phoneVerified ||
+      conversation.listing.seller.emailVerified
+  );
+  const latestMessageTimestamp =
+    conversation.latestMessage?.createdAt ??
+    conversation.lastMessageAt ??
+    conversation.updatedAt;
+
+  return {
+    id: conversation.id,
+    listingId: conversation.listingId,
+    listing,
+    viewerRole: humanizeConversationRole(conversation.viewerParticipant.role),
+    counterpartName,
+    counterpartVerified,
+    counterpartRole,
+    latestMessagePreview:
+      conversation.latestMessage?.body ?? "No messages yet. Start the conversation.",
+    latestMessageSentLabel: formatRelativeTime(latestMessageTimestamp),
+    updatedLabel: formatRelativeTime(
+      conversation.lastMessageAt ?? conversation.updatedAt
+    ),
+    unreadCount: conversation.viewerParticipant.unreadCount,
+    messages:
+      "messages" in conversation
+        ? conversation.messages.map((message) => ({
+            id: message.id,
+            body: message.body,
+            mine: message.senderId === currentUserId,
+            senderId: message.senderId,
+            senderDisplayName:
+              message.senderId === currentUserId
+                ? "You"
+                : message.sender.displayName,
+            sentLabel: formatRelativeTime(message.createdAt),
+            readLabel: message.readAt ? formatRelativeTime(message.readAt) : null,
+          }))
+        : [],
+  };
+}
+
+function mapModerationReport(report: ApiModerationReport): MarketplaceModerationReport {
+  return {
+    id: report.id,
+    reason: humanizeEnumValue(report.reason),
+    status: humanizeEnumValue(report.status),
+    details: report.details,
+    reportedAtLabel: formatRelativeTime(report.createdAt),
+    resolvedAtLabel: report.resolvedAt ? formatRelativeTime(report.resolvedAt) : null,
+    reporterName: report.reporter?.displayName ?? "Marketplace user",
+    resolvedByName: report.resolvedBy?.displayName ?? null,
+    resolutionActionLabel: report.resolutionAction
+      ? humanizeEnumValue(report.resolutionAction)
+      : null,
+    resolutionNote: report.resolutionNote,
+  };
+}
+
+function mapModerationEvent(event: ApiModerationEvent): MarketplaceModerationEvent {
+  return {
+    id: event.id,
+    actionLabel: humanizeEnumValue(event.action),
+    notes: event.notes,
+    createdAtLabel: formatRelativeTime(event.createdAt),
+    actorName: event.actor?.displayName ?? "Marketplace system",
+    previousListingStatus: event.previousListingStatus
+      ? humanizeListingStatus(event.previousListingStatus)
+      : null,
+    nextListingStatus: event.nextListingStatus
+      ? humanizeListingStatus(event.nextListingStatus)
+      : null,
+    resultingReportStatus: event.resultingReportStatus
+      ? humanizeEnumValue(event.resultingReportStatus)
+      : null,
+  };
+}
+
+export function mapModerationQueueItem(
+  item: ApiModerationQueueItem
+): MarketplaceModerationQueueItem {
+  return {
+    listing: mapListing({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      price: item.price,
+      currency: item.currency,
+      location: item.location,
+      status: item.status,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      sellerId: item.sellerId,
+      categoryId: item.categoryId,
+      attributes: null,
+      category: item.category
+        ? {
+            id: item.category.id,
+            name: item.category.name,
+            slug: item.category.slug,
+            description: null,
+            isActive: true,
+          }
+        : undefined,
+      seller: item.seller ?? undefined,
+    }),
+    reportCount: item.reportCount,
+    openReportCount: item.openReportCount,
+    latestReport: item.latestReport ? mapModerationReport(item.latestReport) : null,
+    reports: item.reports.map(mapModerationReport),
+    latestModerationEvent: item.latestModerationEvent
+      ? mapModerationEvent(item.latestModerationEvent)
+      : null,
+    moderationEvents: item.moderationEvents.map(mapModerationEvent),
   };
 }
 
@@ -467,5 +1003,27 @@ export function mapSeller(user: ApiUser): MarketplaceSeller {
     verified: user.phoneVerified || user.emailVerified,
     joinedLabel: formatJoinedLabel(user.createdAt),
     totalListings: user.listings?.length ?? 0,
+  };
+}
+
+export function mapSavedSearch(search: ApiSavedSearch): MarketplaceSavedSearch {
+  const categoryName = search.category?.name ?? null;
+
+  return {
+    id: search.id,
+    label: search.label,
+    query: search.query,
+    categorySlug: search.categorySlug,
+    categoryName,
+    sort: search.sort,
+    alertsEnabled: search.alertsEnabled,
+    href: buildSavedSearchHref(search),
+    summary: buildSavedSearchSummary({
+      query: search.query,
+      categoryName,
+      sort: search.sort,
+    }),
+    createdAtLabel: formatRelativeTime(search.createdAt),
+    updatedAtLabel: formatRelativeTime(search.updatedAt),
   };
 }

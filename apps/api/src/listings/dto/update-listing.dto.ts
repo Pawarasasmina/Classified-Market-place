@@ -1,12 +1,16 @@
 import { ListingStatus } from '@prisma/client';
 import {
+  ArrayMaxSize,
   IsEnum,
   IsNumber,
   IsObject,
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ListingMediaDto } from './listing-media.dto';
 
 export class UpdateListingDto {
   @IsOptional()
@@ -41,4 +45,10 @@ export class UpdateListingDto {
   @IsOptional()
   @IsObject()
   attributes?: Record<string, unknown>;
+
+  @IsOptional()
+  @ArrayMaxSize(3)
+  @ValidateNested({ each: true })
+  @Type(() => ListingMediaDto)
+  media?: ListingMediaDto[];
 }

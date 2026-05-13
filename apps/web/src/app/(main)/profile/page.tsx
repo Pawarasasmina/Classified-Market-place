@@ -61,7 +61,7 @@ export default async function ProfilePage() {
               {[
                 formatJoinedLabel(user.createdAt),
                 user.phoneVerified ? "Phone verified" : "Phone verification pending",
-                user.emailVerified ? "Email verified" : "Email verification pending",
+                "Email used for sign-in",
                 `${user.reputationScore} reputation score`,
               ].map((item) => (
                 <div
@@ -246,9 +246,7 @@ export default async function ProfilePage() {
                     user.phoneVerified
                       ? "Phone verification is complete."
                       : "Phone verification is still required for posting flows.",
-                    user.emailVerified
-                      ? "Email verification is complete."
-                      : "Email verification is still pending on the backend account.",
+                    "Email is currently your sign-in and account contact address.",
                     "Changing your phone number resets the phone verification flag until the new number is verified.",
                   ].map((item) => (
                     <div

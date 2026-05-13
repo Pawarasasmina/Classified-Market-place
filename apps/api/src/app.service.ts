@@ -33,7 +33,14 @@ export class AppService {
         categoryCount,
         listingCount,
       },
-      modules: ['auth', 'users', 'categories', 'listings', 'chat'],
+      modules: [
+        'auth',
+        'users',
+        'categories',
+        'listings',
+        'chat',
+        'moderation',
+      ],
     };
   }
 }

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { ListingStatusActions } from "@/components/marketplace/listing-status-actions";
 import { getListingMedia } from "@/lib/listing-media";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchMyListings } from "@/lib/marketplace-api";
@@ -92,12 +93,10 @@ export default async function MyListingsPage() {
                     >
                       View listing
                     </Link>
-                    <Link
-                      href="/sell"
-                      className="rounded-full border border-[var(--line)] px-4 py-3 text-center text-sm font-semibold text-[var(--foreground)]"
-                    >
-                      Create another
-                    </Link>
+                    <ListingStatusActions
+                      listing={listing}
+                      currentPath="/my-listings"
+                    />
                   </div>
                 </div>
               </section>

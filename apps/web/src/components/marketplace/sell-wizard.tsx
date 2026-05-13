@@ -9,8 +9,11 @@ type UploadedImage = {
   id: string;
   name: string;
   dataUrl: string;
+  mimeType: string;
   sizeLabel: string;
   byteSize: number;
+  width: number;
+  height: number;
 };
 
 type DraftState = {
@@ -130,8 +133,11 @@ async function optimizeImage(file: File) {
   if (!context) {
     return {
       dataUrl: originalDataUrl,
+      mimeType: file.type || "image/jpeg",
       sizeLabel: formatBytes(file.size),
       byteSize: file.size,
+      width: source.width,
+      height: source.height,
     };
   }
 
@@ -144,8 +150,11 @@ async function optimizeImage(file: File) {
 
   return {
     dataUrl,
+    mimeType: outputType,
     sizeLabel: formatBytes(approxBytes),
     byteSize: approxBytes,
+    width: dimensions.width,
+    height: dimensions.height,
   };
 }
 
@@ -156,8 +165,11 @@ async function prepareUploadedImage(file: File, index: number) {
     id: `${file.name}-${Date.now()}-${index}`,
     name: file.name,
     dataUrl: optimized.dataUrl,
+    mimeType: optimized.mimeType,
     sizeLabel: optimized.sizeLabel,
     byteSize: optimized.byteSize,
+    width: optimized.width,
+    height: optimized.height,
   } satisfies UploadedImage;
 }
 
@@ -363,6 +375,10 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
           value={JSON.stringify({
             name: image.name,
             dataUrl: image.dataUrl,
+            mimeType: image.mimeType,
+            byteSize: image.byteSize,
+            width: image.width,
+            height: image.height,
           })}
           readOnly
         />

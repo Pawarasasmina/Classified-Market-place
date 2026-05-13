@@ -2,10 +2,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ListingCard } from "@/components/marketplace/listing-card";
+import { ReportListingForm } from "@/components/marketplace/report-listing-form";
+import { SaveListingButton } from "@/components/marketplace/save-listing-button";
+import { getSessionContext } from "@/lib/auth-dal";
 import { getListingMedia } from "@/lib/listing-media";
 import {
   fetchListing,
   fetchListings,
+  fetchSavedListings,
   fetchSellerProfile,
 } from "@/lib/marketplace-api";
 
@@ -17,13 +21,17 @@ export default async function ListingDetailPage(
   props: ListingDetailPageProps
 ) {
   const { listingId } = await props.params;
-  const listing = await fetchListing(listingId);
+  const session = await getSessionContext();
+  const [listing, savedListings] = await Promise.all([
+    fetchListing(listingId, session?.accessToken),
+    session?.accessToken ? fetchSavedListings(session.accessToken) : Promise.resolve([]),
+  ]);
 
   if (!listing) {
     notFound();
   }
 
-  const [seller, relatedListings] = await Promise.all([
+  const [seller, relatedListingResults] = await Promise.all([
     fetchSellerProfile(listing.sellerId),
     fetchListings({
       categorySlug: listing.categorySlug || undefined,
@@ -31,10 +39,11 @@ export default async function ListingDetailPage(
     }),
   ]);
 
-  const related = relatedListings
+  const related = relatedListingResults.items
     .filter((item) => item.id !== listing.id)
     .slice(0, 3);
   const media = getListingMedia(listing);
+  const isSaved = savedListings.some((item) => item.id === listing.id);
 
   return (
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
@@ -182,12 +191,20 @@ export default async function ListingDetailPage(
               >
                 Chat now
               </Link>
-              <button
-                type="button"
-                className="rounded-full border border-[var(--line)] px-5 py-3 text-sm font-semibold text-[var(--foreground)]"
-              >
-                Make offer
-              </button>
+              {session ? (
+                <SaveListingButton
+                  listingId={listing.id}
+                  initialSaved={isSaved}
+                  currentPath={`/listings/${listing.id}`}
+                />
+              ) : (
+                <Link
+                  href={`/login?next=${encodeURIComponent(`/listings/${listing.id}`)}`}
+                  className="rounded-full border border-[var(--line)] px-5 py-3 text-center text-sm font-semibold text-[var(--foreground)]"
+                >
+                  Sign in to save
+                </Link>
+              )}
             </div>
           </div>
 
@@ -200,7 +217,6 @@ export default async function ListingDetailPage(
                 "Share to WhatsApp",
                 "Share to Telegram",
                 "Copy listing link",
-                "Report listing",
               ].map((action) => (
                 <button
                   key={action}
@@ -210,6 +226,22 @@ export default async function ListingDetailPage(
                   {action}
                 </button>
               ))}
+            </div>
+
+            <div className="mt-4">
+              {session ? (
+                <ReportListingForm
+                  listingId={listing.id}
+                  currentPath={`/listings/${listing.id}`}
+                />
+              ) : (
+                <Link
+                  href={`/login?next=${encodeURIComponent(`/listings/${listing.id}`)}`}
+                  className="block rounded-[1.25rem] border border-[var(--line)] bg-white px-4 py-3 text-center text-sm font-semibold text-[var(--foreground)]"
+                >
+                  Sign in to report listing
+                </Link>
+              )}
             </div>
           </div>
         </aside>

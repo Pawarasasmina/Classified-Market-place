@@ -20,7 +20,36 @@ describe('AppController (e2e)', () => {
     return request(app.getHttpServer())
       .get('/')
       .expect(200)
-      .expect('Hello World!');
+      .expect((response) => {
+        const body = response.body as {
+          name: string;
+          status: string;
+          database: {
+            connected: boolean;
+            userCount: unknown;
+            categoryCount: unknown;
+            listingCount: unknown;
+          };
+          modules: string[];
+        };
+
+        expect(body.name).toBe('Classified Marketplace API');
+        expect(body.status).toBe('ok');
+        expect(body.database.connected).toBe(true);
+        expect(typeof body.database.userCount).toBe('number');
+        expect(typeof body.database.categoryCount).toBe('number');
+        expect(typeof body.database.listingCount).toBe('number');
+        expect(body.modules).toEqual(
+          expect.arrayContaining([
+            'auth',
+            'users',
+            'categories',
+            'listings',
+            'chat',
+            'moderation',
+          ]),
+        );
+      });
   });
 
   afterEach(async () => {

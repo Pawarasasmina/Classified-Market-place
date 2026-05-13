@@ -13,7 +13,7 @@ describe('AppController', () => {
       categoryCount: 0,
       listingCount: 0,
     },
-    modules: ['auth', 'users', 'categories', 'listings', 'chat'],
+    modules: ['auth', 'users', 'categories', 'listings', 'chat', 'moderation'],
   };
 
   beforeEach(async () => {

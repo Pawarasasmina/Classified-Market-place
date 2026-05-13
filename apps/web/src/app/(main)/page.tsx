@@ -2,15 +2,19 @@ import Image from "next/image";
 import Link from "next/link";
 import { CategoryIcon } from "@/components/marketplace/category-icon";
 import { ListingCard } from "@/components/marketplace/listing-card";
+import { getSessionContext } from "@/lib/auth-dal";
 import { getListingMedia } from "@/lib/listing-media";
-import { fetchCategories, fetchListings } from "@/lib/marketplace-api";
-import { quickStats, savedSearches } from "@/lib/phase1-data";
+import { fetchCategories, fetchListings, fetchSavedSearches } from "@/lib/marketplace-api";
+import { quickStats } from "@/lib/phase1-data";
 
 export default async function HomePage() {
-  const [categories, listings] = await Promise.all([
+  const session = await getSessionContext();
+  const [categories, listingResults, savedSearches] = await Promise.all([
     fetchCategories(),
     fetchListings({ take: 3 }),
+    session?.accessToken ? fetchSavedSearches(session.accessToken) : Promise.resolve([]),
   ]);
+  const listings = listingResults.items;
 
   return (
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
@@ -242,17 +246,29 @@ export default async function HomePage() {
               Keep track of what matters to you.
             </h3>
             <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-              Save your favorite searches and return to them anytime.
+              {session
+                ? "Your account now loads real saved searches with persisted alert settings."
+                : "Sign in to keep favorite searches and their alert settings synced to your account."}
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
-              {savedSearches.map((savedSearch) => (
-                <span
-                  key={savedSearch.id}
+              {savedSearches.length ? (
+                savedSearches.slice(0, 4).map((savedSearch) => (
+                  <Link
+                    key={savedSearch.id}
+                    href={savedSearch.href}
+                    className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm text-[var(--muted)]"
+                  >
+                    {savedSearch.label}
+                  </Link>
+                ))
+              ) : (
+                <Link
+                  href={session ? "/search" : "/login?next=%2Fsearch"}
                   className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm text-[var(--muted)]"
                 >
-                  {savedSearch.label}
-                </span>
-              ))}
+                  {session ? "Save your first search" : "Sign in to save searches"}
+                </Link>
+              )}
             </div>
           </div>
 

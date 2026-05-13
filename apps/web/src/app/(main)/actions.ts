@@ -1,13 +1,25 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
+  createSavedSearch,
+  createConversation,
   createListing,
+  deleteSavedSearch,
+  moderateListing,
   loginUser,
   MarketplaceApiError,
+  markConversationRead,
+  reportListing,
   requestPhoneOtp,
   registerUser,
+  saveListing,
+  sendConversationMessage,
+  unsaveListing,
+  updateListingStatus,
+  updateSavedSearch,
   updateCurrentUser,
   verifyPhone,
 } from "@/lib/marketplace-api";
@@ -70,6 +82,54 @@ const updateProfileSchema = z.object({
     }),
 });
 
+const sendConversationMessageSchema = z
+  .object({
+    conversationId: z.string().trim().optional(),
+    listingId: z.string().trim().optional(),
+    body: z
+      .string()
+      .trim()
+      .min(1, "Write a message before sending.")
+      .max(2000, "Keep the message under 2000 characters."),
+  })
+  .refine((value) => value.conversationId || value.listingId, {
+    message: "Select a conversation or listing before sending a message.",
+    path: ["body"],
+  });
+
+const reportListingSchema = z.object({
+  listingId: z.string().trim().min(1, "Listing is required."),
+  reason: z.enum([
+    "SPAM",
+    "FRAUD",
+    "OFFENSIVE",
+    "MISLEADING",
+    "PROHIBITED_ITEM",
+    "OTHER",
+  ]),
+  details: z
+    .string()
+    .trim()
+    .max(2000, "Keep the report under 2000 characters.")
+    .optional(),
+  currentPath: z.string().trim().optional(),
+});
+
+const savedSearchSchema = z.object({
+  label: z.string().trim().max(120, "Keep the name under 120 characters.").optional(),
+  query: z.string().trim().max(120, "Keep the keyword search under 120 characters.").optional(),
+  categorySlug: z.string().trim().max(120).optional(),
+  sort: z.enum(["newest", "price_asc", "price_desc"]).optional(),
+  alertsEnabled: z.boolean().optional(),
+});
+
+const listingStatusActionSchema = z.enum([
+  "publish",
+  "archive",
+  "mark_sold",
+  "delete",
+]);
+
 function flattenFieldErrors(error: z.ZodError) {
   return Object.fromEntries(
     Object.entries(error.flatten().fieldErrors)
@@ -122,8 +182,17 @@ function parseAttributes(formData: FormData) {
   return attributes;
 }
 
-function parseListingPhotos(formData: FormData) {
-  const photos: { name: string; src: string; isPrimary: boolean }[] = [];
+function parseListingMedia(formData: FormData) {
+  const media: Array<{
+    fileName: string;
+    mimeType: string;
+    base64Data: string;
+    byteSize: number;
+    width?: number;
+    height?: number;
+    isPrimary: boolean;
+    sortOrder: number;
+  }> = [];
 
   for (const [key, value] of formData.entries()) {
     if (!key.startsWith("photo:") || typeof value !== "string" || value.trim() === "") {
@@ -134,27 +203,49 @@ function parseListingPhotos(formData: FormData) {
       const parsed = JSON.parse(value) as {
         name?: unknown;
         dataUrl?: unknown;
+        mimeType?: unknown;
+        byteSize?: unknown;
+        width?: unknown;
+        height?: unknown;
       };
 
       if (
         typeof parsed.name !== "string" ||
         typeof parsed.dataUrl !== "string" ||
+        typeof parsed.mimeType !== "string" ||
+        typeof parsed.byteSize !== "number" ||
         !/^data:image\/(png|jpeg|jpg|webp);base64,/i.test(parsed.dataUrl)
       ) {
         continue;
       }
 
-      photos.push({
-        name: parsed.name,
-        src: parsed.dataUrl,
-        isPrimary: photos.length === 0,
+      const [, mimeType, base64Data] =
+        parsed.dataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp));base64,(.+)$/i) ?? [];
+
+      if (!mimeType || !base64Data) {
+        continue;
+      }
+
+      media.push({
+        fileName: parsed.name,
+        mimeType: mimeType.toLowerCase() === "image/jpg" ? "image/jpeg" : mimeType.toLowerCase(),
+        base64Data,
+        byteSize: parsed.byteSize,
+        width: typeof parsed.width === "number" ? parsed.width : undefined,
+        height: typeof parsed.height === "number" ? parsed.height : undefined,
+        isPrimary: media.length === 0,
+        sortOrder: media.length,
       });
     } catch {
       continue;
     }
   }
 
-  return photos.slice(0, 3);
+  return media.slice(0, 3).map((item, index) => ({
+    ...item,
+    isPrimary: index === 0,
+    sortOrder: index,
+  }));
 }
 
 export async function loginAction(
@@ -301,17 +392,14 @@ export async function createListingAction(
 
   try {
     const attributes = parseAttributes(formData);
-    const photos = parseListingPhotos(formData);
-
-    if (photos.length) {
-      attributes.__photos = photos;
-    }
+    const media = parseListingMedia(formData);
 
     await createListing(accessToken, {
       ...parsed.data,
       currency: "AED",
       status: "ACTIVE",
       attributes,
+      media,
     });
 
     redirect("/my-listings");
@@ -358,4 +446,228 @@ export async function updateProfileAction(
       message: getActionMessage(error, "We could not update your profile."),
     };
   }
+}
+
+export async function saveListingAction(listingId: string, currentPath = "/") {
+  const safePath = getSafeNextPath(currentPath, "/");
+  const { accessToken } = await requireSessionContext(safePath);
+
+  const response = await saveListing(accessToken, listingId);
+  revalidatePath("/saved");
+  revalidatePath(safePath);
+
+  return response;
+}
+
+export async function unsaveListingAction(listingId: string, currentPath = "/") {
+  const safePath = getSafeNextPath(currentPath, "/");
+  const { accessToken } = await requireSessionContext(safePath);
+
+  const response = await unsaveListing(accessToken, listingId);
+  revalidatePath("/saved");
+  revalidatePath(safePath);
+
+  return response;
+}
+
+export async function updateListingStatusAction(
+  listingId: string,
+  action: "publish" | "archive" | "mark_sold" | "delete",
+  currentPath = "/my-listings"
+) {
+  const safePath = getSafeNextPath(currentPath, "/my-listings");
+  const parsedAction = listingStatusActionSchema.parse(action);
+  const { accessToken } = await requireSessionContext(safePath);
+
+  const response = await updateListingStatus(accessToken, listingId, {
+    action: parsedAction,
+  });
+
+  revalidatePath("/my-listings");
+  revalidatePath("/profile");
+  revalidatePath(safePath);
+
+  return response;
+}
+
+export async function createSavedSearchAction(
+  payload: {
+    label?: string;
+    query?: string;
+    categorySlug?: string;
+    sort?: "newest" | "price_asc" | "price_desc";
+    alertsEnabled?: boolean;
+  },
+  currentPath = "/search"
+) {
+  const safePath = getSafeNextPath(currentPath, "/search");
+  const parsed = savedSearchSchema.parse(payload);
+  const { accessToken } = await requireSessionContext(safePath);
+
+  const response = await createSavedSearch(accessToken, parsed);
+  revalidatePath("/");
+  revalidatePath("/saved");
+  revalidatePath("/search");
+  revalidatePath(safePath);
+
+  return response;
+}
+
+export async function updateSavedSearchAction(
+  savedSearchId: string,
+  payload: {
+    label?: string;
+    query?: string;
+    categorySlug?: string;
+    sort?: "newest" | "price_asc" | "price_desc";
+    alertsEnabled?: boolean;
+  },
+  currentPath = "/saved"
+) {
+  const safePath = getSafeNextPath(currentPath, "/saved");
+  const parsed = savedSearchSchema.parse(payload);
+  const { accessToken } = await requireSessionContext(safePath);
+
+  const response = await updateSavedSearch(accessToken, savedSearchId, parsed);
+  revalidatePath("/");
+  revalidatePath("/saved");
+  revalidatePath("/search");
+  revalidatePath(safePath);
+
+  return response;
+}
+
+export async function deleteSavedSearchAction(
+  savedSearchId: string,
+  currentPath = "/saved"
+) {
+  const safePath = getSafeNextPath(currentPath, "/saved");
+  const { accessToken } = await requireSessionContext(safePath);
+
+  const response = await deleteSavedSearch(accessToken, savedSearchId);
+  revalidatePath("/");
+  revalidatePath("/saved");
+  revalidatePath("/search");
+  revalidatePath(safePath);
+
+  return response;
+}
+
+export async function sendConversationMessageAction(
+  _previousState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  const parsed = sendConversationMessageSchema.safeParse({
+    conversationId: formData.get("conversationId") || undefined,
+    listingId: formData.get("listingId") || undefined,
+    body: formData.get("body"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Check the conversation details and try again.",
+      fieldErrors: flattenFieldErrors(parsed.error),
+    };
+  }
+
+  const { accessToken, user } = await requireSessionContext("/messages");
+
+  try {
+    const conversation = parsed.data.conversationId
+      ? await sendConversationMessage(
+          accessToken,
+          user.id,
+          parsed.data.conversationId,
+          {
+            body: parsed.data.body,
+          }
+        )
+      : await createConversation(accessToken, user.id, {
+          listingId: parsed.data.listingId!,
+          initialMessage: parsed.data.body,
+        });
+
+    revalidatePath("/messages");
+    redirect(`/messages?conversation=${encodeURIComponent(conversation.id)}`);
+  } catch (error) {
+    return {
+      message: getActionMessage(error, "We could not send that message."),
+    };
+  }
+}
+
+export async function markConversationReadAction(
+  conversationId: string,
+  currentPath = "/messages"
+) {
+  const safePath = getSafeNextPath(currentPath, "/messages");
+  const { accessToken, user } = await requireSessionContext(safePath);
+
+  await markConversationRead(accessToken, user.id, conversationId);
+  revalidatePath("/messages");
+  revalidatePath(safePath);
+}
+
+export async function reportListingAction(
+  _previousState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  const parsed = reportListingSchema.safeParse({
+    listingId: formData.get("listingId"),
+    reason: formData.get("reason"),
+    details: formData.get("details") || undefined,
+    currentPath: formData.get("currentPath") || undefined,
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Check the report details and try again.",
+      fieldErrors: flattenFieldErrors(parsed.error),
+    };
+  }
+
+  const safePath = getSafeNextPath(
+    parsed.data.currentPath,
+    `/listings/${parsed.data.listingId}`
+  );
+  const { accessToken } = await requireSessionContext(safePath);
+
+  try {
+    await reportListing(accessToken, parsed.data.listingId, {
+      reason: parsed.data.reason,
+      details: parsed.data.details || undefined,
+    });
+    revalidatePath(safePath);
+
+    return {
+      message: "Thanks. Your report has been sent to the moderation queue.",
+    };
+  } catch (error) {
+    return {
+      message: getActionMessage(error, "We could not submit that report."),
+    };
+  }
+}
+
+export async function moderateListingAction(
+  listingId: string,
+  action:
+    | "LISTING_APPROVED"
+    | "LISTING_REJECTED"
+    | "LISTING_REMOVED"
+    | "REPORT_UNDER_REVIEW"
+    | "REPORT_DISMISSED",
+  reportId?: string | null,
+  currentPath = "/admin"
+) {
+  const safePath = getSafeNextPath(currentPath, "/admin");
+  const { accessToken } = await requireSessionContext(safePath);
+
+  await moderateListing(accessToken, listingId, {
+    action,
+    reportId: reportId || undefined,
+  });
+
+  revalidatePath("/admin");
+  revalidatePath(safePath);
 }

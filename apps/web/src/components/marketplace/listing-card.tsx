@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
   getSellerById,
   type Listing as MockListing,
@@ -12,9 +13,11 @@ type ListingCardListing = MarketplaceListing | MockListing;
 export function ListingCard({
   listing,
   compact = false,
+  action,
 }: {
   listing: ListingCardListing;
   compact?: boolean;
+  action?: ReactNode;
 }) {
   const media = getListingMedia(listing);
   const fallbackSeller = getSellerById(listing.sellerId);
@@ -88,12 +91,15 @@ export function ListingCard({
           <div className="text-sm text-[var(--muted)]">
             {sellerName ? `${sellerName}${sellerMeta ? ` - ${sellerMeta}` : ""}` : ""}
           </div>
-          <Link
-            href={`/listings/${listing.id}`}
-            className="rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-semibold text-[var(--surface)]"
-          >
-            View details
-          </Link>
+          <div className="flex items-center gap-2">
+            {action}
+            <Link
+              href={`/listings/${listing.id}`}
+              className="rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-semibold text-[var(--surface)]"
+            >
+              View details
+            </Link>
+          </div>
         </div>
       </div>
     </article>

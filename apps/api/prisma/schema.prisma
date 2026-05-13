@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -14,6 +14,31 @@ enum ListingStatus {
   EXPIRED
   SOLD
   REMOVED
+}
+
+enum ListingReportReason {
+  SPAM
+  FRAUD
+  OFFENSIVE
+  MISLEADING
+  PROHIBITED_ITEM
+  OTHER
+}
+
+enum ListingReportStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum ModerationActionType {
+  REPORT_CREATED
+  REPORT_UNDER_REVIEW
+  LISTING_APPROVED
+  LISTING_REJECTED
+  LISTING_REMOVED
+  REPORT_DISMISSED
 }
 
 enum MessageType {
@@ -32,22 +57,27 @@ enum OfferStatus {
 }
 
 model User {
-  id                       String                    @id @default(uuid())
-  email                    String                    @unique
+  id                       String                   @id @default(uuid())
+  email                    String                   @unique
   phone                    String?
-  displayName              String                    @default("Marketplace User") @map("name")
-  passwordHash             String?                   @map("password")
-  emailVerified            Boolean                   @default(false) @map("isEmailVerified")
-  phoneVerified            Boolean                   @default(false) @map("isPhoneVerified")
-  role                     String                    @default("USER")
-  reputationScore          Int                       @default(0)
-  createdAt                DateTime                  @default(now())
-  updatedAt                DateTime                  @updatedAt
+  displayName              String                   @default("Marketplace User") @map("name")
+  passwordHash             String?                  @map("password")
+  emailVerified            Boolean                  @default(false) @map("isEmailVerified")
+  phoneVerified            Boolean                  @default(false) @map("isPhoneVerified")
+  role                     String                   @default("USER")
+  reputationScore          Int                      @default(0)
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
   listings                 Listing[]
+  savedListings            SavedListing[]
+  savedSearches            SavedSearch[]
   phoneOtps                PhoneOtpChallenge[]
   conversationParticipants ConversationParticipant[]
-  sentMessages             Message[]                 @relation("SentMessages")
+  sentMessages             Message[]                @relation("SentMessages")
   readReceipts             MessageReadReceipt[]
+  listingReportsCreated    ListingReport[]          @relation("ListingReportReporter")
+  listingReportsResolved   ListingReport[]          @relation("ListingReportResolver")
+  listingModerationEvents  ListingModerationEvent[] @relation("ListingModerationEventActor")
 }
 
 model Category {
@@ -63,36 +93,103 @@ model Category {
 }
 
 model Listing {
-  id          String        @id @default(uuid())
-  title       String
-  description String
-  price       Decimal       @db.Decimal(12, 2)
-  currency    String        @default("AED")
-  location    String
-  status      ListingStatus @default(DRAFT)
-  attributes  Json?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  sellerId    String
-  categoryId  String
-  seller      User          @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  category    Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  conversations Conversation[]
-  sharedMessages Message[]  @relation("SharedListingMessages")
+  id               String                   @id @default(uuid())
+  title            String
+  description      String
+  price            Decimal                  @db.Decimal(12, 2)
+  currency         String                   @default("AED")
+  location         String
+  status           ListingStatus            @default(DRAFT)
+  attributes       Json?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  sellerId         String
+  categoryId       String
+  seller           User                     @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  category         Category                 @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  savedBy          SavedListing[]
+  conversations    Conversation[]
+  sharedMessages   Message[]                @relation("SharedListingMessages")
+  reports          ListingReport[]
+  moderationEvents ListingModerationEvent[]
+  media            ListingMedia[]
 
   @@index([sellerId])
   @@index([categoryId])
   @@index([status])
 }
 
+model ListingMedia {
+  id               String   @id @default(uuid())
+  originalFileName String
+  storageKey       String   @unique
+  publicUrl        String
+  mimeType         String
+  byteSize         Int
+  width            Int?
+  height           Int?
+  sortOrder        Int      @default(0)
+  isPrimary        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  listingId        String
+  listing          Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, sortOrder])
+  @@index([listingId, isPrimary])
+}
+
+model ListingReport {
+  id               String                 @id @default(uuid())
+  reason           ListingReportReason
+  details          String?
+  status           ListingReportStatus    @default(OPEN)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  resolvedAt       DateTime?
+  resolvedById     String?
+  resolutionAction ModerationActionType?
+  resolutionNote   String?
+  listingId        String
+  reporterId       String
+  listing          Listing                @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reporter         User                   @relation("ListingReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  resolvedBy       User?                  @relation("ListingReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  moderationEvents ListingModerationEvent[]
+
+  @@index([listingId, status, createdAt])
+  @@index([reporterId, createdAt])
+  @@index([resolvedById, createdAt])
+}
+
+model ListingModerationEvent {
+  id                    String                @id @default(uuid())
+  action                ModerationActionType
+  notes                 String?
+  previousListingStatus ListingStatus?
+  nextListingStatus     ListingStatus?
+  resultingReportStatus ListingReportStatus?
+  createdAt             DateTime              @default(now())
+  listingId             String
+  reportId              String?
+  actorId               String?
+  listing               Listing               @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  report                ListingReport?        @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  actor                 User?                 @relation("ListingModerationEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([listingId, createdAt])
+  @@index([reportId, createdAt])
+  @@index([actorId, createdAt])
+}
+
 model Conversation {
-  id             String                    @id @default(uuid())
-  listingId      String?
-  listing        Listing?                  @relation(fields: [listingId], references: [id], onDelete: SetNull)
-  createdAt      DateTime                  @default(now())
-  updatedAt      DateTime                  @updatedAt
-  participants   ConversationParticipant[]
-  messages       Message[]
+  id           String                    @id @default(uuid())
+  listingId    String?
+  listing      Listing?                  @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+  participants ConversationParticipant[]
+  messages     Message[]
 
   @@index([listingId])
 }
@@ -113,24 +210,24 @@ model ConversationParticipant {
 }
 
 model Message {
-  id                    String               @id @default(uuid())
-  conversationId        String
-  senderId              String
-  type                  MessageType          @default(TEXT)
-  encryptedBody         String?              @db.Text
-  encryptedPayload      String?              @db.Text
-  encryptionIv          String               @db.Text
-  encryptionAuthTag     String               @db.Text
-  listingId             String?
-  offerAmount           Decimal?             @db.Decimal(12, 2)
-  offerCurrency         String?
-  offerStatus           OfferStatus?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-  conversation          Conversation         @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender                User                 @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  listing               Listing?             @relation("SharedListingMessages", fields: [listingId], references: [id], onDelete: SetNull)
-  readReceipts          MessageReadReceipt[]
+  id                String               @id @default(uuid())
+  conversationId    String
+  senderId          String
+  type              MessageType          @default(TEXT)
+  encryptedBody     String?              @db.Text
+  encryptedPayload  String?              @db.Text
+  encryptionIv      String               @db.Text
+  encryptionAuthTag String               @db.Text
+  listingId         String?
+  offerAmount       Decimal?             @db.Decimal(12, 2)
+  offerCurrency     String?
+  offerStatus       OfferStatus?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  conversation      Conversation         @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender            User                 @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  listing           Listing?             @relation("SharedListingMessages", fields: [listingId], references: [id], onDelete: SetNull)
+  readReceipts      MessageReadReceipt[]
 
   @@index([conversationId, createdAt])
   @@index([senderId])
@@ -148,17 +245,46 @@ model MessageReadReceipt {
   @@index([userId])
 }
 
+model SavedListing {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  userId    String
+  listingId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+  @@index([userId, createdAt])
+  @@index([listingId])
+}
+
+model SavedSearch {
+  id            String   @id @default(uuid())
+  label         String
+  query         String   @default("")
+  categorySlug  String   @default("")
+  sort          String   @default("newest")
+  alertsEnabled Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, query, categorySlug, sort])
+  @@index([userId, updatedAt])
+}
+
 model PhoneOtpChallenge {
-  id          String   @id @default(uuid())
-  phone       String
-  codeHash    String
-  expiresAt   DateTime
-  consumedAt  DateTime?
-  attempts    Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([phone, createdAt])
