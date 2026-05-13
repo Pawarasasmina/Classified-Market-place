@@ -88,7 +88,7 @@ export function InboxWorkspace({
 
   return (
     <div className="grid gap-6 xl:grid-cols-[0.32fr_0.68fr]">
-      <aside className="rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.85)] p-4">
+      <aside className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-4">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
@@ -98,7 +98,7 @@ export function InboxWorkspace({
               Active conversations
             </h2>
           </div>
-          <span className="rounded-full bg-[rgba(31,107,90,0.1)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
+          <span className="rounded-full bg-[rgba(102,104,232,0.2)] px-3 py-1 text-xs font-semibold text-[var(--foreground)]">
             {conversations.length} live
           </span>
         </div>
@@ -107,7 +107,7 @@ export function InboxWorkspace({
           {!selectedConversation && selectedListing ? (
             <Link
               href={selectedConversationHref}
-              className="block rounded-[1.5rem] border border-transparent bg-[var(--foreground)] p-4 text-[var(--surface)]"
+              className="block rounded-[1.5rem] border border-transparent bg-[var(--brand)] p-4 text-[var(--foreground)]"
             >
               <div className="flex items-center justify-between gap-3">
                 <p className="font-semibold">{selectedListing.subcategory}</p>
@@ -128,8 +128,8 @@ export function InboxWorkspace({
                   href={`/messages?conversation=${conversation.id}`}
                   className={`block rounded-[1.5rem] border p-4 text-left ${
                     active
-                      ? "border-transparent bg-[var(--foreground)] text-[var(--surface)]"
-                      : "border-[var(--line)] bg-white"
+                      ? "border-transparent bg-[var(--brand)] text-[var(--foreground)]"
+                      : "border-[var(--line)] bg-[var(--surface-strong)]"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -160,7 +160,7 @@ export function InboxWorkspace({
               );
             })
           ) : (
-            <div className="rounded-[1.5rem] border border-dashed border-[var(--line)] bg-white px-4 py-6 text-sm text-[var(--muted)]">
+            <div className="rounded-[1.5rem] border border-dashed border-[var(--line)] bg-[var(--surface-strong)] px-4 py-6 text-sm text-[var(--muted)]">
               No conversations yet. Open a listing and send the first message to
               start your inbox history.
             </div>
@@ -168,7 +168,7 @@ export function InboxWorkspace({
         </div>
       </aside>
 
-      <section className="rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.85)] p-6">
+      <section className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
         {selectedConversation || selectedListing ? (
           <>
             <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--line)] pb-5">
@@ -192,7 +192,7 @@ export function InboxWorkspace({
                 </p>
               </div>
 
-              <div className="rounded-[1.5rem] border border-[var(--line)] bg-white px-4 py-3 text-sm text-[var(--muted)]">
+              <div className="rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--muted)]">
                 {selectedConversation
                   ? `${selectedConversation.viewerRole} view • ${selectedConversation.latestMessageSentLabel}`
                   : selectedListingOwnedByCurrentUser
@@ -211,8 +211,8 @@ export function InboxWorkspace({
                     <div
                       className={`max-w-[32rem] rounded-[1.5rem] px-4 py-3 text-sm leading-6 ${
                         message.mine
-                          ? "bg-[var(--foreground)] text-[var(--surface)]"
-                          : "bg-[rgba(31,107,90,0.08)] text-[var(--foreground)]"
+                          ? "bg-[var(--brand)] text-[var(--foreground)]"
+                          : "bg-[rgba(9,12,26,0.55)] text-[var(--foreground)]"
                       }`}
                     >
                       <p>{message.body}</p>
@@ -225,7 +225,7 @@ export function InboxWorkspace({
                   </div>
                 ))
               ) : (
-                <div className="rounded-[1.5rem] border border-dashed border-[var(--line)] bg-white px-5 py-8 text-sm leading-7 text-[var(--muted)]">
+                <div className="rounded-[1.5rem] border border-dashed border-[var(--line)] bg-[var(--surface-strong)] px-5 py-8 text-sm leading-7 text-[var(--muted)]">
                   {selectedListingOwnedByCurrentUser
                     ? "No buyer messages have reached this listing yet."
                     : `No messages have been sent for "${selectedListingTitle}" yet. Write the first one below to open the conversation.`}
@@ -233,7 +233,7 @@ export function InboxWorkspace({
               )}
             </div>
 
-            <form action={formAction} className="mt-6 rounded-[1.75rem] border border-[var(--line)] bg-white p-4">
+            <form action={formAction} className="mt-6 rounded-[1.75rem] border border-[var(--line)] bg-[var(--surface-strong)] p-4">
               <input
                 type="hidden"
                 name="conversationId"
@@ -298,7 +298,7 @@ export function InboxWorkspace({
                   <button
                     type="submit"
                     disabled={!canSend || pending || !draftMessage.trim()}
-                    className="rounded-full bg-[linear-gradient(135deg,#d95d39,#f08a49)] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-full bg-[linear-gradient(135deg,#6668E8,#4F57D8)] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {pending
                       ? "Sending..."

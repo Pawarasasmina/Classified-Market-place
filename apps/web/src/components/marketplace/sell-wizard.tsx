@@ -344,7 +344,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
 
   if (!category) {
     return (
-      <div className="rounded-[2rem] border border-dashed border-[var(--line)] bg-[rgba(255,255,255,0.84)] px-6 py-10 text-sm text-[var(--muted)]">
+      <div className="rounded-[2rem] border border-dashed border-[var(--line)] bg-[rgba(32,39,85,0.84)] px-6 py-10 text-sm text-[var(--muted)]">
         No categories are available yet. Seed the category catalog in the API and
         reload this page.
       </div>
@@ -384,7 +384,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
         />
       ))}
 
-      <div className="space-y-6 rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.84)] p-6">
+      <div className="space-y-6 rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
@@ -394,7 +394,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
               Category to details to photos to price to publish
             </h2>
           </div>
-          <span className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm text-[var(--muted)]">
+          <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2 text-sm text-[var(--muted)]">
             {savedAt}
           </span>
         </div>
@@ -411,8 +411,8 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                   onClick={() => setStep(index + 1)}
                   className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold ${
                     active
-                      ? "border-transparent bg-[var(--foreground)] text-[var(--surface)]"
-                      : "border-[var(--line)] bg-white text-[var(--muted)]"
+                      ? "border-transparent bg-[var(--brand)] text-[var(--foreground)]"
+                      : "border-[var(--line)] bg-[var(--surface-strong)] text-[var(--muted)]"
                   }`}
                 >
                   0{index + 1} {label}
@@ -433,8 +433,8 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                 }
                 className={`rounded-[1.75rem] border p-5 text-left ${
                   item.slug === draft.categorySlug
-                    ? "border-transparent bg-[var(--foreground)] text-[var(--surface)]"
-                    : "border-[var(--line)] bg-white"
+                    ? "border-transparent bg-[var(--brand)] text-[var(--foreground)]"
+                    : "border-[var(--line)] bg-[var(--surface-strong)]"
                 }`}
               >
                 <p className="text-xs uppercase tracking-[0.2em] opacity-70">
@@ -463,7 +463,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, title: event.target.value }))
                   }
-                  className="w-full rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-sm outline-none"
+                  className="w-full rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm outline-none"
                   placeholder="Enter a clear listing title"
                 />
                 {state.fieldErrors?.title ? (
@@ -482,7 +482,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                       description: event.target.value,
                     }))
                   }
-                  className="min-h-28 w-full rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-sm outline-none"
+                  className="min-h-28 w-full rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm outline-none"
                   placeholder="Condition, highlights, and why it stands out"
                 />
                 {state.fieldErrors?.description ? (
@@ -504,7 +504,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                     <select
                       value={String(draft.attributes[field.key] ?? "")}
                       onChange={(event) => updateAttribute(field.key, event.target.value)}
-                      className="w-full rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-sm outline-none"
+                      className="w-full rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm outline-none"
                     >
                       <option value="">Select {field.label}</option>
                       {field.options?.map((option) => (
@@ -521,8 +521,8 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                       }
                       className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-sm ${
                         draft.attributes[field.key] === true
-                          ? "border-transparent bg-[var(--foreground)] text-[var(--surface)]"
-                          : "border-[var(--line)] bg-white text-[var(--muted)]"
+                          ? "border-transparent bg-[var(--brand)] text-[var(--foreground)]"
+                          : "border-[var(--line)] bg-[var(--surface-strong)] text-[var(--muted)]"
                       }`}
                     >
                       <span>{field.label}</span>
@@ -532,7 +532,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                     <input
                       value={String(draft.attributes[field.key] ?? "")}
                       onChange={(event) => updateAttribute(field.key, event.target.value)}
-                      className="w-full rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-sm outline-none"
+                      className="w-full rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm outline-none"
                       placeholder={field.placeholder}
                       type={field.type === "number" ? "number" : "text"}
                     />
@@ -550,7 +550,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                 Upload up to {maxListingImages} photos. The first photo becomes the
                 primary card image after publish.
               </p>
-              <span className="rounded-full border border-[var(--line)] bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+              <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
                 {draft.images.length}/{maxListingImages} ready
               </span>
             </div>
@@ -560,9 +560,9 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                 {draft.images.map((image, index) => (
                   <div
                     key={image.id}
-                    className="rounded-[1.75rem] border border-[var(--line)] bg-white p-4"
+                    className="rounded-[1.75rem] border border-[var(--line)] bg-[var(--surface-strong)] p-4"
                   >
-                    <div className="relative h-32 overflow-hidden rounded-2xl bg-[rgba(255,250,244,0.75)]">
+                    <div className="relative h-32 overflow-hidden rounded-2xl bg-[rgba(9,12,26,0.55)]">
                       <NextImage
                         src={image.dataUrl}
                         alt={image.name}
@@ -587,7 +587,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                       <button
                         type="button"
                         onClick={() => makePrimary(image.id)}
-                        className="rounded-full border border-[var(--line)] px-3 py-2 text-xs font-semibold text-[var(--foreground)]"
+                        className="rounded-full border border-[var(--line)] bg-[rgba(9,12,26,0.45)] px-3 py-2 text-xs font-semibold text-[var(--foreground)]"
                       >
                         {index === 0 ? "Primary photo" : "Make primary"}
                       </button>
@@ -603,7 +603,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                 ))}
               </div>
             ) : (
-              <div className="rounded-[1.75rem] border border-dashed border-[var(--line)] bg-white px-6 py-10 text-center">
+              <div className="rounded-[1.75rem] border border-dashed border-[var(--line)] bg-[var(--surface-strong)] px-6 py-10 text-center">
                 <p className="display-font text-xl font-bold text-[var(--foreground)]">
                   Upload listing photos
                 </p>
@@ -616,7 +616,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
             )}
 
             {photoMessage ? (
-              <p className="rounded-2xl border border-[var(--line)] bg-[rgba(255,250,244,0.75)] px-4 py-3 text-sm text-[var(--muted)]">
+              <p className="rounded-2xl border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3 text-sm text-[var(--muted)]">
                 {photoMessage}
               </p>
             ) : null}
@@ -650,7 +650,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, price: event.target.value }))
                 }
-                className="w-full rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-sm outline-none"
+                className="w-full rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm outline-none"
                 placeholder="AED 12,500"
               />
               {state.fieldErrors?.price ? (
@@ -666,7 +666,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, location: event.target.value }))
                 }
-                className="w-full rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-sm outline-none"
+                className="w-full rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm outline-none"
                 placeholder="Dubai Marina"
               />
               {state.fieldErrors?.location ? (
@@ -677,7 +677,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
         ) : null}
 
         {step === 5 ? (
-          <div className="rounded-[1.75rem] border border-[var(--line)] bg-white p-5">
+          <div className="rounded-[1.75rem] border border-[var(--line)] bg-[var(--surface-strong)] p-5">
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
               Review snapshot
             </p>
@@ -706,7 +706,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
             <button
               type="submit"
               disabled={pending || isPreparingImages}
-              className="mt-6 rounded-full bg-[linear-gradient(135deg,#d95d39,#f08a49)] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+              className="mt-6 rounded-full bg-[linear-gradient(135deg,#6668E8,#4F57D8)] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
             >
               {pending ? "Publishing..." : "Publish listing"}
             </button>
@@ -728,14 +728,14 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
           <button
             type="button"
             onClick={() => setStep((current) => Math.min(5, current + 1))}
-            className="rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-[var(--surface)]"
+            className="rounded-full bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-[var(--foreground)]"
           >
             Next step
           </button>
         </div>
       </div>
 
-      <aside className="space-y-4 rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.84)] p-6">
+      <aside className="space-y-4 rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
         <h3 className="display-font text-xl font-bold text-[var(--foreground)]">
           Integration notes
         </h3>

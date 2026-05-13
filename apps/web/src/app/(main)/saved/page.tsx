@@ -46,7 +46,7 @@ export default async function SavedPage() {
               ))}
             </div>
           ) : (
-            <div className="mt-8 rounded-[2rem] border border-dashed border-[var(--line)] bg-[rgba(255,255,255,0.76)] px-6 py-10 text-sm leading-7 text-[var(--muted)]">
+            <div className="mt-8 rounded-[2rem] border border-dashed border-[var(--line)] bg-[rgba(32,39,85,0.76)] px-6 py-10 text-sm leading-7 text-[var(--muted)]">
               You have not saved any listings yet. Browse the marketplace and use the
               save action on listing pages to build your shortlist.
             </div>
@@ -54,7 +54,7 @@ export default async function SavedPage() {
         </div>
 
         <aside className="space-y-5">
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)] p-6">
+          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
               Saved searches
             </p>
@@ -68,7 +68,7 @@ export default async function SavedPage() {
                   />
                 ))
               ) : (
-                <div className="rounded-[1.5rem] border border-dashed border-[var(--line)] bg-white px-4 py-5 text-sm leading-7 text-[var(--muted)]">
+                <div className="rounded-[1.5rem] border border-dashed border-[var(--line)] bg-[var(--surface-strong)] px-4 py-5 text-sm leading-7 text-[var(--muted)]">
                   Save a search from the search results page to keep its filters and
                   alert preference here.
                 </div>
@@ -76,7 +76,7 @@ export default async function SavedPage() {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)] p-6">
+          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
               Backend status
             </p>

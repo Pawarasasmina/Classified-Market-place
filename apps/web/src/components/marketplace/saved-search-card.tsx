@@ -77,7 +77,7 @@ export function SavedSearchCard({
   }
 
   return (
-    <article className="rounded-[1.75rem] border border-[var(--line)] bg-white p-5">
+    <article className="rounded-[1.75rem] border border-[var(--line)] bg-[var(--surface-strong)] p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
@@ -87,12 +87,12 @@ export function SavedSearchCard({
             value={label}
             onChange={(event) => setLabel(event.target.value)}
             maxLength={120}
-            className="mt-2 w-full rounded-[1rem] border border-[var(--line)] bg-[rgba(255,250,244,0.58)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] outline-none"
+            className="mt-2 w-full rounded-[1rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] outline-none"
           />
         </div>
         <Link
           href={savedSearch.href}
-          className="rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-semibold text-[var(--surface)]"
+          className="rounded-full bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]"
         >
           Open search
         </Link>
@@ -100,16 +100,16 @@ export function SavedSearchCard({
 
       <div className="mt-4 flex flex-wrap gap-2">
         {savedSearch.query ? (
-          <span className="rounded-full border border-[var(--line)] bg-[rgba(255,250,244,0.65)] px-3 py-1.5 text-xs text-[var(--muted)]">
+          <span className="rounded-full border border-[var(--line)] bg-[rgba(9,12,26,0.45)] px-3 py-1.5 text-xs text-[var(--muted)]">
             Query: {savedSearch.query}
           </span>
         ) : null}
         {savedSearch.categoryName ? (
-          <span className="rounded-full border border-[var(--line)] bg-[rgba(255,250,244,0.65)] px-3 py-1.5 text-xs text-[var(--muted)]">
+          <span className="rounded-full border border-[var(--line)] bg-[rgba(9,12,26,0.45)] px-3 py-1.5 text-xs text-[var(--muted)]">
             Category: {savedSearch.categoryName}
           </span>
         ) : null}
-        <span className="rounded-full border border-[var(--line)] bg-[rgba(255,250,244,0.65)] px-3 py-1.5 text-xs text-[var(--muted)]">
+        <span className="rounded-full border border-[var(--line)] bg-[rgba(9,12,26,0.45)] px-3 py-1.5 text-xs text-[var(--muted)]">
           Sort: {formatSavedSearchSortLabel(savedSearch.sort)}
         </span>
       </div>
@@ -135,7 +135,7 @@ export function SavedSearchCard({
           type="button"
           onClick={handleSave}
           disabled={pending || !hasChanges}
-          className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-full border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending ? "Updating..." : "Save changes"}
         </button>

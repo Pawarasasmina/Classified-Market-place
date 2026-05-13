@@ -82,7 +82,7 @@ export function ListingStatusActions({
             type="button"
             onClick={() => handleAction(item.action)}
             disabled={pendingAction !== null}
-            className="rounded-full border border-[var(--line)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pendingAction === item.action ? "Updating..." : item.label}
           </button>

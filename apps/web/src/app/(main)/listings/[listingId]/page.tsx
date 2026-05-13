@@ -49,7 +49,7 @@ export default async function ListingDetailPage(
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
       <div className="grid gap-8 xl:grid-cols-[0.7fr_0.3fr]">
         <div className="space-y-6">
-          <section className="overflow-hidden rounded-[2.5rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)]">
+          <section className="overflow-hidden rounded-[2.5rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)]">
             <div className="relative h-72">
               <Image
                 src={media.src}
@@ -72,7 +72,7 @@ export default async function ListingDetailPage(
                     {listing.title}
                   </h1>
                 </div>
-                <span className="rounded-full bg-[rgba(31,107,90,0.1)] px-4 py-2 text-sm font-semibold text-[var(--accent)]">
+                <span className="rounded-full bg-[rgba(102,104,232,0.2)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]">
                   {listing.status}
                 </span>
               </div>
@@ -84,7 +84,7 @@ export default async function ListingDetailPage(
                 <span>{listing.chatCount} open chats</span>
               </div>
 
-              <div className="rounded-[1.75rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] p-5">
+              <div className="rounded-[1.75rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] p-5">
                 <p className="display-font text-2xl font-bold text-[var(--foreground)]">
                   {listing.priceLabel}
                 </p>
@@ -92,7 +92,7 @@ export default async function ListingDetailPage(
                   {listing.featureBullets.map((feature) => (
                     <span
                       key={feature}
-                      className="rounded-full border border-[var(--line)] bg-white px-3 py-1 text-xs text-[var(--muted)]"
+                      className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-1 text-xs text-[var(--muted)]"
                     >
                       {feature}
                     </span>
@@ -101,7 +101,7 @@ export default async function ListingDetailPage(
               </div>
 
               <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-[1.75rem] border border-[var(--line)] bg-white p-5">
+                <div className="rounded-[1.75rem] border border-[var(--line)] bg-[var(--surface-strong)] p-5">
                   <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
                     Description
                   </p>
@@ -110,7 +110,7 @@ export default async function ListingDetailPage(
                   </p>
                 </div>
 
-                <div className="rounded-[1.75rem] border border-[var(--line)] bg-white p-5">
+                <div className="rounded-[1.75rem] border border-[var(--line)] bg-[var(--surface-strong)] p-5">
                   <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
                     Attributes
                   </p>
@@ -118,7 +118,7 @@ export default async function ListingDetailPage(
                     {Object.entries(listing.attributes).map(([key, value]) => (
                       <div
                         key={key}
-                        className="rounded-[1.25rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] px-4 py-3"
+                        className="rounded-[1.25rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3"
                       >
                         <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
                           {key}
@@ -155,12 +155,12 @@ export default async function ListingDetailPage(
         </div>
 
         <aside className="space-y-5">
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)] p-6">
+          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
               Seller widget
             </p>
             <div className="mt-4 flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d95d39,#1f6b5a)] font-bold text-white">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#6668E8,#A36E1D)] font-bold text-white">
                 {(seller?.name ?? listing.sellerDisplayName ?? "Seller")
                   .split(" ")
                   .slice(0, 2)
@@ -187,7 +187,7 @@ export default async function ListingDetailPage(
             <div className="mt-6 grid gap-3">
               <Link
                 href={`/messages?listing=${listing.id}`}
-                className="rounded-full bg-[var(--foreground)] px-5 py-3 text-center text-sm font-semibold text-[var(--surface)]"
+                className="rounded-full bg-[var(--brand)] px-5 py-3 text-center text-sm font-semibold text-[var(--foreground)]"
               >
                 Chat now
               </Link>
@@ -208,7 +208,7 @@ export default async function ListingDetailPage(
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)] p-6">
+          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
               Phase 1 actions
             </p>
@@ -221,7 +221,7 @@ export default async function ListingDetailPage(
                 <button
                   key={action}
                   type="button"
-                  className="rounded-[1.25rem] border border-[var(--line)] bg-white px-4 py-3 text-left text-sm font-semibold text-[var(--foreground)]"
+                  className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-left text-sm font-semibold text-[var(--foreground)]"
                 >
                   {action}
                 </button>
@@ -237,7 +237,7 @@ export default async function ListingDetailPage(
               ) : (
                 <Link
                   href={`/login?next=${encodeURIComponent(`/listings/${listing.id}`)}`}
-                  className="block rounded-[1.25rem] border border-[var(--line)] bg-white px-4 py-3 text-center text-sm font-semibold text-[var(--foreground)]"
+                  className="block rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-center text-sm font-semibold text-[var(--foreground)]"
                 >
                   Sign in to report listing
                 </Link>

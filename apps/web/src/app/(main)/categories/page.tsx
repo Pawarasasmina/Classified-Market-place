@@ -32,19 +32,19 @@ export default async function CategoriesPage() {
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[rgba(255,255,255,0.82)] text-[var(--brand-deep)]">
                   <CategoryIcon slug={category.slug} className="h-7 w-7" />
                 </div>
-                <h2 className="display-font mt-5 text-3xl font-bold text-[var(--foreground)]">
+                <h2 className="display-font mt-5 text-3xl font-bold text-[#11182D]">
                   {category.name}
                 </h2>
-                <p className="mt-3 text-base leading-7 text-[var(--muted)]">
+                <p className="mt-3 text-base leading-7 text-[#2D3353]">
                   {category.description}
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
-                  <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[var(--muted)]">
+                  <span className="rounded-full bg-[rgba(17,24,45,0.9)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]">
                     {category.countLabel}
                   </span>
                   <Link
                     href={`/search?category=${category.slug}`}
-                    className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-[var(--foreground)]"
+                    className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]"
                   >
                     Browse listings
                   </Link>
@@ -52,7 +52,7 @@ export default async function CategoriesPage() {
               </div>
 
               <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-[1.75rem] border border-[var(--line)] bg-white p-5">
+                <div className="rounded-[1.75rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-5">
                   <p className="display-font text-sm font-semibold uppercase tracking-[0.2em] text-[var(--brand-deep)]">
                     Schema fields
                   </p>
@@ -61,7 +61,7 @@ export default async function CategoriesPage() {
                       category.schema.map((field) => (
                         <div
                           key={field.key}
-                          className="rounded-[1.25rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] px-4 py-3"
+                          className="rounded-[1.25rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3"
                         >
                           <p className="font-semibold text-[var(--foreground)]">
                             {field.label}
@@ -80,16 +80,16 @@ export default async function CategoriesPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[1.75rem] border border-[var(--line)] bg-white p-5">
+                <div className="rounded-[1.75rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-5">
                   <p className="display-font text-sm font-semibold uppercase tracking-[0.2em] text-[var(--brand-deep)]">
                     API-backed notes
                   </p>
                   <div className="mt-4 space-y-3">
-                    <div className="rounded-[1.25rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] px-4 py-3">
+                    <div className="rounded-[1.25rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3">
                       <p className="font-semibold text-[var(--foreground)]">Slug</p>
                       <p className="text-sm text-[var(--muted)]">{category.slug}</p>
                     </div>
-                    <div className="rounded-[1.25rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] px-4 py-3">
+                    <div className="rounded-[1.25rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3">
                       <p className="font-semibold text-[var(--foreground)]">
                         Listing status
                       </p>

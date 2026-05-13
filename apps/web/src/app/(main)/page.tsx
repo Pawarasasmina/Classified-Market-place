@@ -200,13 +200,13 @@ export default async function HomePage() {
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(17,24,45,0.82)] text-[var(--foreground)]">
                 <CategoryIcon slug={category.slug} className="h-6 w-6" />
               </div>
-              <h3 className="display-font mt-5 text-xl font-bold text-[var(--foreground)]">
+              <h3 className="display-font mt-5 text-xl font-bold text-[#11182D]">
                 {category.name}
               </h3>
               <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
                 {category.description}
               </p>
-              <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+              <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#2D3353]">
                 {category.countLabel}
               </p>
             </Link>

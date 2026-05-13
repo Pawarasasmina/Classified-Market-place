@@ -308,12 +308,24 @@ export class ChatService {
   }
 
   private serializeMessage(message: ConversationRecord['messages'][number]) {
-    const decrypted = this.encryption.decrypt({
-      encryptedBody: message.encryptedBody,
-      encryptedPayload: message.encryptedPayload,
-      encryptionIv: message.encryptionIv,
-      encryptionAuthTag: message.encryptionAuthTag,
-    });
+    let decrypted: { body: string | null; payload: Record<string, unknown> | null };
+
+    try {
+      decrypted = this.encryption.decrypt({
+        encryptedBody: message.encryptedBody,
+        encryptedPayload: message.encryptedPayload,
+        encryptionIv: message.encryptionIv,
+        encryptionAuthTag: message.encryptionAuthTag,
+      });
+    } catch {
+      decrypted = {
+        body:
+          message.type === MessageType.TEXT
+            ? 'Message could not be decrypted.'
+            : null,
+        payload: null,
+      };
+    }
     const readAt =
       message.readReceipts.find((receipt) => receipt.userId !== message.senderId)
         ?.readAt ?? null;

@@ -19,14 +19,14 @@ export function ProfileForm({ user }: { user: SessionUser }) {
     <form action={formAction} className="mt-6">
       <div className="grid gap-6 lg:grid-cols-[0.62fr_0.38fr]">
         <div className="space-y-4">
-          <label className="space-y-2 rounded-[1.5rem] border border-[var(--line)] bg-white p-4">
+          <label className="block w-full space-y-2 rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-strong)] p-4">
             <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
               Display name
             </span>
             <input
               name="displayName"
               defaultValue={user.displayName}
-              className="w-full bg-transparent text-sm font-semibold text-[var(--foreground)] outline-none"
+              className="w-full rounded-xl border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] outline-none"
             />
             <p className="text-sm text-[var(--muted)]">
               This is the public-facing name shown on your listings.
@@ -36,7 +36,7 @@ export function ProfileForm({ user }: { user: SessionUser }) {
             ) : null}
           </label>
 
-          <label className="space-y-2 rounded-[1.5rem] border border-[var(--line)] bg-white p-4">
+          <label className="block w-full space-y-2 rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-strong)] p-4">
             <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
               Phone
             </span>
@@ -44,7 +44,7 @@ export function ProfileForm({ user }: { user: SessionUser }) {
               name="phone"
               defaultValue={user.phone ?? ""}
               placeholder="+971551234567"
-              className="w-full bg-transparent text-sm font-semibold text-[var(--foreground)] outline-none"
+              className="w-full rounded-xl border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] outline-none"
             />
             <p className="text-sm text-[var(--muted)]">
               Use international format. Updating this number will require a fresh
@@ -55,14 +55,14 @@ export function ProfileForm({ user }: { user: SessionUser }) {
             ) : null}
           </label>
 
-          <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(255,250,244,0.78)] p-4 text-sm leading-7 text-[var(--muted)]">
+          <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] p-4 text-sm leading-7 text-[var(--muted)]">
             Email is currently read-only because the live profile API only supports
             updating your display name and phone number in this phase.
           </div>
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-[1.5rem] border border-[var(--line)] bg-white p-4">
+          <div className="rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-strong)] p-4">
             <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
               Email address
             </span>
@@ -75,7 +75,7 @@ export function ProfileForm({ user }: { user: SessionUser }) {
             </p>
           </div>
 
-          <div className="rounded-[1.5rem] border border-[var(--line)] bg-white p-4">
+          <div className="rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-strong)] p-4">
             <span className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
               Phone verification
             </span>
@@ -90,7 +90,7 @@ export function ProfileForm({ user }: { user: SessionUser }) {
             {!user.phoneVerified ? (
               <Link
                 href="/verify?next=%2Fprofile"
-                className="mt-4 inline-flex rounded-full border border-[var(--line)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]"
+                className="mt-4 inline-flex rounded-full border border-[var(--line)] bg-[rgba(9,12,26,0.45)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]"
               >
                 Verify phone
               </Link>
@@ -103,7 +103,7 @@ export function ProfileForm({ user }: { user: SessionUser }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-70"
+          className="rounded-full bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-70"
         >
           {pending ? "Saving..." : "Save profile"}
         </button>

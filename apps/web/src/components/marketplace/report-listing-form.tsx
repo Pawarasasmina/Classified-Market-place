@@ -30,7 +30,7 @@ export function ReportListingForm({
   );
 
   return (
-    <form action={formAction} className="space-y-3 rounded-[1.25rem] border border-[var(--line)] bg-white p-4">
+    <form action={formAction} className="space-y-3 rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-strong)] p-4">
       <input type="hidden" name="listingId" value={listingId} />
       <input type="hidden" name="currentPath" value={currentPath} />
 
@@ -46,7 +46,7 @@ export function ReportListingForm({
           name="reason"
           defaultValue="MISLEADING"
           disabled={pending}
-          className="w-full rounded-[1rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] px-3 py-3 text-sm text-[var(--foreground)] outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-[1rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-3 py-3 text-sm text-[var(--foreground)] outline-none disabled:cursor-not-allowed disabled:opacity-60"
         >
           {reportReasons.map((reason) => (
             <option key={reason.value} value={reason.value}>
@@ -62,7 +62,7 @@ export function ReportListingForm({
           disabled={pending}
           rows={3}
           placeholder="Optional details to help moderation review this listing."
-          className="w-full resize-none rounded-[1rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] px-3 py-3 text-sm text-[var(--foreground)] outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full resize-none rounded-[1rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-3 py-3 text-sm text-[var(--foreground)] outline-none disabled:cursor-not-allowed disabled:opacity-60"
         />
       </div>
 
@@ -75,7 +75,7 @@ export function ReportListingForm({
       ) : null}
 
       {state.message ? (
-        <p className="rounded-[1rem] border border-[rgba(31,107,90,0.18)] bg-[rgba(242,251,247,0.95)] px-3 py-3 text-sm text-[var(--accent)]">
+        <p className="rounded-[1rem] border border-[rgba(102,104,232,0.25)] bg-[rgba(9,12,26,0.55)] px-3 py-3 text-sm text-[var(--foreground)]">
           {state.message}
         </p>
       ) : null}
@@ -83,7 +83,7 @@ export function ReportListingForm({
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-full border border-[var(--line)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full rounded-full border border-[var(--line)] bg-[rgba(9,12,26,0.45)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? "Submitting report..." : "Submit report"}
       </button>

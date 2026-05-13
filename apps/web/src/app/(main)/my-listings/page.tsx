@@ -11,7 +11,7 @@ export default async function MyListingsPage() {
 
   return (
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 rounded-[2.25rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
         <div>
           <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
             Listing management
@@ -22,7 +22,7 @@ export default async function MyListingsPage() {
         </div>
         <Link
           href="/sell"
-          className="rounded-full bg-[linear-gradient(135deg,#d95d39,#f08a49)] px-5 py-3 text-sm font-semibold text-white"
+          className="rounded-full bg-[linear-gradient(135deg,#6668E8,#4F57D8)] px-5 py-3 text-sm font-semibold text-white"
         >
           Create new listing
         </Link>
@@ -36,7 +36,7 @@ export default async function MyListingsPage() {
             return (
               <section
                 key={listing.id}
-                className="grid gap-5 rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)] p-6 xl:grid-cols-[0.18fr_0.55fr_0.27fr]"
+                className="grid gap-5 rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6 xl:grid-cols-[0.18fr_0.55fr_0.27fr]"
               >
                 <div className="relative h-36 overflow-hidden rounded-[1.75rem]">
                   <Image
@@ -58,7 +58,7 @@ export default async function MyListingsPage() {
                     <h2 className="text-2xl font-bold text-[var(--foreground)]">
                       {listing.title}
                     </h2>
-                    <span className="rounded-full bg-[rgba(31,107,90,0.1)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
+                    <span className="rounded-full bg-[rgba(102,104,232,0.2)] px-3 py-1 text-xs font-semibold text-[var(--foreground)]">
                       {listing.status}
                     </span>
                   </div>
@@ -69,7 +69,7 @@ export default async function MyListingsPage() {
                     {listing.featureBullets.map((feature) => (
                       <span
                         key={feature}
-                        className="rounded-full border border-[var(--line)] bg-white px-3 py-1 text-xs text-[var(--muted)]"
+                        className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-1 text-xs text-[var(--muted)]"
                       >
                         {feature}
                       </span>
@@ -89,7 +89,7 @@ export default async function MyListingsPage() {
                   <div className="grid gap-2">
                     <Link
                       href={`/listings/${listing.id}`}
-                      className="rounded-full bg-[var(--foreground)] px-4 py-3 text-center text-sm font-semibold text-[var(--surface)]"
+                      className="rounded-full bg-[var(--brand)] px-4 py-3 text-center text-sm font-semibold text-[var(--foreground)]"
                     >
                       View listing
                     </Link>
@@ -103,7 +103,7 @@ export default async function MyListingsPage() {
             );
           })
         ) : (
-          <div className="rounded-[2rem] border border-dashed border-[var(--line)] bg-[rgba(255,255,255,0.7)] px-6 py-10 text-sm text-[var(--muted)]">
+          <div className="rounded-[2rem] border border-dashed border-[var(--line)] bg-[rgba(32,39,85,0.7)] px-6 py-10 text-sm text-[var(--muted)]">
             You have not published any listings yet. Start with your first post to
             see it here.
           </div>

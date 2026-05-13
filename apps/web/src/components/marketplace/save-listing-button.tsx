@@ -46,7 +46,7 @@ export function SaveListingButton({
 
   const buttonClassName =
     variant === "ghost"
-      ? "rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-[var(--foreground)]"
+      ? "rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]"
       : "rounded-full border border-[var(--line)] px-5 py-3 text-sm font-semibold text-[var(--foreground)]";
 
   return (
