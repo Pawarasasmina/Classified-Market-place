@@ -19,8 +19,8 @@ export default async function HomePage() {
   return (
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
       <section className="grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="rounded-[2.5rem] border border-[var(--line)] bg-[rgba(255,250,244,0.84)] p-8">
-          <div className="inline-flex rounded-full border border-[rgba(217,93,57,0.2)] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
+        <div className="rounded-[2.5rem] border border-[var(--line)] bg-[rgba(32,39,85,0.84)] p-8">
+          <div className="inline-flex rounded-full border border-[rgba(181,183,202,0.35)] bg-[var(--surface-strong)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
             Local marketplace
           </div>
 
@@ -33,8 +33,8 @@ export default async function HomePage() {
             and post your own ad in just a few steps.
           </p>
 
-          <div className="mt-8 grid gap-4 rounded-[2rem] border border-[var(--line)] bg-white p-4 lg:grid-cols-[1.3fr_0.85fr_0.7fr_auto]">
-            <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] px-4 py-3">
+          <div className="mt-8 grid gap-4 rounded-[2rem] border border-[var(--line)] bg-[var(--surface-strong)] p-4 lg:grid-cols-[1.3fr_0.85fr_0.7fr_auto]">
+            <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3">
               <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
                 Search query
               </p>
@@ -42,7 +42,7 @@ export default async function HomePage() {
                 Apartment in Marina, Toyota Camry, iPhone 15, AC repair...
               </p>
             </div>
-            <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] px-4 py-3">
+            <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3">
               <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
                 Category
               </p>
@@ -50,7 +50,7 @@ export default async function HomePage() {
                 All categories
               </p>
             </div>
-            <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(255,250,244,0.75)] px-4 py-3">
+            <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3">
               <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
                 Radius
               </p>
@@ -60,7 +60,7 @@ export default async function HomePage() {
             </div>
             <Link
               href="/search?q=marina"
-              className="flex items-center justify-center rounded-[1.5rem] bg-[linear-gradient(135deg,#d95d39,#f08a49)] px-5 py-4 text-sm font-semibold text-white"
+              className="flex items-center justify-center rounded-[1.5rem] bg-[linear-gradient(135deg,#6668E8,#4F57D8)] px-5 py-4 text-sm font-semibold text-white"
             >
               Search listings
             </Link>
@@ -69,13 +69,13 @@ export default async function HomePage() {
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href="/search"
-              className="rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-[var(--surface)]"
+              className="rounded-full bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-[var(--foreground)]"
             >
               Browse listings
             </Link>
             <Link
               href="/sell"
-              className="rounded-full border border-[var(--accent)] px-5 py-3 text-sm font-semibold text-[var(--accent)]"
+              className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-5 py-3 text-sm font-semibold text-[var(--accent)]"
             >
               Post your ad
             </Link>
@@ -89,7 +89,7 @@ export default async function HomePage() {
                 <Link
                   key={listing.id}
                   href={`/listings/${listing.id}`}
-                  className="group overflow-hidden rounded-[1.75rem] border border-[var(--line)] bg-white"
+                  className="group overflow-hidden rounded-[1.75rem] border border-[var(--line)] bg-[var(--surface)]"
                 >
                   <div className="relative h-36">
                     <Image
@@ -104,7 +104,7 @@ export default async function HomePage() {
                       className="absolute inset-0"
                       style={{ background: media.overlay }}
                     />
-                    <span className="absolute left-3 top-3 rounded-full bg-[rgba(255,255,255,0.86)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--brand-deep)]">
+                    <span className="absolute left-3 top-3 rounded-full bg-[rgba(17,24,45,0.86)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--foreground)]">
                       {listing.subcategory}
                     </span>
                   </div>
@@ -123,8 +123,8 @@ export default async function HomePage() {
         </div>
 
         <div className="grid gap-5">
-          <div className="rounded-[2.5rem] border border-[var(--line)] bg-[linear-gradient(145deg,#193e35,#173447_58%,#4a281c)] p-8 text-[var(--surface)]">
-            <p className="display-font text-sm font-semibold uppercase tracking-[0.24em] text-[#f2d3a6]">
+          <div className="rounded-[2.5rem] border border-[var(--line)] bg-[linear-gradient(145deg,#11182D,#202755_58%,#090C1A)] p-8 text-[var(--foreground)]">
+            <p className="display-font text-sm font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
               Marketplace pulse
             </p>
             <h2 className="mt-3 text-3xl font-bold leading-tight">
@@ -135,9 +135,9 @@ export default async function HomePage() {
               {quickStats.map((stat) => (
                 <div
                   key={stat.label}
-                  className="rounded-[1.5rem] bg-[rgba(255,255,255,0.08)] p-4"
+                  className="rounded-[1.5rem] bg-[rgba(102,104,232,0.12)] p-4"
                 >
-                  <p className="text-xs uppercase tracking-[0.2em] text-[#f2d3a6]">
+                  <p className="text-xs uppercase tracking-[0.2em] text-[var(--accent)]">
                     {stat.label}
                   </p>
                   <p className="display-font mt-3 text-2xl font-bold">{stat.value}</p>
@@ -146,7 +146,7 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div className="rounded-[2.5rem] border border-[var(--line)] bg-[rgba(255,255,255,0.85)] p-6">
+          <div className="rounded-[2.5rem] border border-[var(--line)] bg-[rgba(32,39,85,0.85)] p-6">
             <div className="flex items-center justify-between">
               <h2 className="display-font text-2xl font-bold text-[var(--foreground)]">
                 Why it works
@@ -164,7 +164,7 @@ export default async function HomePage() {
               ].map((item) => (
                 <li
                   key={item}
-                  className="rounded-[1.25rem] border border-[var(--line)] bg-white px-4 py-3"
+                  className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3"
                 >
                   {item}
                 </li>
@@ -197,7 +197,7 @@ export default async function HomePage() {
               className="card-shadow rounded-[1.75rem] border border-[var(--line)] p-5"
               style={{ background: category.accent }}
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(255,255,255,0.82)] text-[var(--brand-deep)]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(17,24,45,0.82)] text-[var(--foreground)]">
                 <CategoryIcon slug={category.slug} className="h-6 w-6" />
               </div>
               <h3 className="display-font mt-5 text-xl font-bold text-[var(--foreground)]">
@@ -238,7 +238,7 @@ export default async function HomePage() {
         </div>
 
         <aside className="space-y-5">
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)] p-6">
+          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.86)] p-6">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
               Saved searches
             </p>
@@ -256,7 +256,7 @@ export default async function HomePage() {
                   <Link
                     key={savedSearch.id}
                     href={savedSearch.href}
-                    className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm text-[var(--muted)]"
+                    className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2 text-sm text-[var(--muted)]"
                   >
                     {savedSearch.label}
                   </Link>
@@ -264,7 +264,7 @@ export default async function HomePage() {
               ) : (
                 <Link
                   href={session ? "/search" : "/login?next=%2Fsearch"}
-                  className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm text-[var(--muted)]"
+                  className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2 text-sm text-[var(--muted)]"
                 >
                   {session ? "Save your first search" : "Sign in to save searches"}
                 </Link>
@@ -272,7 +272,7 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)] p-6">
+          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.86)] p-6">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
               Quick actions
             </p>
@@ -286,7 +286,7 @@ export default async function HomePage() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="rounded-[1.5rem] border border-[var(--line)] bg-white px-4 py-4 text-sm font-semibold text-[var(--foreground)]"
+                  className="rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-4 text-sm font-semibold text-[var(--foreground)]"
                 >
                   {item.label}
                 </Link>

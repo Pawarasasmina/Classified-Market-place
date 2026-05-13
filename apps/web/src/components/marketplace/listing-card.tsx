@@ -33,7 +33,7 @@ export function ListingCard({
         : undefined;
 
   return (
-    <article className="card-shadow overflow-hidden rounded-[1.75rem] border border-[var(--line)] bg-[rgba(255,255,255,0.86)]">
+    <article className="card-shadow overflow-hidden rounded-[1.75rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)]">
       <div className="relative h-44 overflow-hidden">
         <Image
           src={media.src}
@@ -62,7 +62,7 @@ export function ListingCard({
             </h3>
           </div>
 
-          <span className="rounded-full bg-[rgba(31,107,90,0.1)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
+          <span className="rounded-full bg-[rgba(102,104,232,0.2)] px-3 py-1 text-xs font-semibold text-[var(--foreground)]">
             {listing.status}
           </span>
         </div>
@@ -80,7 +80,7 @@ export function ListingCard({
           {listing.featureBullets.slice(0, compact ? 2 : 4).map((feature) => (
             <span
               key={feature}
-              className="rounded-full border border-[var(--line)] bg-white px-3 py-1 text-xs text-[var(--muted)]"
+              className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-1 text-xs text-[var(--muted)]"
             >
               {feature}
             </span>
@@ -95,7 +95,7 @@ export function ListingCard({
             {action}
             <Link
               href={`/listings/${listing.id}`}
-              className="rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-semibold text-[var(--surface)]"
+              className="rounded-full bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]"
             >
               View details
             </Link>

@@ -199,7 +199,10 @@ export class ChatService {
       throw new NotFoundException('Conversation not found');
     }
 
-    return this.serializeConversationDetail(conversation, userId);
+    return this.serializeConversationDetail(
+      conversation as ConversationDetailRecord & { listing: ConversationListing },
+      userId,
+    );
   }
 
   async createConversation(userId: string, dto: CreateConversationDto) {

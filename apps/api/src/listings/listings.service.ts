@@ -487,9 +487,8 @@ export class ListingsService {
 
     if (
       createListingDto.status &&
-      ![ListingStatus.DRAFT, ListingStatus.ACTIVE].includes(
-        createListingDto.status,
-      )
+      createListingDto.status !== ListingStatus.DRAFT &&
+      createListingDto.status !== ListingStatus.ACTIVE
     ) {
       throw new BadRequestException(
         'New listings can only start as draft or active.',

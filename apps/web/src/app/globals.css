@@ -1,21 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fbf4ea;
-  --foreground: #1b1714;
+  --background: #090c1a;
+  --foreground: #fdfdfe;
   --font-manrope: Arial, Helvetica, sans-serif;
   --font-space-grotesk: Arial, Helvetica, sans-serif;
-  --surface: #fffaf4;
-  --surface-strong: #f7e2c7;
-  --muted: #655b53;
-  --line: rgba(56, 35, 18, 0.12);
-  --brand: #d95d39;
-  --brand-deep: #9f3416;
-  --accent: #1f6b5a;
-  --accent-soft: #d7eee7;
-  --gold: #f0b44c;
-  --sky: #87c8f2;
-  --rose: #f6b7a6;
+  --surface: #202755;
+  --surface-strong: #11182d;
+  --muted: #676a77;
+  --line: rgba(181, 183, 202, 0.35);
+  --brand: #6668e8;
+  --brand-deep: #6668e8;
+  --accent: #a36e1d;
+  --accent-soft: rgba(102, 104, 232, 0.16);
+  --gold: #a36e1d;
+  --sky: #b5b7ca;
+  --rose: #676a77;
 }
 
 @theme inline {
@@ -37,14 +37,13 @@ body {
   color: var(--foreground);
   font-family: var(--font-manrope), sans-serif;
   background-image:
-    radial-gradient(circle at 15% 12%, rgba(217, 93, 57, 0.28), transparent 24%),
-    radial-gradient(circle at 85% 14%, rgba(135, 200, 242, 0.24), transparent 20%),
-    radial-gradient(circle at 70% 36%, rgba(240, 180, 76, 0.18), transparent 18%),
-    linear-gradient(180deg, #fff7ed 0%, #f9f2e6 48%, #f5efe5 100%);
+    radial-gradient(circle at 18% 10%, rgba(102, 104, 232, 0.2), transparent 26%),
+    radial-gradient(circle at 82% 18%, rgba(163, 110, 29, 0.12), transparent 22%),
+    linear-gradient(180deg, #11182d 0%, #090c1a 60%, #090c1a 100%);
 }
 
 ::selection {
-  background: rgba(200, 91, 43, 0.2);
+  background: rgba(102, 104, 232, 0.38);
 }
 
 a,
@@ -62,24 +61,24 @@ button {
 }
 
 .card-shadow {
-  box-shadow: 0 24px 70px rgba(93, 55, 22, 0.1);
+  box-shadow: 0 24px 70px rgba(4, 7, 20, 0.45);
 }
 
 .soft-grid {
   background-image:
-    linear-gradient(to right, rgba(31, 107, 90, 0.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(217, 93, 57, 0.07) 1px, transparent 1px);
+    linear-gradient(to right, rgba(102, 104, 232, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(181, 183, 202, 0.08) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 
 .sunrise-panel {
   background:
-    linear-gradient(135deg, rgba(255, 250, 244, 0.92), rgba(255, 240, 220, 0.88)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
+    linear-gradient(135deg, rgba(32, 39, 85, 0.96), rgba(17, 24, 45, 0.92)),
+    linear-gradient(180deg, rgba(102, 104, 232, 0.12), rgba(9, 12, 26, 0));
 }
 
 .glass-warm {
-  background: rgba(255, 250, 244, 0.72);
+  background: rgba(17, 24, 45, 0.72);
   backdrop-filter: blur(16px);
 }
 

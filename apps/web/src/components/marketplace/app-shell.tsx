@@ -31,10 +31,10 @@ export function MarketplaceShell({
 
   return (
     <div className="min-h-screen bg-transparent text-[var(--foreground)]">
-      <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[rgba(255,250,244,0.9)] backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[rgba(17,24,45,0.88)] backdrop-blur-xl">
         <div className="mx-auto flex max-w-[92rem] items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-10">
           <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#d95d39,#1f6b5a)] text-sm font-bold text-white">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#6668E8,#A36E1D)] text-sm font-bold text-white">
               CM
             </div>
             <div>
@@ -57,8 +57,8 @@ export function MarketplaceShell({
                   href={link.href}
                   className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                     active
-                      ? "bg-[var(--foreground)] text-[var(--surface)]"
-                      : "text-[var(--muted)] hover:bg-[rgba(31,107,90,0.08)] hover:text-[var(--foreground)]"
+                      ? "bg-[var(--brand)] text-[var(--foreground)]"
+                      : "text-[var(--muted)] hover:bg-[rgba(102,104,232,0.16)] hover:text-[var(--foreground)]"
                   }`}
                 >
                   {link.label}
@@ -74,8 +74,8 @@ export function MarketplaceShell({
                 aria-label="Open profile"
                 className={`flex h-11 w-11 items-center justify-center rounded-full border transition ${
                   isActive(pathname, "/profile")
-                    ? "border-transparent bg-[var(--foreground)] text-[var(--surface)]"
-                    : "border-[var(--line)] bg-white text-[var(--foreground)] hover:bg-[rgba(31,107,90,0.08)]"
+                    ? "border-transparent bg-[var(--brand)] text-[var(--foreground)]"
+                    : "border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[rgba(102,104,232,0.16)]"
                 }`}
                 title="Profile"
               >
@@ -95,7 +95,7 @@ export function MarketplaceShell({
               </Link>
               <Link
                 href="/profile"
-                className="hidden rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[rgba(31,107,90,0.08)] sm:inline-flex"
+                className="hidden rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[rgba(102,104,232,0.16)] sm:inline-flex"
               >
                 {user.displayName}
               </Link>
@@ -104,13 +104,13 @@ export function MarketplaceShell({
             <div className="flex items-center gap-2">
               <Link
                 href="/login"
-                className="rounded-full border border-[var(--line)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-white"
+                className="rounded-full border border-[var(--line)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface)]"
               >
                 Sign in
               </Link>
               <Link
                 href="/register"
-                className="rounded-full bg-[linear-gradient(135deg,#d95d39,#f08a49)] px-4 py-2 text-sm font-semibold text-white"
+                className="rounded-full bg-[linear-gradient(135deg,#6668E8,#4F57D8)] px-4 py-2 text-sm font-semibold text-white"
               >
                 Create account
               </Link>
@@ -129,8 +129,8 @@ export function MarketplaceShell({
                   href={link.href}
                   className={`whitespace-nowrap rounded-full px-3 py-2 font-medium ${
                     active
-                      ? "bg-[var(--foreground)] text-[var(--surface)]"
-                      : "bg-white text-[var(--muted)]"
+                      ? "bg-[var(--brand)] text-[var(--foreground)]"
+                      : "bg-[var(--surface)] text-[var(--muted)]"
                   }`}
                 >
                   {link.label}
@@ -143,7 +143,7 @@ export function MarketplaceShell({
 
       <main>{children}</main>
 
-      <footer className="border-t border-[var(--line)] bg-[rgba(255,250,244,0.85)]">
+      <footer className="border-t border-[var(--line)] bg-[rgba(17,24,45,0.9)]">
         <div className="mx-auto flex max-w-[92rem] flex-col gap-4 px-5 py-8 text-sm text-[var(--muted)] sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-10">
           <p>
             Find trusted listings, message sellers fast, and post your own in minutes.
