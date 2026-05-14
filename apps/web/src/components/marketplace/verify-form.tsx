@@ -30,12 +30,12 @@ export function VerifyForm({
   );
 
   return (
-    <form action={verifyFormAction} className="mt-8">
+    <form action={verifyFormAction}>
       <input type="hidden" name="next" value={nextPath} />
 
       <div className="grid gap-4">
         <label className="space-y-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
+          <span className="text-sm font-bold text-[var(--foreground)]">
             Phone number
           </span>
           <input
@@ -45,7 +45,7 @@ export function VerifyForm({
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
             placeholder="+971551234567"
-            className="w-full rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-sm outline-none"
+            className="surface-input w-full text-sm"
           />
           {verifyState.fieldErrors?.phone || requestState.fieldErrors?.phone ? (
             <p className="text-sm text-[#b93820]">
@@ -55,7 +55,7 @@ export function VerifyForm({
         </label>
 
         <label className="space-y-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
+          <span className="text-sm font-bold text-[var(--foreground)]">
             OTP code
           </span>
           <input
@@ -65,7 +65,7 @@ export function VerifyForm({
             value={otpCode}
             onChange={(event) => setOtpCode(event.target.value)}
             placeholder="Enter the code you receive"
-            className="w-full rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-sm tracking-[0.4em] outline-none"
+            className="surface-input w-full text-sm tracking-[0.4em]"
           />
           <p className="text-sm text-[var(--muted)]">
             Request a code first. In Phase 1, the app can run in dev OTP mode and
@@ -78,13 +78,13 @@ export function VerifyForm({
       </div>
 
       {requestState.message ? (
-        <p className="mt-4 rounded-2xl border border-[rgba(31,107,90,0.18)] bg-[rgba(239,250,246,0.95)] px-4 py-3 text-sm text-[var(--accent)]">
+        <p className="mt-4 rounded-md border border-[rgba(31,107,90,0.18)] bg-[rgba(239,250,246,0.95)] px-4 py-3 text-sm text-[var(--success)]">
           {requestState.message}
         </p>
       ) : null}
 
       {verifyState.message ? (
-        <p className="mt-4 rounded-2xl border border-[rgba(185,56,32,0.18)] bg-[rgba(255,243,240,0.95)] px-4 py-3 text-sm text-[#8f2e1c]">
+        <p className="mt-4 rounded-md border border-[rgba(185,56,32,0.18)] bg-[rgba(255,243,240,0.95)] px-4 py-3 text-sm text-[#8f2e1c]">
           {verifyState.message}
         </p>
       ) : null}
@@ -93,7 +93,7 @@ export function VerifyForm({
         <button
           type="submit"
           disabled={verifyPending || requestPending}
-          className="rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-70"
+          className="action-primary px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-70"
         >
           {verifyPending ? "Verifying..." : "Verify phone"}
         </button>
@@ -101,7 +101,7 @@ export function VerifyForm({
           type="submit"
           formAction={requestFormAction}
           disabled={verifyPending || requestPending}
-          className="rounded-full border border-[var(--line)] px-5 py-3 text-sm font-semibold text-[var(--foreground)]"
+          className="action-secondary px-5 py-3 text-sm font-bold"
         >
           {requestPending ? "Sending..." : "Send / resend code"}
         </button>

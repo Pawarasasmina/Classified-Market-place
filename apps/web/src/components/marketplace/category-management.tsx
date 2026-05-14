@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   deleteCategoryAction,
   updateCategoryAction,
@@ -478,17 +478,6 @@ export function CategoryManagement({
   const treeDepth = maxDepth(categoryTree);
   const resultCount = countNodes(filteredTree);
 
-  useEffect(() => {
-    if (!selectedSlug && categories[0]) {
-      setSelectedSlug(categories[0].slug);
-      return;
-    }
-
-    if (selectedSlug && !categories.some((category) => category.slug === selectedSlug)) {
-      setSelectedSlug(categories[0]?.slug ?? "");
-    }
-  }, [categories, selectedSlug]);
-
   function startSubcategory(category: MarketplaceCategory) {
     setPresetParent({ slug: category.slug, version: Date.now() });
     window.requestAnimationFrame(() => {
@@ -537,9 +526,9 @@ export function CategoryManagement({
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
         <div className="grid gap-4">
           <CategoryForm
+            key={presetParent?.version ?? "category-root-form"}
             categories={categories}
             presetParentSlug={presetParent?.slug}
-            presetVersion={presetParent?.version}
           />
 
           <div className="rounded-md border border-[var(--line)] bg-white p-4 shadow-sm">

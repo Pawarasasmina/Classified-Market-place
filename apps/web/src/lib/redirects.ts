@@ -17,3 +17,18 @@ export function appendNextParam(path: string, nextPath: string) {
   const separator = path.includes("?") ? "&" : "?";
   return `${path}${separator}next=${encodeURIComponent(nextPath)}`;
 }
+
+export function getPostAuthPath(
+  user: { role?: string } | null | undefined,
+  nextPath: string
+) {
+  if (
+    user?.role?.toUpperCase() === "ADMIN" &&
+    !nextPath.startsWith("/admin") &&
+    !nextPath.startsWith("/?view=customer")
+  ) {
+    return "/admin";
+  }
+
+  return nextPath;
+}

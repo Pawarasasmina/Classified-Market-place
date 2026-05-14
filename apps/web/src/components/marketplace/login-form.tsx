@@ -9,7 +9,13 @@ const initialState: FormActionState = {
   message: null,
 };
 
-export function LoginForm({ nextPath }: { nextPath: string }) {
+export function LoginForm({
+  nextPath,
+  adminMode = false,
+}: {
+  nextPath: string;
+  adminMode?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
   const [googleState, googleFormAction, googlePending] = useActionState(
     googleLoginAction,
@@ -17,18 +23,18 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
   );
 
   return (
-    <div className="mt-6 grid gap-6">
-      <form action={formAction} className="rounded-md border border-slate-200 bg-white p-5">
+    <div className="grid gap-6">
+      <form action={formAction} className="panel">
         <input type="hidden" name="next" value={nextPath} />
 
         <div className="grid gap-4">
           <label className="space-y-2">
-            <span className="text-sm font-semibold">Email</span>
+            <span className="text-sm font-bold">Email</span>
             <input
               name="email"
               type="email"
               autoComplete="email"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+              className="surface-input w-full text-sm"
               placeholder="you@example.com"
             />
             {state.fieldErrors?.email ? (
@@ -37,12 +43,12 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
           </label>
 
           <label className="space-y-2">
-            <span className="text-sm font-semibold">Password</span>
+            <span className="text-sm font-bold">Password</span>
             <input
               name="password"
               type="password"
               autoComplete="current-password"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+              className="surface-input w-full text-sm"
               placeholder="Enter your password"
             />
             {state.fieldErrors?.password ? (
@@ -61,58 +67,62 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
           <button
             type="submit"
             disabled={pending}
-            className="action-primary px-4 py-2 text-sm font-semibold disabled:opacity-60"
+            className="action-primary px-4 py-3 text-sm font-bold disabled:opacity-60"
           >
             {pending ? "Signing in..." : "Sign in"}
           </button>
-          <Link
-            href={`/register${nextPath !== "/" ? `?next=${encodeURIComponent(nextPath)}` : ""}`}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold"
-          >
-            Create account
-          </Link>
+          {!adminMode ? (
+            <Link
+              href={`/register${nextPath !== "/" ? `?next=${encodeURIComponent(nextPath)}` : ""}`}
+              className="action-secondary px-4 py-3 text-sm font-bold"
+            >
+              Create account
+            </Link>
+          ) : null}
         </div>
       </form>
 
-      <form action={googleFormAction} className="rounded-md border border-slate-200 bg-white p-5">
-        <input type="hidden" name="next" value={nextPath} />
-        <h2 className="text-lg font-semibold">Google login</h2>
-        <div className="mt-4 grid gap-3">
-          <label className="space-y-2">
-            <span className="text-sm font-semibold">Google ID token</span>
-            <textarea
-              name="idToken"
-              className="min-h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
-              placeholder="Paste a Google credential token here"
-            />
-          </label>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <input
-              name="email"
-              type="email"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Dev mode email"
-            />
-            <input
-              name="displayName"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Dev mode name"
-            />
+      {!adminMode ? (
+        <form action={googleFormAction} className="panel">
+          <input type="hidden" name="next" value={nextPath} />
+          <h2 className="text-lg font-black">Google login</h2>
+          <div className="mt-4 grid gap-3">
+            <label className="space-y-2">
+              <span className="text-sm font-bold">Google ID token</span>
+              <textarea
+                name="idToken"
+                className="surface-input min-h-24 w-full text-sm"
+                placeholder="Paste a Google credential token here"
+              />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input
+                name="email"
+                type="email"
+                className="surface-input text-sm"
+                placeholder="Dev mode email"
+              />
+              <input
+                name="displayName"
+                className="surface-input text-sm"
+                placeholder="Dev mode name"
+              />
+            </div>
           </div>
-        </div>
-        {googleState.message ? (
-          <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {googleState.message}
-          </p>
-        ) : null}
-        <button
-          type="submit"
-          disabled={googlePending}
-          className="mt-4 rounded-md border border-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-strong)]"
-        >
-          {googlePending ? "Connecting..." : "Continue with Google"}
-        </button>
-      </form>
+          {googleState.message ? (
+            <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {googleState.message}
+            </p>
+          ) : null}
+          <button
+            type="submit"
+            disabled={googlePending}
+            className="mt-4 action-secondary px-4 py-3 text-sm font-bold"
+          >
+            {googlePending ? "Connecting..." : "Continue with Google"}
+          </button>
+        </form>
+      ) : null}
     </div>
   );
 }

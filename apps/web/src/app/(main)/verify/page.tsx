@@ -19,20 +19,18 @@ export default async function VerifyPage(props: VerifyPageProps) {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
-      <div className="rounded-[2.5rem] border border-[var(--line)] bg-[rgba(255,255,255,0.88)] p-8">
-        <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
-          OTP verification
-        </p>
-        <h1 className="mt-3 text-4xl font-bold tracking-[-0.04em] text-[var(--foreground)]">
-          Phone verification required before listing creation.
+    <div className="page max-w-3xl">
+      <div className="panel-dark p-6">
+        <p className="section-eyebrow">OTP verification</p>
+        <h1 className="mt-3 text-3xl font-black text-white">
+          Verify your phone before listing creation.
         </h1>
-        <p className="mt-4 text-base leading-8 text-[var(--muted)]">
-          The TRD marks phone OTP as mandatory for listing creation. This screen
-          now verifies against the backend phone endpoint before sending you back
-          into the posting flow.
+        <p className="mt-4 text-base leading-8 text-[#d7d9ea]">
+          Phone verification protects buyers and sellers before a listing goes live.
         </p>
+      </div>
 
+      <div className="mt-6 panel">
         <VerifyForm nextPath={nextPath} initialPhone={user.phone ?? ""} />
       </div>
     </div>

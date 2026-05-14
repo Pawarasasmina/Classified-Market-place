@@ -25,10 +25,12 @@ export default async function EditListingPage(props: EditListingPageProps) {
 
   return (
     <div className="page grid gap-6">
-      <div>
-        <h1 className="text-2xl font-bold">Edit Listing</h1>
-        <p className="mt-2 text-slate-600">
-          Editing a listing sends it back to pending review.
+      <div className="panel-dark p-6">
+        <p className="section-eyebrow">Seller workspace</p>
+        <h1 className="mt-3 text-3xl font-black text-white">Edit listing</h1>
+        <p className="mt-2 max-w-3xl text-[#d7d9ea]">
+          Keep the listing accurate with updated photos, price, and category fields.
+          Admins can moderate final visibility from the dashboard.
         </p>
       </div>
       <ListingForm categories={categories} listing={listing} />

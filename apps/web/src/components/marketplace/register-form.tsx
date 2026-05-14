@@ -13,19 +13,19 @@ export function RegisterForm({ nextPath }: { nextPath: string }) {
   const [state, formAction, pending] = useActionState(registerAction, initialState);
 
   return (
-    <form action={formAction} className="mt-8">
+    <form action={formAction} className="panel">
       <input type="hidden" name="next" value={nextPath} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="space-y-2 sm:col-span-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
+          <span className="text-sm font-bold text-[var(--foreground)]">
             Full name
           </span>
           <input
             name="displayName"
             autoComplete="name"
             placeholder="Your full name"
-            className="w-full rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-sm outline-none"
+            className="surface-input w-full text-sm"
           />
           {state.fieldErrors?.displayName ? (
             <p className="text-sm text-[#b93820]">{state.fieldErrors.displayName}</p>
@@ -33,7 +33,7 @@ export function RegisterForm({ nextPath }: { nextPath: string }) {
         </label>
 
         <label className="space-y-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
+          <span className="text-sm font-bold text-[var(--foreground)]">
             Email
           </span>
           <input
@@ -41,7 +41,7 @@ export function RegisterForm({ nextPath }: { nextPath: string }) {
             type="email"
             autoComplete="email"
             placeholder="name@example.com"
-            className="w-full rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-sm outline-none"
+            className="surface-input w-full text-sm"
           />
           {state.fieldErrors?.email ? (
             <p className="text-sm text-[#b93820]">{state.fieldErrors.email}</p>
@@ -49,7 +49,7 @@ export function RegisterForm({ nextPath }: { nextPath: string }) {
         </label>
 
         <label className="space-y-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
+          <span className="text-sm font-bold text-[var(--foreground)]">
             Phone
           </span>
           <input
@@ -57,7 +57,7 @@ export function RegisterForm({ nextPath }: { nextPath: string }) {
             type="tel"
             autoComplete="tel"
             placeholder="+971551234567"
-            className="w-full rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-sm outline-none"
+            className="surface-input w-full text-sm"
           />
           {state.fieldErrors?.phone ? (
             <p className="text-sm text-[#b93820]">{state.fieldErrors.phone}</p>
@@ -65,7 +65,7 @@ export function RegisterForm({ nextPath }: { nextPath: string }) {
         </label>
 
         <label className="space-y-2 sm:col-span-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
+          <span className="text-sm font-bold text-[var(--foreground)]">
             Password
           </span>
           <input
@@ -73,7 +73,7 @@ export function RegisterForm({ nextPath }: { nextPath: string }) {
             type="password"
             autoComplete="new-password"
             placeholder="Choose a secure password"
-            className="w-full rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-sm outline-none"
+            className="surface-input w-full text-sm"
           />
           {state.fieldErrors?.password ? (
             <p className="text-sm text-[#b93820]">{state.fieldErrors.password}</p>
@@ -82,7 +82,7 @@ export function RegisterForm({ nextPath }: { nextPath: string }) {
       </div>
 
       {state.message ? (
-        <p className="mt-4 rounded-2xl border border-[rgba(185,56,32,0.18)] bg-[rgba(255,243,240,0.95)] px-4 py-3 text-sm text-[#8f2e1c]">
+        <p className="mt-4 rounded-md border border-[rgba(185,56,32,0.18)] bg-[rgba(255,243,240,0.95)] px-4 py-3 text-sm text-[#8f2e1c]">
           {state.message}
         </p>
       ) : null}
@@ -91,13 +91,13 @@ export function RegisterForm({ nextPath }: { nextPath: string }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-full bg-[linear-gradient(135deg,#d95d39,#f08a49)] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+          className="action-primary px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-70"
         >
           {pending ? "Creating account..." : "Create account"}
         </button>
         <Link
           href={`/login${nextPath !== "/sell" ? `?next=${encodeURIComponent(nextPath)}` : ""}`}
-          className="rounded-full border border-[var(--line)] px-5 py-3 text-sm font-semibold text-[var(--foreground)]"
+          className="action-secondary px-5 py-3 text-sm font-bold"
         >
           Already have an account
         </Link>

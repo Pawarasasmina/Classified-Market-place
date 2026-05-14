@@ -20,9 +20,12 @@ export default async function RegisterPage(props: RegisterPageProps) {
 
   return (
     <div className="page max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-bold">Register</h1>
-        <p className="mt-2 text-slate-600">Create an account to post listings and chat.</p>
+      <div className="panel-dark p-6">
+        <p className="section-eyebrow">Create account</p>
+        <h1 className="mt-3 text-3xl font-black text-white">Start buying, selling, and chatting.</h1>
+        <p className="mt-2 text-[#d7d9ea]">Create an account to post listings and contact sellers.</p>
+      </div>
+      <div className="mt-6">
         <RegisterForm nextPath={nextPath} />
       </div>
     </div>

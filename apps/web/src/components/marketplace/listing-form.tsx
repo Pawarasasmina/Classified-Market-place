@@ -88,20 +88,30 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
   }
 
   return (
-    <form action={formAction} className="grid gap-5 rounded-md border border-slate-200 bg-white p-5">
+    <form action={formAction} className="panel grid gap-6">
       {listing ? <input type="hidden" name="listingId" value={listing.id} /> : null}
       {images.map((image) => (
         <input key={image.id} type="hidden" name="image" value={image.src} readOnly />
       ))}
 
+      <div>
+        <p className="section-eyebrow">Listing details</p>
+        <h2 className="mt-2 text-2xl font-black">
+          {listing ? "Update your marketplace listing." : "Tell buyers what you are selling."}
+        </h2>
+        <p className="mt-2 text-sm text-[var(--muted)]">
+          Use a precise title, honest condition details, and a few good photos.
+        </p>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="space-y-2">
-          <span className="text-sm font-semibold">Category</span>
+          <span className="text-sm font-bold">Category</span>
           <select
             name="categorySlug"
             value={categorySlug}
             onChange={(event) => setCategorySlug(event.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="surface-input w-full text-sm"
           >
             {categories.map((item) => (
               <option key={item.slug} value={item.slug}>
@@ -115,14 +125,14 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
           ) : null}
         </label>
         <label className="space-y-2">
-          <span className="text-sm font-semibold">Price</span>
+          <span className="text-sm font-bold">Price</span>
           <input
             name="price"
             type="number"
             min="0"
             step="0.01"
             defaultValue={listing?.priceValue ?? ""}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="surface-input w-full text-sm"
           />
           {state.fieldErrors?.price ? (
             <p className="text-sm text-red-700">{state.fieldErrors.price}</p>
@@ -133,11 +143,11 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
       <input type="hidden" name="currency" value="AED" readOnly />
 
       <label className="space-y-2">
-        <span className="text-sm font-semibold">Title</span>
+        <span className="text-sm font-bold">Title</span>
         <input
           name="title"
           defaultValue={listing?.title ?? ""}
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="surface-input w-full text-sm"
           placeholder="Clear listing title"
         />
         {state.fieldErrors?.title ? (
@@ -146,11 +156,11 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
       </label>
 
       <label className="space-y-2">
-        <span className="text-sm font-semibold">Description</span>
+        <span className="text-sm font-bold">Description</span>
         <textarea
           name="description"
           defaultValue={listing?.description ?? ""}
-          className="min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="surface-input min-h-32 w-full text-sm"
           placeholder="Condition, highlights, pickup details"
         />
         {state.fieldErrors?.description ? (
@@ -159,11 +169,11 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
       </label>
 
       <label className="space-y-2">
-        <span className="text-sm font-semibold">Location</span>
+        <span className="text-sm font-bold">Location</span>
         <input
           name="location"
           defaultValue={listing?.location ?? ""}
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="surface-input w-full text-sm"
           placeholder="Dubai Marina"
         />
         {state.fieldErrors?.location ? (
@@ -172,18 +182,18 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
       </label>
 
       {category?.schema.length ? (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 border-t border-[var(--line)] pt-5 sm:grid-cols-2">
           {category.schema.map((field) => {
             const defaultValue = listing?.attributes[field.key];
 
             return (
               <label key={field.key} className="space-y-2">
-                <span className="text-sm font-semibold">{field.label}</span>
+                <span className="text-sm font-bold">{field.label}</span>
                 {field.type === "select" ? (
                   <select
                     name={`attribute:${field.key}`}
                     defaultValue={String(defaultValue ?? "")}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="surface-input w-full text-sm"
                   >
                     <option value="">Select</option>
                     {field.options?.map((option) => (
@@ -196,7 +206,7 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
                   <select
                     name={`attribute:${field.key}`}
                     defaultValue={defaultValue === true ? "true" : "false"}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="surface-input w-full text-sm"
                   >
                     <option value="false">No</option>
                     <option value="true">Yes</option>
@@ -206,7 +216,7 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
                     name={`attribute:${field.key}`}
                     defaultValue={String(defaultValue ?? "")}
                     type={field.type === "number" ? "number" : "text"}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="surface-input w-full text-sm"
                     placeholder={field.placeholder}
                   />
                 )}
@@ -216,9 +226,15 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
         </div>
       ) : null}
 
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="cursor-pointer rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold">
+      <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold">Photos</p>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              Add up to 10 images. The first image becomes the cover.
+            </p>
+          </div>
+          <label className="action-secondary cursor-pointer px-4 py-2 text-sm font-bold">
             Add photos
             <input
               type="file"
@@ -228,25 +244,25 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
               className="hidden"
             />
           </label>
-          <span className="text-sm text-slate-600">{images.length}/10 images</span>
+          <span className="text-sm font-semibold text-[var(--muted)]">{images.length}/10 images</span>
         </div>
-        {imageMessage ? <p className="text-sm text-amber-700">{imageMessage}</p> : null}
+        {imageMessage ? <p className="mt-3 text-sm text-[var(--accent-strong)]">{imageMessage}</p> : null}
         {images.length ? (
-          <div className="grid gap-3 sm:grid-cols-3 md:grid-cols-5">
+          <div className="mt-4 grid gap-3 sm:grid-cols-3 md:grid-cols-5">
             {images.map((image, index) => (
-              <div key={image.id} className="relative overflow-hidden rounded-md border border-slate-200">
-                <img src={image.src} alt="" className="h-24 w-full object-cover" />
+              <div key={image.id} className="relative overflow-hidden rounded-md border border-[var(--line)] bg-white">
+                <img src={image.src} alt="" className="h-28 w-full object-cover" />
                 <button
                   type="button"
                   onClick={() =>
                     setImages((current) => current.filter((item) => item.id !== image.id))
                   }
-                  className="absolute right-1 top-1 rounded bg-white px-2 py-1 text-xs font-semibold"
+                  className="absolute right-1 top-1 rounded-md bg-white px-2 py-1 text-xs font-bold text-[var(--foreground)]"
                 >
                   Remove
                 </button>
                 {index === 0 ? (
-                  <span className="absolute bottom-1 left-1 rounded bg-[var(--brand)] px-2 py-1 text-xs text-white">
+                  <span className="absolute bottom-1 left-1 rounded-md bg-[var(--brand)] px-2 py-1 text-xs font-bold text-white">
                     Primary
                   </span>
                 ) : null}
@@ -265,7 +281,7 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
       <button
         type="submit"
         disabled={pending}
-        className="action-primary w-fit px-4 py-2 text-sm font-semibold disabled:opacity-60"
+        className="action-primary w-fit px-5 py-3 text-sm font-bold disabled:opacity-60"
       >
         {pending ? "Saving..." : listing ? "Save listing" : "Create listing"}
       </button>

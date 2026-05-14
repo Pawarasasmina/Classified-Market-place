@@ -1,45 +1,85 @@
 import Link from "next/link";
+import { getListingMedia } from "@/lib/listing-media";
 import { type MarketplaceListing } from "@/lib/marketplace";
 
 export function ListingCard({
   listing,
+  customerView = false,
 }: {
   listing: MarketplaceListing;
   compact?: boolean;
+  customerView?: boolean;
 }) {
+  const listingHref = `/listings/${listing.id}${customerView ? "?view=customer" : ""}`;
+  const media = getListingMedia(listing);
+
   return (
-    <article className="overflow-hidden rounded-md border border-[var(--line)] bg-white shadow-sm">
-      <div className="h-40 bg-[#eef3f1]">
-        {listing.imageUrls[0] ? (
-          <img
-            src={listing.imageUrls[0]}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-sm text-[var(--muted)]">
-            No photo
-          </div>
-        )}
-      </div>
-      <div className="grid gap-3 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase text-[var(--muted)]">{listing.subcategory}</p>
-            <h3 className="mt-1 font-semibold text-[var(--foreground)]">{listing.title}</h3>
-          </div>
-          <span className="rounded-md border border-[var(--line)] bg-[var(--brand-soft)] px-2 py-1 text-xs font-semibold text-[var(--brand-strong)]">
+    <article className="listing-card group">
+      <div className="listing-card-media">
+        <img
+          src={media.src}
+          alt={media.alt}
+          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+        />
+        <div
+          className="absolute inset-0"
+          style={{ background: media.overlay }}
+        />
+        <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+          <span className="listing-chip uppercase tracking-[0.18em] text-white">
+            {listing.subcategory}
+          </span>
+          <span className="listing-status-pill">
             {listing.status}
           </span>
         </div>
-        <p className="font-bold text-[var(--foreground)]">{listing.priceLabel}</p>
-        <p className="text-sm text-[var(--muted)]">{listing.location}</p>
-        <Link
-          href={`/listings/${listing.id}`}
-          className="action-secondary px-3 py-2 text-center text-sm font-semibold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
-        >
-          View details
-        </Link>
+      </div>
+
+      <div className="listing-card-body">
+        <div>
+          <h3 className="line-clamp-2 min-h-12 text-lg font-black leading-6 text-white">
+            {listing.title}
+          </h3>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
+            <span>{listing.location}</span>
+            <span>/</span>
+            <span>{listing.postedLabel}</span>
+          </div>
+        </div>
+
+        <div className="flex items-end justify-between gap-3">
+          <p className="text-xl font-black text-white">
+            {listing.priceLabel}
+          </p>
+          <span className="listing-chip">
+            {listing.condition}
+          </span>
+        </div>
+
+        <div className="flex min-h-8 flex-wrap gap-2">
+          {listing.featureBullets.slice(0, 3).map((feature) => (
+            <span
+              key={feature}
+              className="listing-chip"
+            >
+              {feature}
+            </span>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-3">
+          <p className="min-w-0 truncate text-sm text-[var(--muted)]">
+            {listing.sellerDisplayName
+              ? `${listing.sellerDisplayName}${listing.sellerVerified ? " / verified" : ""}`
+              : "Marketplace seller"}
+          </p>
+          <Link
+            href={listingHref}
+            className="listing-details-button shrink-0"
+          >
+            View details
+          </Link>
+        </div>
       </div>
     </article>
   );

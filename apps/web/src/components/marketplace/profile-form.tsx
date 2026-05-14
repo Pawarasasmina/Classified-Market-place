@@ -41,18 +41,23 @@ export function ProfileForm({ user }: { user: SessionUser }) {
   }
 
   return (
-    <form action={formAction} className="grid gap-4 rounded-md border border-slate-200 bg-white p-5">
+    <form action={formAction} className="panel grid gap-5">
       <input type="hidden" name="avatarUrl" value={avatarUrl} readOnly />
 
-      <div className="flex items-center gap-4">
-        <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-xl font-bold">
+      <div>
+        <p className="section-eyebrow">Public seller profile</p>
+        <h2 className="mt-2 text-2xl font-black">Keep buyer-facing details current.</h2>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-4 rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4">
+        <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-md bg-white text-xl font-black">
           {avatarUrl ? (
             <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
           ) : (
             user.displayName.charAt(0).toUpperCase()
           )}
         </div>
-        <label className="cursor-pointer rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold">
+        <label className="action-secondary cursor-pointer px-4 py-2 text-sm font-bold">
           Upload avatar
           <input
             type="file"
@@ -64,11 +69,11 @@ export function ProfileForm({ user }: { user: SessionUser }) {
       </div>
 
       <label className="space-y-2">
-        <span className="text-sm font-semibold">Display name</span>
+        <span className="text-sm font-bold">Display name</span>
         <input
           name="displayName"
           defaultValue={user.displayName}
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="surface-input w-full text-sm"
         />
         {state.fieldErrors?.displayName ? (
           <p className="text-sm text-red-700">{state.fieldErrors.displayName}</p>
@@ -77,34 +82,34 @@ export function ProfileForm({ user }: { user: SessionUser }) {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="space-y-2">
-          <span className="text-sm font-semibold">Phone</span>
+          <span className="text-sm font-bold">Phone</span>
           <input
             name="phone"
             defaultValue={user.phone ?? ""}
             placeholder="+971551234567"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="surface-input w-full text-sm"
           />
           {state.fieldErrors?.phone ? (
             <p className="text-sm text-red-700">{state.fieldErrors.phone}</p>
           ) : null}
         </label>
         <label className="space-y-2">
-          <span className="text-sm font-semibold">Location</span>
+          <span className="text-sm font-bold">Location</span>
           <input
             name="location"
             defaultValue={user.location ?? ""}
             placeholder="Dubai"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="surface-input w-full text-sm"
           />
         </label>
       </div>
 
       <label className="space-y-2">
-        <span className="text-sm font-semibold">Bio</span>
+        <span className="text-sm font-bold">Bio</span>
         <textarea
           name="bio"
           defaultValue={user.bio ?? ""}
-          className="min-h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          className="surface-input min-h-28 w-full text-sm"
           placeholder="Short public seller bio"
         />
       </label>
@@ -113,11 +118,11 @@ export function ProfileForm({ user }: { user: SessionUser }) {
         <button
           type="submit"
           disabled={pending}
-          className="action-primary px-4 py-2 text-sm font-semibold disabled:opacity-60"
+          className="action-primary px-5 py-3 text-sm font-bold disabled:opacity-60"
         >
           {pending ? "Saving..." : "Save profile"}
         </button>
-        {state.message ? <p className="text-sm text-slate-600">{state.message}</p> : null}
+        {state.message ? <p className="text-sm text-[var(--muted)]">{state.message}</p> : null}
       </div>
     </form>
   );

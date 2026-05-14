@@ -2,10 +2,8 @@
 
 import {
   useActionState,
-  useEffect,
   useMemo,
   useState,
-  type ReactNode,
 } from "react";
 import { createCategoryAction } from "@/app/(main)/actions";
 import {
@@ -77,11 +75,9 @@ function formatPath(path: string[], categories: MarketplaceCategory[]) {
 export function CategoryForm({
   categories,
   presetParentSlug,
-  presetVersion = 0,
 }: {
   categories: MarketplaceCategory[];
   presetParentSlug?: string;
-  presetVersion?: number;
 }) {
   const [state, formAction, pending] = useActionState(
     createCategoryAction,
@@ -104,25 +100,39 @@ export function CategoryForm({
   const suggestedSlug = useMemo(() => slugify(name), [name]);
   const selectedParentSlug = parentPath[parentPath.length - 1] ?? "";
   const selectedParentPath = formatPath(parentPath, categories);
+  const parentSelectors = useMemo(() => {
+    const selectors: {
+      key: string;
+      level: number;
+      options: MarketplaceCategory[];
+      value: string;
+    }[] = [];
+    let parentKey = "";
 
-  useEffect(() => {
-    if (!presetParentSlug) {
-      return;
+    for (let level = 0; ; level += 1) {
+      const options = childrenByParent.get(parentKey) ?? [];
+
+      if (!options.length) {
+        break;
+      }
+
+      const value = parentPath[level] ?? "";
+      selectors.push({
+        key: parentKey || "root",
+        level,
+        options,
+        value,
+      });
+
+      if (!value) {
+        break;
+      }
+
+      parentKey = value;
     }
 
-    setMode("sub");
-    setParentPath(getParentPath(presetParentSlug, categories));
-  }, [categories, presetParentSlug, presetVersion]);
-
-  useEffect(() => {
-    if (state.message !== "Category saved.") {
-      return;
-    }
-
-    setName("");
-    setSlug("");
-    setDescription("");
-  }, [state.message]);
+    return selectors;
+  }, [childrenByParent, parentPath]);
 
   return (
     <form
@@ -230,67 +240,41 @@ export function CategoryForm({
           <div className="grid gap-3 md:col-span-2">
             <input type="hidden" name="parentSlug" value={selectedParentSlug} />
             <div className="grid gap-4 md:grid-cols-2">
-              {(() => {
-                const selectors: ReactNode[] = [];
-                let parentKey = "";
-                let level = 0;
+              {parentSelectors.map(({ key, level, options, value }) => (
+                <label key={key} className="grid gap-2">
+                  <span className="text-sm font-semibold text-[var(--foreground)]">
+                    {level === 0
+                      ? "Parent category"
+                      : level === 1
+                        ? "Subcategory"
+                        : `Level ${level + 1} category`}
+                  </span>
+                  <select
+                    value={value}
+                    required={level === 0}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      const nextPath = parentPath.slice(0, level);
 
-                while (true) {
-                  const options = childrenByParent.get(parentKey) ?? [];
+                      if (nextValue) {
+                        nextPath.push(nextValue);
+                      }
 
-                  if (!options.length) {
-                    break;
-                  }
-
-                  const value = parentPath[level] ?? "";
-                  selectors.push(
-                    <label key={parentKey || "root"} className="grid gap-2">
-                      <span className="text-sm font-semibold text-[var(--foreground)]">
-                        {level === 0
-                          ? "Parent category"
-                          : level === 1
-                            ? "Subcategory"
-                            : `Level ${level + 1} category`}
-                      </span>
-                      <select
-                        value={value}
-                        required={level === 0}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          const nextPath = parentPath.slice(0, level);
-
-                          if (nextValue) {
-                            nextPath.push(nextValue);
-                          }
-
-                          setParentPath(nextPath);
-                        }}
-                        className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
-                      >
-                        <option value="">
-                          {level === 0
-                            ? "Choose parent category"
-                            : "Add directly here"}
-                        </option>
-                        {options.map((category) => (
-                          <option key={category.slug} value={category.slug}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  );
-
-                  if (!value) {
-                    break;
-                  }
-
-                  parentKey = value;
-                  level += 1;
-                }
-
-                return selectors;
-              })()}
+                      setParentPath(nextPath);
+                    }}
+                    className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+                  >
+                    <option value="">
+                      {level === 0 ? "Choose parent category" : "Add directly here"}
+                    </option>
+                    {options.map((category) => (
+                      <option key={category.slug} value={category.slug}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
             </div>
             <p className="text-xs text-[var(--muted)]">
               Choose only the first dropdown to create a subcategory. Choose the

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import {
   type ChatConversation,
@@ -34,6 +34,26 @@ export function InboxWorkspace({
   const [error, setError] = useState("");
   const socketRef = useRef<Socket | null>(null);
   const activeIdRef = useRef<string | null>(activeConversationId);
+
+  const apiRequest = useCallback(
+    async <T,>(path: string, init: RequestInit = {}) => {
+      const response = await fetch(`${apiBaseUrl}${path}`, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          ...init.headers,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return (await response.json()) as T;
+    },
+    [accessToken, apiBaseUrl]
+  );
 
   useEffect(() => {
     activeIdRef.current = activeConversationId;
@@ -128,24 +148,7 @@ export function InboxWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [selectedConversationId, selectedListingId, selectedParticipantId]);
-
-  async function apiRequest<T>(path: string, init: RequestInit = {}) {
-    const response = await fetch(`${apiBaseUrl}${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        ...init.headers,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(await response.text());
-    }
-
-    return (await response.json()) as T;
-  }
+  }, [apiRequest, selectedConversationId, selectedListingId, selectedParticipantId]);
 
   async function openConversation(conversationId: string) {
     setActiveConversationId(conversationId);
@@ -192,42 +195,63 @@ export function InboxWorkspace({
   );
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
+    <div className="grid gap-5 lg:grid-cols-[22rem_1fr]">
       <aside className="panel h-fit">
-        <h2 className="font-semibold">Conversations</h2>
-        <div className="mt-3 grid gap-2">
+        <p className="section-eyebrow">Inbox</p>
+        <h2 className="mt-2 text-xl font-black text-[var(--foreground)]">
+          Conversations
+        </h2>
+        <div className="mt-5 grid gap-3">
           {conversations.map((conversation) => (
             <button
               key={conversation.id}
               type="button"
               onClick={() => void openConversation(conversation.id)}
-              className={`rounded-md border px-3 py-2 text-left text-sm ${
+              className={`rounded-md border px-4 py-3 text-left text-sm transition ${
                 conversation.id === activeConversationId
                   ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--foreground)]"
-                  : "border-slate-200 bg-white"
+                  : "border-[var(--line)] bg-[var(--surface)] hover:border-[var(--brand)]"
               }`}
             >
-              <span className="block font-semibold">{conversation.title}</span>
-              <span className="block truncate opacity-80">
+              <span className="block font-bold">{conversation.title}</span>
+              <span className="mt-1 block truncate text-[var(--muted)]">
                 {conversation.lastMessage?.body ?? "No messages yet"}
               </span>
             </button>
           ))}
           {!conversations.length ? (
-            <p className="text-sm text-slate-600">No conversations yet.</p>
+            <div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--surface-strong)] px-4 py-6 text-sm text-[var(--muted)]">
+              No conversations yet.
+            </div>
           ) : null}
         </div>
       </aside>
 
       <section className="panel">
-        <h2 className="font-semibold">{activeConversation?.title ?? "Chat"}</h2>
-        <div className="mt-4 h-96 space-y-3 overflow-y-auto rounded-md border border-slate-200 bg-slate-50 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="section-eyebrow">Chat</p>
+            <h2 className="mt-2 text-xl font-black text-[var(--foreground)]">
+              {activeConversation?.title ?? "Select a conversation"}
+            </h2>
+          </div>
+          <span className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[var(--muted)]">
+            Secure
+          </span>
+        </div>
+        <div className="mt-5 h-96 space-y-3 overflow-y-auto rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4">
           {messages.map((message) => {
             const mine = message.senderId === currentUserId;
 
             return (
               <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[75%] rounded-md px-3 py-2 text-sm ${mine ? "bg-[var(--brand)] text-white" : "bg-white text-[var(--foreground)]"}`}>
+                <div
+                  className={`max-w-[75%] rounded-md px-4 py-3 text-sm shadow-sm ${
+                    mine
+                      ? "bg-[var(--brand)] text-white"
+                      : "border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)]"
+                  }`}
+                >
                   <p>{message.body}</p>
                   <p className="mt-1 text-xs opacity-70">{message.senderName}</p>
                 </div>
@@ -235,7 +259,9 @@ export function InboxWorkspace({
             );
           })}
           {!messages.length ? (
-            <p className="text-sm text-slate-600">Open a listing and start a conversation.</p>
+            <div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--surface)] px-4 py-8 text-sm text-[var(--muted)]">
+              Open a listing and start a conversation.
+            </div>
           ) : null}
         </div>
         {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
@@ -243,7 +269,7 @@ export function InboxWorkspace({
           <input
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="surface-input flex-1 px-3 py-2 text-sm"
             placeholder="Type a message"
           />
           <button

@@ -22,7 +22,7 @@ import {
 } from "@/lib/marketplace-api";
 import { type ApiListingStatus, type FormActionState } from "@/lib/marketplace";
 import { requireSessionContext } from "@/lib/auth-dal";
-import { getSafeNextPath } from "@/lib/redirects";
+import { getPostAuthPath, getSafeNextPath } from "@/lib/redirects";
 import {
   clearAccessToken,
   getRefreshToken,
@@ -188,16 +188,19 @@ export async function loginAction(
     };
   }
 
+  let redirectPath = nextPath;
+
   try {
     const session = await loginUser(parsed.data);
     await setSessionTokens(session);
+    redirectPath = getPostAuthPath(session.user, nextPath);
   } catch (error) {
     return {
       message: getActionMessage(error, "We could not sign you in."),
     };
   }
 
-  redirect(nextPath);
+  redirect(redirectPath);
 }
 
 export async function googleLoginAction(
@@ -219,16 +222,19 @@ export async function googleLoginAction(
     };
   }
 
+  let redirectPath = nextPath;
+
   try {
     const session = await googleLoginUser(parsed.data);
     await setSessionTokens(session);
+    redirectPath = getPostAuthPath(session.user, nextPath);
   } catch (error) {
     return {
       message: getActionMessage(error, "We could not complete Google login."),
     };
   }
 
-  redirect(nextPath);
+  redirect(redirectPath);
 }
 
 export async function registerAction(
