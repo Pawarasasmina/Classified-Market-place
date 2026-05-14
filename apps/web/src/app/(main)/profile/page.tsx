@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { logoutAction } from "@/app/(main)/actions";
 import { ProfileForm } from "@/components/marketplace/profile-form";
-import { requireSessionContext } from "@/lib/auth-dal";
+import { requireClientSession } from "@/lib/auth-dal";
 import { getListingMedia } from "@/lib/listing-media";
 import { fetchMyListings } from "@/lib/marketplace-api";
 
@@ -26,7 +26,7 @@ function formatRole(value: string) {
 }
 
 export default async function ProfilePage() {
-  const { accessToken, user } = await requireSessionContext("/profile");
+  const { accessToken, user } = await requireClientSession("/profile");
   const myListings = await fetchMyListings(accessToken);
   const activeListings = myListings.filter((listing) => listing.status === "Active");
   const draftListings = myListings.filter((listing) => listing.status === "Draft");
@@ -36,21 +36,21 @@ export default async function ProfilePage() {
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
       <div className="grid gap-8 xl:grid-cols-[0.31fr_0.69fr]">
         <aside className="space-y-6">
-          <section className="overflow-hidden rounded-[2.25rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)]">
-            <div className="bg-[linear-gradient(135deg,#11182D,#202755_58%,#090C1A)] px-6 pb-10 pt-6 text-white">
-              <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[rgba(255,244,229,0.88)]">
+          <section className="overflow-hidden rounded-[2.25rem] border border-[var(--line)] bg-[var(--surface)]">
+            <div className="bg-[var(--surface-strong)] px-6 pb-10 pt-6 text-[var(--foreground)]">
+              <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
                 Account overview
               </p>
               <div className="mt-6 flex items-center gap-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[rgba(255,255,255,0.16)] text-2xl font-bold">
+                <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[var(--chip-bg)] text-2xl font-bold">
                   {getInitials(user.displayName)}
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold">{user.displayName}</h1>
-                  <p className="mt-1 text-sm text-[rgba(255,244,229,0.86)]">
+                  <p className="mt-1 text-sm text-[var(--muted)]">
                     {user.email}
                   </p>
-                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-[rgba(255,244,229,0.72)]">
+                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
                     {formatRole(user.role)}
                   </p>
                 </div>
@@ -66,7 +66,7 @@ export default async function ProfilePage() {
               ].map((item) => (
                 <div
                   key={item}
-                  className="rounded-[1.25rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3 text-sm text-[var(--muted)]"
+                  className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--muted)]"
                 >
                   {item}
                 </div>
@@ -74,7 +74,7 @@ export default async function ProfilePage() {
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+          <section className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-6">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
               Marketplace health
             </p>
@@ -103,7 +103,7 @@ export default async function ProfilePage() {
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+          <section className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-6">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
               Quick actions
             </p>
@@ -127,7 +127,7 @@ export default async function ProfilePage() {
         </aside>
 
         <div className="space-y-8">
-          <section className="rounded-[2.25rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+          <section className="rounded-[2.25rem] border border-[var(--line)] bg-[var(--surface)] p-6">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
               Profile settings
             </p>
@@ -155,7 +155,7 @@ export default async function ProfilePage() {
           </section>
 
           <section className="grid gap-6 lg:grid-cols-[0.56fr_0.44fr]">
-            <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+            <div className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-6">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
@@ -214,7 +214,7 @@ export default async function ProfilePage() {
                             {listing.featureBullets.slice(0, 3).map((feature) => (
                               <span
                                 key={feature}
-                                className="rounded-full border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-3 py-1 text-xs text-[var(--muted)]"
+                                className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-3 py-1 text-xs text-[var(--muted)]"
                               >
                                 {feature}
                               </span>
@@ -234,7 +234,7 @@ export default async function ProfilePage() {
             </div>
 
             <div className="space-y-6">
-              <section className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+              <section className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-6">
                 <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
                   Verification guide
                 </p>
@@ -267,7 +267,7 @@ export default async function ProfilePage() {
                 ) : null}
               </section>
 
-              <section className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+              <section className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-6">
                 <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
                   Account snapshot
                 </p>

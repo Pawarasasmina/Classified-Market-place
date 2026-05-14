@@ -344,7 +344,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
 
   if (!category) {
     return (
-      <div className="rounded-[2rem] border border-dashed border-[var(--line)] bg-[rgba(32,39,85,0.84)] px-6 py-10 text-sm text-[var(--muted)]">
+      <div className="rounded-[2rem] border border-dashed border-[var(--line)] bg-[var(--surface)] px-6 py-10 text-sm text-[var(--muted)]">
         No categories are available yet. Seed the category catalog in the API and
         reload this page.
       </div>
@@ -384,7 +384,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
         />
       ))}
 
-      <div className="space-y-6 rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+      <div className="space-y-6 rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
@@ -562,7 +562,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                     key={image.id}
                     className="rounded-[1.75rem] border border-[var(--line)] bg-[var(--surface-strong)] p-4"
                   >
-                    <div className="relative h-32 overflow-hidden rounded-2xl bg-[rgba(9,12,26,0.55)]">
+                    <div className="relative h-32 overflow-hidden rounded-2xl bg-[var(--surface)]">
                       <NextImage
                         src={image.dataUrl}
                         alt={image.name}
@@ -587,7 +587,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                       <button
                         type="button"
                         onClick={() => makePrimary(image.id)}
-                        className="rounded-full border border-[var(--line)] bg-[rgba(9,12,26,0.45)] px-3 py-2 text-xs font-semibold text-[var(--foreground)]"
+                        className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-3 py-2 text-xs font-semibold text-[var(--foreground)]"
                       >
                         {index === 0 ? "Primary photo" : "Make primary"}
                       </button>
@@ -616,7 +616,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
             )}
 
             {photoMessage ? (
-              <p className="rounded-2xl border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3 text-sm text-[var(--muted)]">
+              <p className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
                 {photoMessage}
               </p>
             ) : null}
@@ -735,7 +735,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
         </div>
       </div>
 
-      <aside className="space-y-4 rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+      <aside className="space-y-4 rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-6">
         <h3 className="display-font text-xl font-bold text-[var(--foreground)]">
           Integration notes
         </h3>

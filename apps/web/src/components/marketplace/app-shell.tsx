@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
 import type { SessionUser } from "@/lib/marketplace";
+import { isAdminRole } from "@/lib/roles";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -28,10 +29,44 @@ export function MarketplaceShell({
   user: SessionUser | null;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const canAccessAdmin = Boolean(user && isAdminRole(user.role));
+  const navItems = canAccessAdmin
+    ? [...navLinks, { href: "/admin/dashboard", label: "Admin" }]
+    : navLinks;
+
+  useEffect(() => {
+    const storedTheme =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("marketplace-theme")
+        : null;
+    const nextTheme =
+      storedTheme === "light" || storedTheme === "dark" ? storedTheme : "dark";
+    setTheme(nextTheme);
+    document.documentElement.setAttribute("data-theme", nextTheme);
+  }, []);
+
+  useEffect(() => {
+    for (const item of navItems) {
+      router.prefetch(item.href);
+    }
+
+    if (user) {
+      router.prefetch("/profile");
+    }
+  }, [navItems, router, user]);
+
+  function toggleTheme() {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    document.documentElement.setAttribute("data-theme", nextTheme);
+    window.localStorage.setItem("marketplace-theme", nextTheme);
+  }
 
   return (
     <div className="min-h-screen bg-transparent text-[var(--foreground)]">
-      <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[rgba(17,24,45,0.88)] backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[color:var(--header-bg)] backdrop-blur-xl">
         <div className="mx-auto flex max-w-[92rem] items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-10">
           <Link href="/" className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#6668E8,#A36E1D)] text-sm font-bold text-white">
@@ -48,7 +83,7 @@ export function MarketplaceShell({
           </Link>
 
           <nav className="hidden flex-wrap items-center gap-2 lg:flex">
-            {navLinks.map((link) => {
+            {navItems.map((link) => {
               const active = isActive(pathname, link.href);
 
               return (
@@ -67,8 +102,17 @@ export function MarketplaceShell({
             })}
           </nav>
 
-          {user ? (
-            <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]"
+            >
+              {theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            </button>
+
+            {user ? (
+              <>
               <Link
                 href="/profile"
                 aria-label="Open profile"
@@ -99,9 +143,15 @@ export function MarketplaceShell({
               >
                 {user.displayName}
               </Link>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
+              </>
+            ) : (
+              <>
+              <Link
+                href="/admin/login"
+                className="rounded-full border border-[var(--line)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface)]"
+              >
+                Admin sign in
+              </Link>
               <Link
                 href="/login"
                 className="rounded-full border border-[var(--line)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface)]"
@@ -114,13 +164,14 @@ export function MarketplaceShell({
               >
                 Create account
               </Link>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
 
         <div className="border-t border-[var(--line)] lg:hidden">
           <div className="mx-auto flex max-w-[92rem] gap-2 overflow-x-auto px-5 py-3 text-xs sm:px-8">
-            {navLinks.map((link) => {
+            {navItems.map((link) => {
               const active = isActive(pathname, link.href);
 
               return (
@@ -143,7 +194,7 @@ export function MarketplaceShell({
 
       <main>{children}</main>
 
-      <footer className="border-t border-[var(--line)] bg-[rgba(17,24,45,0.9)]">
+      <footer className="border-t border-[var(--line)] bg-[color:var(--footer-bg)]">
         <div className="mx-auto flex max-w-[92rem] flex-col gap-4 px-5 py-8 text-sm text-[var(--muted)] sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-10">
           <p>
             Find trusted listings, message sellers fast, and post your own in minutes.

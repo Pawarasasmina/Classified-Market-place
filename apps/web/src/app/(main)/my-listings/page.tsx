@@ -2,16 +2,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { ListingStatusActions } from "@/components/marketplace/listing-status-actions";
 import { getListingMedia } from "@/lib/listing-media";
-import { requireSessionContext } from "@/lib/auth-dal";
+import { requireClientSession } from "@/lib/auth-dal";
 import { fetchMyListings } from "@/lib/marketplace-api";
 
 export default async function MyListingsPage() {
-  const { accessToken } = await requireSessionContext("/my-listings");
+  const { accessToken } = await requireClientSession("/my-listings");
   const myListings = await fetchMyListings(accessToken);
 
   return (
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
-      <div className="flex flex-wrap items-end justify-between gap-4 rounded-[2.25rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+      <div className="flex flex-wrap items-end justify-between gap-4 rounded-[2.25rem] border border-[var(--line)] bg-[var(--surface)] p-6">
         <div>
           <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
             Listing management
@@ -36,7 +36,7 @@ export default async function MyListingsPage() {
             return (
               <section
                 key={listing.id}
-                className="grid gap-5 rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6 xl:grid-cols-[0.18fr_0.55fr_0.27fr]"
+                className="grid gap-5 rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-6 xl:grid-cols-[0.18fr_0.55fr_0.27fr]"
               >
                 <div className="relative h-36 overflow-hidden rounded-[1.75rem]">
                   <Image
@@ -103,7 +103,7 @@ export default async function MyListingsPage() {
             );
           })
         ) : (
-          <div className="rounded-[2rem] border border-dashed border-[var(--line)] bg-[rgba(32,39,85,0.7)] px-6 py-10 text-sm text-[var(--muted)]">
+          <div className="rounded-[2rem] border border-dashed border-[var(--line)] bg-[var(--surface)] px-6 py-10 text-sm text-[var(--muted)]">
             You have not published any listings yet. Start with your first post to
             see it here.
           </div>

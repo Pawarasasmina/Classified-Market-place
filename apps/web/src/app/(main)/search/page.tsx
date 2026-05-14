@@ -118,7 +118,7 @@ export default async function SearchPage(props: SearchPageProps) {
   return (
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
       <div className="mb-8 grid gap-6 xl:grid-cols-[0.74fr_0.26fr]">
-        <div className="rounded-[2.25rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+        <div className="rounded-[2.25rem] border border-[var(--line)] bg-[var(--surface)] p-6">
           <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
             Search API
           </p>
@@ -131,7 +131,7 @@ export default async function SearchPage(props: SearchPageProps) {
           </p>
         </div>
 
-        <div className="rounded-[2.25rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+        <div className="rounded-[2.25rem] border border-[var(--line)] bg-[var(--surface)] p-6">
           <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
             Result summary
           </p>
@@ -146,8 +146,8 @@ export default async function SearchPage(props: SearchPageProps) {
       </div>
 
       <div className="grid gap-8 xl:grid-cols-[0.24fr_0.76fr]">
-        <aside className="space-y-5 rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-5">
-          <form action="/search" className="space-y-4 rounded-[1.5rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] p-4">
+        <aside className="space-y-5 rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-5">
+          <form action="/search" className="space-y-4 rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-strong)] p-4">
             <input type="hidden" name="category" value={category} />
             <input type="hidden" name="sort" value={sort} />
             <div>
@@ -284,7 +284,7 @@ export default async function SearchPage(props: SearchPageProps) {
             </div>
           </div>
 
-          <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] p-4 text-sm leading-7 text-[var(--muted)]">
+          <div className="rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-strong)] p-4 text-sm leading-7 text-[var(--muted)]">
             {session ? (
               <>
                 <p className="font-semibold text-[var(--foreground)]">
@@ -328,7 +328,7 @@ export default async function SearchPage(props: SearchPageProps) {
         </aside>
 
         <div className="space-y-5">
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-5">
+          <div className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-5">
             <div className="flex flex-wrap gap-3">
               <span className="rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2 text-sm text-[var(--muted)]">
                 Query: {q || "none"}
@@ -354,14 +354,14 @@ export default async function SearchPage(props: SearchPageProps) {
                 <ListingCard key={listing.id} listing={listing} compact />
               ))
             ) : (
-              <div className="md:col-span-2 xl:col-span-3 rounded-[2rem] border border-dashed border-[var(--line)] bg-[rgba(32,39,85,0.7)] px-6 py-10 text-sm text-[var(--muted)]">
+              <div className="md:col-span-2 xl:col-span-3 rounded-[2rem] border border-dashed border-[var(--line)] bg-[var(--surface)] px-6 py-10 text-sm text-[var(--muted)]">
                 No listings matched this search. Try another keyword or reset the
                 category filter.
               </div>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-5">
             <p className="text-sm text-[var(--muted)]">
               Page {pagination.page} of {pagination.totalPages}
             </p>
@@ -380,7 +380,7 @@ export default async function SearchPage(props: SearchPageProps) {
                 className={`rounded-full border border-[var(--line)] px-4 py-2 text-sm font-semibold ${
                   pagination.hasPreviousPage
                     ? "bg-[var(--surface-strong)] text-[var(--foreground)]"
-                    : "cursor-not-allowed bg-[rgba(17,24,45,0.6)] text-[var(--muted)] pointer-events-none"
+                    : "cursor-not-allowed bg-[var(--surface-strong)] text-[var(--muted)] pointer-events-none"
                 }`}
               >
                 Previous
@@ -399,7 +399,7 @@ export default async function SearchPage(props: SearchPageProps) {
                 className={`rounded-full border border-[var(--line)] px-4 py-2 text-sm font-semibold ${
                   pagination.hasNextPage
                     ? "bg-[var(--surface-strong)] text-[var(--foreground)]"
-                    : "cursor-not-allowed bg-[rgba(17,24,45,0.6)] text-[var(--muted)] pointer-events-none"
+                    : "cursor-not-allowed bg-[var(--surface-strong)] text-[var(--muted)] pointer-events-none"
                 }`}
               >
                 Next

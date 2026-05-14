@@ -33,7 +33,7 @@ export function ListingCard({
         : undefined;
 
   return (
-    <article className="card-shadow overflow-hidden rounded-[1.75rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)]">
+    <article className="card-shadow overflow-hidden rounded-[1.75rem] border border-[var(--line)] bg-[var(--surface)]">
       <div className="relative h-44 overflow-hidden">
         <Image
           src={media.src}
@@ -62,7 +62,7 @@ export function ListingCard({
             </h3>
           </div>
 
-          <span className="rounded-full bg-[rgba(102,104,232,0.2)] px-3 py-1 text-xs font-semibold text-[var(--foreground)]">
+          <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--foreground)]">
             {listing.status}
           </span>
         </div>

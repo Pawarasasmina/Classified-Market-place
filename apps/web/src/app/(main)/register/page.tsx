@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { RegisterForm } from "@/components/marketplace/register-form";
 import { getSessionUser } from "@/lib/auth-dal";
 import { getSafeNextPath } from "@/lib/redirects";
+import { isAdminRole } from "@/lib/roles";
 
 type RegisterPageProps = {
   searchParams: Promise<{
@@ -11,11 +12,11 @@ type RegisterPageProps = {
 
 export default async function RegisterPage(props: RegisterPageProps) {
   const searchParams = await props.searchParams;
-  const nextPath = getSafeNextPath(searchParams.next, "/sell");
+  const nextPath = getSafeNextPath(searchParams.next, "/dashboard");
   const user = await getSessionUser();
 
   if (user) {
-    redirect(nextPath);
+    redirect(isAdminRole(user.role) ? "/admin/dashboard" : nextPath);
   }
 
   return (

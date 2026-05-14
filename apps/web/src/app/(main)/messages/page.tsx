@@ -1,5 +1,5 @@
 import { InboxWorkspace } from "@/components/marketplace/inbox-workspace";
-import { requireSessionContext } from "@/lib/auth-dal";
+import { requireClientSession } from "@/lib/auth-dal";
 import {
   fetchConversation,
   fetchConversations,
@@ -14,7 +14,7 @@ type MessagesPageProps = {
 };
 
 export default async function MessagesPage(props: MessagesPageProps) {
-  const { accessToken, user } = await requireSessionContext("/messages");
+  const { accessToken, user } = await requireClientSession("/messages");
   const searchParams = await props.searchParams;
   const listingId = searchParams.listing;
   const conversationId = searchParams.conversation;
@@ -36,7 +36,7 @@ export default async function MessagesPage(props: MessagesPageProps) {
 
   return (
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
-      <div className="mb-8 max-w-4xl rounded-[2.25rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+      <div className="mb-8 max-w-4xl rounded-[2.25rem] border border-[var(--line)] bg-[var(--surface)] p-6">
         <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
           Chat workspace
         </p>

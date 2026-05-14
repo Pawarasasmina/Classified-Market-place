@@ -1,14 +1,14 @@
 import { SellWizard } from "@/components/marketplace/sell-wizard";
-import { requireVerifiedSession } from "@/lib/auth-dal";
+import { requireClientSession } from "@/lib/auth-dal";
 import { fetchCategories } from "@/lib/marketplace-api";
 
 export default async function SellPage() {
-  await requireVerifiedSession("/sell");
+  await requireClientSession("/sell");
   const categories = await fetchCategories();
 
   return (
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
-      <div className="mb-8 max-w-4xl rounded-[2.25rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+      <div className="mb-8 max-w-4xl rounded-[2.25rem] border border-[var(--line)] bg-[var(--surface)] p-6">
         <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
           Listing creation
         </p>

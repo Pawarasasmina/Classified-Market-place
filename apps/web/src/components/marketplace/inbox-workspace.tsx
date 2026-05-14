@@ -88,7 +88,7 @@ export function InboxWorkspace({
 
   return (
     <div className="grid gap-6 xl:grid-cols-[0.32fr_0.68fr]">
-      <aside className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-4">
+      <aside className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-4">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
@@ -168,7 +168,7 @@ export function InboxWorkspace({
         </div>
       </aside>
 
-      <section className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+      <section className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-6">
         {selectedConversation || selectedListing ? (
           <>
             <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--line)] pb-5">
@@ -212,7 +212,7 @@ export function InboxWorkspace({
                       className={`max-w-[32rem] rounded-[1.5rem] px-4 py-3 text-sm leading-6 ${
                         message.mine
                           ? "bg-[var(--brand)] text-[var(--foreground)]"
-                          : "bg-[rgba(9,12,26,0.55)] text-[var(--foreground)]"
+                          : "bg-[var(--surface-strong)] text-[var(--foreground)]"
                       }`}
                     >
                       <p>{message.body}</p>

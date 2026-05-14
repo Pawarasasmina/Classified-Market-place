@@ -19,7 +19,7 @@ export default async function HomePage() {
   return (
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
       <section className="grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="rounded-[2.5rem] border border-[var(--line)] bg-[rgba(32,39,85,0.84)] p-8">
+        <div className="rounded-[2.5rem] border border-[var(--line)] bg-[var(--surface)] p-8">
           <div className="inline-flex rounded-full border border-[rgba(181,183,202,0.35)] bg-[var(--surface-strong)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
             Local marketplace
           </div>
@@ -34,7 +34,7 @@ export default async function HomePage() {
           </p>
 
           <div className="mt-8 grid gap-4 rounded-[2rem] border border-[var(--line)] bg-[var(--surface-strong)] p-4 lg:grid-cols-[1.3fr_0.85fr_0.7fr_auto]">
-            <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3">
+            <div className="rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
               <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
                 Search query
               </p>
@@ -42,7 +42,7 @@ export default async function HomePage() {
                 Apartment in Marina, Toyota Camry, iPhone 15, AC repair...
               </p>
             </div>
-            <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3">
+            <div className="rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
               <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
                 Category
               </p>
@@ -50,7 +50,7 @@ export default async function HomePage() {
                 All categories
               </p>
             </div>
-            <div className="rounded-[1.5rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3">
+            <div className="rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
               <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
                 Radius
               </p>
@@ -104,7 +104,7 @@ export default async function HomePage() {
                       className="absolute inset-0"
                       style={{ background: media.overlay }}
                     />
-                    <span className="absolute left-3 top-3 rounded-full bg-[rgba(17,24,45,0.86)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--foreground)]">
+                    <span className="absolute left-3 top-3 rounded-full border border-[var(--line)] !bg-[var(--chip-bg)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] !text-[var(--brand-deep)]">
                       {listing.subcategory}
                     </span>
                   </div>
@@ -123,7 +123,7 @@ export default async function HomePage() {
         </div>
 
         <div className="grid gap-5">
-          <div className="rounded-[2.5rem] border border-[var(--line)] bg-[linear-gradient(145deg,#11182D,#202755_58%,#090C1A)] p-8 text-[var(--foreground)]">
+          <div className="rounded-[2.5rem] border border-[var(--line)] bg-[var(--surface)] p-8 text-[var(--foreground)]">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
               Marketplace pulse
             </p>
@@ -135,7 +135,7 @@ export default async function HomePage() {
               {quickStats.map((stat) => (
                 <div
                   key={stat.label}
-                  className="rounded-[1.5rem] bg-[rgba(102,104,232,0.12)] p-4"
+                  className="rounded-[1.5rem] bg-[var(--accent-soft)] p-4"
                 >
                   <p className="text-xs uppercase tracking-[0.2em] text-[var(--accent)]">
                     {stat.label}
@@ -146,7 +146,7 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div className="rounded-[2.5rem] border border-[var(--line)] bg-[rgba(32,39,85,0.85)] p-6">
+          <div className="rounded-[2.5rem] border border-[var(--line)] bg-[var(--surface)] p-6">
             <div className="flex items-center justify-between">
               <h2 className="display-font text-2xl font-bold text-[var(--foreground)]">
                 Why it works
@@ -164,7 +164,7 @@ export default async function HomePage() {
               ].map((item) => (
                 <li
                   key={item}
-                  className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3"
+                  className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--chip-bg)] px-4 py-3"
                 >
                   {item}
                 </li>
@@ -197,7 +197,7 @@ export default async function HomePage() {
               className="card-shadow rounded-[1.75rem] border border-[var(--line)] p-5"
               style={{ background: category.accent }}
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(17,24,45,0.82)] text-[var(--foreground)]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--icon-chip-bg)] text-[var(--icon-chip-fg)]">
                 <CategoryIcon slug={category.slug} className="h-6 w-6" />
               </div>
               <h3 className="display-font mt-5 text-xl font-bold text-[#11182D]">
@@ -238,7 +238,7 @@ export default async function HomePage() {
         </div>
 
         <aside className="space-y-5">
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.86)] p-6">
+          <div className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-6">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
               Saved searches
             </p>
@@ -272,7 +272,7 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.86)] p-6">
+          <div className="rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-6">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
               Quick actions
             </p>

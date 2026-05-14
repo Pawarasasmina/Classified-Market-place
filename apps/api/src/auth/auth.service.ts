@@ -146,13 +146,28 @@ export class AuthService {
 
     const passwordHash = await bcryptLib.hash(registerDto.password, 10);
 
+    const configuredAdminInviteCode = this.configService.get<string>(
+      'ADMIN_INVITE_CODE',
+    );
+    const requestedAdminRegistration = Boolean(registerDto.adminInviteCode);
+
+    if (
+      requestedAdminRegistration &&
+      (!configuredAdminInviteCode ||
+        registerDto.adminInviteCode !== configuredAdminInviteCode)
+    ) {
+      throw new BadRequestException('Invalid admin invite code');
+    }
+
+    const role = requestedAdminRegistration ? 'ADMIN' : 'USER';
+
     const user = await this.prisma.user.create({
       data: {
         email: registerDto.email,
         displayName: registerDto.displayName,
         phone: registerDto.phone,
         passwordHash,
-        role: 'USER',
+        role,
       },
     });
 

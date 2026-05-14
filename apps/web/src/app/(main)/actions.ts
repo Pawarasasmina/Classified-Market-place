@@ -24,7 +24,12 @@ import {
   verifyPhone,
 } from "@/lib/marketplace-api";
 import { type FormActionState } from "@/lib/marketplace";
-import { requireSessionContext } from "@/lib/auth-dal";
+import {
+  isAdminRole,
+  requireAdminSession,
+  requireClientSession,
+  requireSessionContext,
+} from "@/lib/auth-dal";
 import { getSafeNextPath } from "@/lib/redirects";
 import { clearAccessToken, setAccessToken } from "@/lib/session";
 
@@ -44,6 +49,23 @@ const registerSchema = z.object({
       message: "Use an international phone format like +971551234567.",
     }),
   password: z.string().min(6, "Password must be at least 6 characters."),
+});
+
+const adminRegisterSchema = z.object({
+  displayName: z.string().trim().min(2, "Name must be at least 2 characters."),
+  email: z.string().trim().email("Enter a valid email address."),
+  phone: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || /^\+\d{6,15}$/.test(value), {
+      message: "Use an international phone format like +971551234567.",
+    }),
+  password: z.string().min(6, "Password must be at least 6 characters."),
+  adminInviteCode: z
+    .string()
+    .trim()
+    .min(6, "Admin invite code must be at least 6 characters."),
 });
 
 const verifyPhoneSchema = z.object({
@@ -252,7 +274,7 @@ export async function loginAction(
   _previousState: FormActionState,
   formData: FormData
 ): Promise<FormActionState> {
-  const nextPath = getSafeNextPath(formData.get("next"), "/");
+  const nextPath = getSafeNextPath(formData.get("next"), "/dashboard");
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -268,11 +290,60 @@ export async function loginAction(
   try {
     const session = await loginUser(parsed.data);
     await setAccessToken(session.accessToken);
+    const destination = isAdminRole(session.user.role)
+      ? "/admin/dashboard"
+      : nextPath === "/" || nextPath.startsWith("/admin")
+        ? "/dashboard"
+        : nextPath;
 
-    redirect(nextPath);
+    redirect(destination);
   } catch (error) {
     return {
       message: getActionMessage(error, "We could not sign you in."),
+    };
+  }
+}
+
+export async function adminLoginAction(
+  _previousState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  const nextPath = getSafeNextPath(formData.get("next"), "/admin/dashboard");
+  const parsed = loginSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Check your admin sign-in details and try again.",
+      fieldErrors: flattenFieldErrors(parsed.error),
+    };
+  }
+
+  try {
+    const session = await loginUser(parsed.data);
+    const hasAdminAccess = isAdminRole(session.user.role);
+
+    if (!hasAdminAccess) {
+      await clearAccessToken();
+      return {
+        message:
+          "This account does not have admin access. Use an admin or moderator account.",
+      };
+    }
+
+    await setAccessToken(session.accessToken);
+    const destination = isAdminRole(session.user.role)
+      ? "/admin/dashboard"
+      : nextPath === "/" || nextPath.startsWith("/admin")
+        ? "/dashboard"
+        : nextPath;
+
+    redirect(destination);
+  } catch (error) {
+    return {
+      message: getActionMessage(error, "We could not sign you in to admin."),
     };
   }
 }
@@ -281,7 +352,7 @@ export async function registerAction(
   _previousState: FormActionState,
   formData: FormData
 ): Promise<FormActionState> {
-  const nextPath = getSafeNextPath(formData.get("next"), "/sell");
+  const nextPath = getSafeNextPath(formData.get("next"), "/dashboard");
   const parsed = registerSchema.safeParse({
     displayName: formData.get("displayName"),
     email: formData.get("email"),
@@ -302,11 +373,52 @@ export async function registerAction(
       phone: parsed.data.phone || undefined,
     });
     await setAccessToken(session.accessToken);
+    const destination = isAdminRole(session.user.role)
+      ? "/admin/dashboard"
+      : nextPath === "/" || nextPath.startsWith("/admin")
+        ? "/dashboard"
+        : nextPath;
 
-    redirect(nextPath);
+    redirect(destination);
   } catch (error) {
     return {
       message: getActionMessage(error, "We could not create your account."),
+    };
+  }
+}
+
+export async function adminRegisterAction(
+  _previousState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  const parsed = adminRegisterSchema.safeParse({
+    displayName: formData.get("displayName"),
+    email: formData.get("email"),
+    phone: formData.get("phone") || undefined,
+    password: formData.get("password"),
+    adminInviteCode: formData.get("adminInviteCode"),
+  });
+
+  if (!parsed.success) {
+    return {
+      message: "Check the highlighted fields and try again.",
+      fieldErrors: flattenFieldErrors(parsed.error),
+    };
+  }
+
+  try {
+    const session = await registerUser({
+      displayName: parsed.data.displayName,
+      email: parsed.data.email,
+      phone: parsed.data.phone || undefined,
+      password: parsed.data.password,
+      adminInviteCode: parsed.data.adminInviteCode,
+    });
+    await setAccessToken(session.accessToken);
+    redirect("/admin/dashboard");
+  } catch (error) {
+    return {
+      message: getActionMessage(error, "We could not create the admin account."),
     };
   }
 }
@@ -388,7 +500,7 @@ export async function createListingAction(
     };
   }
 
-  const { accessToken } = await requireSessionContext("/sell");
+  const { accessToken } = await requireClientSession("/sell");
 
   try {
     const attributes = parseAttributes(formData);
@@ -412,7 +524,12 @@ export async function createListingAction(
 
 export async function logoutAction() {
   await clearAccessToken();
-  redirect("/");
+  redirect("/login");
+}
+
+export async function adminLogoutAction() {
+  await clearAccessToken();
+  redirect("/admin/login");
 }
 
 export async function updateProfileAction(
@@ -431,7 +548,7 @@ export async function updateProfileAction(
     };
   }
 
-  const { accessToken } = await requireSessionContext("/profile");
+  const { accessToken } = await requireClientSession("/profile");
 
   try {
     await updateCurrentUser(accessToken, {
@@ -450,7 +567,7 @@ export async function updateProfileAction(
 
 export async function saveListingAction(listingId: string, currentPath = "/") {
   const safePath = getSafeNextPath(currentPath, "/");
-  const { accessToken } = await requireSessionContext(safePath);
+  const { accessToken } = await requireClientSession(safePath);
 
   const response = await saveListing(accessToken, listingId);
   revalidatePath("/saved");
@@ -461,7 +578,7 @@ export async function saveListingAction(listingId: string, currentPath = "/") {
 
 export async function unsaveListingAction(listingId: string, currentPath = "/") {
   const safePath = getSafeNextPath(currentPath, "/");
-  const { accessToken } = await requireSessionContext(safePath);
+  const { accessToken } = await requireClientSession(safePath);
 
   const response = await unsaveListing(accessToken, listingId);
   revalidatePath("/saved");
@@ -477,7 +594,7 @@ export async function updateListingStatusAction(
 ) {
   const safePath = getSafeNextPath(currentPath, "/my-listings");
   const parsedAction = listingStatusActionSchema.parse(action);
-  const { accessToken } = await requireSessionContext(safePath);
+  const { accessToken } = await requireClientSession(safePath);
 
   const response = await updateListingStatus(accessToken, listingId, {
     action: parsedAction,
@@ -502,7 +619,7 @@ export async function createSavedSearchAction(
 ) {
   const safePath = getSafeNextPath(currentPath, "/search");
   const parsed = savedSearchSchema.parse(payload);
-  const { accessToken } = await requireSessionContext(safePath);
+  const { accessToken } = await requireClientSession(safePath);
 
   const response = await createSavedSearch(accessToken, parsed);
   revalidatePath("/");
@@ -526,7 +643,7 @@ export async function updateSavedSearchAction(
 ) {
   const safePath = getSafeNextPath(currentPath, "/saved");
   const parsed = savedSearchSchema.parse(payload);
-  const { accessToken } = await requireSessionContext(safePath);
+  const { accessToken } = await requireClientSession(safePath);
 
   const response = await updateSavedSearch(accessToken, savedSearchId, parsed);
   revalidatePath("/");
@@ -542,7 +659,7 @@ export async function deleteSavedSearchAction(
   currentPath = "/saved"
 ) {
   const safePath = getSafeNextPath(currentPath, "/saved");
-  const { accessToken } = await requireSessionContext(safePath);
+  const { accessToken } = await requireClientSession(safePath);
 
   const response = await deleteSavedSearch(accessToken, savedSearchId);
   revalidatePath("/");
@@ -570,7 +687,7 @@ export async function sendConversationMessageAction(
     };
   }
 
-  const { accessToken, user } = await requireSessionContext("/messages");
+  const { accessToken, user } = await requireClientSession("/messages");
 
   try {
     const conversation = parsed.data.conversationId
@@ -601,7 +718,7 @@ export async function markConversationReadAction(
   currentPath = "/messages"
 ) {
   const safePath = getSafeNextPath(currentPath, "/messages");
-  const { accessToken, user } = await requireSessionContext(safePath);
+  const { accessToken, user } = await requireClientSession(safePath);
 
   await markConversationRead(accessToken, user.id, conversationId);
   revalidatePath("/messages");
@@ -630,7 +747,7 @@ export async function reportListingAction(
     parsed.data.currentPath,
     `/listings/${parsed.data.listingId}`
   );
-  const { accessToken } = await requireSessionContext(safePath);
+  const { accessToken } = await requireClientSession(safePath);
 
   try {
     await reportListing(accessToken, parsed.data.listingId, {
@@ -658,16 +775,16 @@ export async function moderateListingAction(
     | "REPORT_UNDER_REVIEW"
     | "REPORT_DISMISSED",
   reportId?: string | null,
-  currentPath = "/admin"
+  currentPath = "/admin/dashboard"
 ) {
-  const safePath = getSafeNextPath(currentPath, "/admin");
-  const { accessToken } = await requireSessionContext(safePath);
+  const safePath = getSafeNextPath(currentPath, "/admin/dashboard");
+  const { accessToken } = await requireAdminSession(safePath);
 
   await moderateListing(accessToken, listingId, {
     action,
     reportId: reportId || undefined,
   });
 
-  revalidatePath("/admin");
+  revalidatePath("/admin/dashboard");
   revalidatePath(safePath);
 }

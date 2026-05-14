@@ -49,7 +49,7 @@ export default async function ListingDetailPage(
     <div className="mx-auto max-w-[92rem] px-5 py-8 sm:px-8 lg:px-10">
       <div className="grid gap-8 xl:grid-cols-[0.7fr_0.3fr]">
         <div className="space-y-6">
-          <section className="overflow-hidden rounded-[2.5rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)]">
+          <section className="overflow-hidden rounded-[2.5rem] border border-[var(--line)] bg-[linear-gradient(180deg,var(--surface),color-mix(in_srgb,var(--surface)_84%,var(--background)))] shadow-[0_24px_64px_rgba(17,24,45,0.10)]">
             <div className="relative h-72">
               <Image
                 src={media.src}
@@ -72,7 +72,7 @@ export default async function ListingDetailPage(
                     {listing.title}
                   </h1>
                 </div>
-                <span className="rounded-full bg-[rgba(102,104,232,0.2)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]">
+                <span className="rounded-full border border-[var(--line)] bg-[var(--accent-soft)] px-4 py-2 text-sm font-semibold text-[var(--foreground)]">
                   {listing.status}
                 </span>
               </div>
@@ -84,7 +84,7 @@ export default async function ListingDetailPage(
                 <span>{listing.chatCount} open chats</span>
               </div>
 
-              <div className="rounded-[1.75rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] p-5">
+              <div className="rounded-[1.75rem] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface-strong)_72%,var(--surface))] p-5">
                 <p className="display-font text-2xl font-bold text-[var(--foreground)]">
                   {listing.priceLabel}
                 </p>
@@ -101,7 +101,7 @@ export default async function ListingDetailPage(
               </div>
 
               <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-[1.75rem] border border-[var(--line)] bg-[var(--surface-strong)] p-5">
+                <div className="rounded-[1.75rem] border border-[var(--line)] bg-[linear-gradient(180deg,var(--surface),color-mix(in_srgb,var(--surface)_88%,var(--background)))] p-5">
                   <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
                     Description
                   </p>
@@ -110,7 +110,7 @@ export default async function ListingDetailPage(
                   </p>
                 </div>
 
-                <div className="rounded-[1.75rem] border border-[var(--line)] bg-[var(--surface-strong)] p-5">
+                <div className="rounded-[1.75rem] border border-[var(--line)] bg-[linear-gradient(180deg,var(--surface),color-mix(in_srgb,var(--surface)_88%,var(--background)))] p-5">
                   <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
                     Attributes
                   </p>
@@ -118,7 +118,7 @@ export default async function ListingDetailPage(
                     {Object.entries(listing.attributes).map(([key, value]) => (
                       <div
                         key={key}
-                        className="rounded-[1.25rem] border border-[var(--line)] bg-[rgba(9,12,26,0.55)] px-4 py-3"
+                        className="rounded-[1.25rem] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface-strong)_72%,var(--surface))] px-4 py-3"
                       >
                         <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
                           {key}
@@ -155,7 +155,7 @@ export default async function ListingDetailPage(
         </div>
 
         <aside className="space-y-5">
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+          <div className="rounded-[2rem] border border-[var(--line)] bg-[linear-gradient(180deg,var(--surface),color-mix(in_srgb,var(--surface)_86%,var(--background)))] p-6 shadow-[0_18px_48px_rgba(17,24,45,0.09)]">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
               Seller widget
             </p>
@@ -208,7 +208,7 @@ export default async function ListingDetailPage(
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-[var(--line)] bg-[rgba(32,39,85,0.9)] p-6">
+          <div className="rounded-[2rem] border border-[var(--line)] bg-[linear-gradient(180deg,var(--surface),color-mix(in_srgb,var(--surface)_86%,var(--background)))] p-6 shadow-[0_18px_48px_rgba(17,24,45,0.09)]">
             <p className="display-font text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand-deep)]">
               Phase 1 actions
             </p>

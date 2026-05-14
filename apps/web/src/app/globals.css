@@ -16,6 +16,42 @@
   --gold: #a36e1d;
   --sky: #b5b7ca;
   --rose: #676a77;
+  --chip-bg: rgba(9, 12, 26, 0.45);
+  --header-bg: rgba(17, 24, 45, 0.88);
+  --footer-bg: rgba(17, 24, 45, 0.9);
+  --glow-primary: rgba(102, 104, 232, 0.2);
+  --glow-accent: rgba(163, 110, 29, 0.12);
+  --bg-top: #11182d;
+  --bg-mid: #090c1a;
+  --bg-bottom: #090c1a;
+  --icon-chip-bg: rgba(17, 24, 45, 0.82);
+  --icon-chip-fg: #fdfdfe;
+}
+
+:root[data-theme="light"] {
+  --background: #f4f6ff;
+  --foreground: #11182d;
+  --surface: #ffffff;
+  --surface-strong: #e9edff;
+  --muted: #4f5875;
+  --line: rgba(103, 106, 119, 0.3);
+  --brand: #6668e8;
+  --brand-deep: #4f57d8;
+  --accent: #a36e1d;
+  --accent-soft: rgba(102, 104, 232, 0.12);
+  --gold: #a36e1d;
+  --sky: #676a77;
+  --rose: #4f5875;
+  --chip-bg: #e6ebff;
+  --header-bg: rgba(233, 237, 255, 0.9);
+  --footer-bg: rgba(233, 237, 255, 0.92);
+  --glow-primary: rgba(102, 104, 232, 0.12);
+  --glow-accent: rgba(163, 110, 29, 0.1);
+  --bg-top: #f9faff;
+  --bg-mid: #f4f6ff;
+  --bg-bottom: #eef1ff;
+  --icon-chip-bg: #d7dff7;
+  --icon-chip-fg: #2d3b66;
 }
 
 @theme inline {
@@ -37,9 +73,9 @@ body {
   color: var(--foreground);
   font-family: var(--font-manrope), sans-serif;
   background-image:
-    radial-gradient(circle at 18% 10%, rgba(102, 104, 232, 0.2), transparent 26%),
-    radial-gradient(circle at 82% 18%, rgba(163, 110, 29, 0.12), transparent 22%),
-    linear-gradient(180deg, #11182d 0%, #090c1a 60%, #090c1a 100%);
+    radial-gradient(circle at 18% 10%, var(--glow-primary), transparent 26%),
+    radial-gradient(circle at 82% 18%, var(--glow-accent), transparent 22%),
+    linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 60%, var(--bg-bottom) 100%);
 }
 
 ::selection {

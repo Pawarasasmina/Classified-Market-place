@@ -160,7 +160,10 @@ export async function fetchCategories() {
   return categories.map(mapCategory);
 }
 
-export async function fetchListings(query: ListingQuery = {}) {
+export async function fetchListings(
+  query: ListingQuery = {},
+  accessToken?: string
+) {
   const modernSearchParams = {
     search: query.search,
     categorySlug: query.categorySlug,
@@ -179,6 +182,7 @@ export async function fetchListings(query: ListingQuery = {}) {
 
   try {
     const listings = await apiRequest<ApiListingResults | ApiListing[]>("/listings", {
+      accessToken,
       searchParams: modernSearchParams,
     });
 
@@ -196,6 +200,7 @@ export async function fetchListings(query: ListingQuery = {}) {
     }
 
     const legacyListings = await apiRequest<ApiListing[]>("/listings", {
+      accessToken,
       searchParams: {
         search: query.search,
         categorySlug: query.categorySlug,
@@ -470,6 +475,7 @@ export async function registerUser(payload: {
   email: string;
   phone?: string;
   password: string;
+  adminInviteCode?: string;
 }) {
   const response = await apiRequest<AuthResponse>("/auth/register", {
     method: "POST",

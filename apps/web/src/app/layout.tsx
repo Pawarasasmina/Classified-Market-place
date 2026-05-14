@@ -27,9 +27,12 @@ export default function RootLayout({
     <html
       lang="en"
       data-scroll-behavior="smooth"
+      suppressHydrationWarning
       className={`${manrope.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body suppressHydrationWarning className="min-h-full flex flex-col">
+        {children}
+      </body>
     </html>
   );
 }
