@@ -7,7 +7,7 @@ import {
   MarketplaceApiError,
   refreshSession,
 } from "@/lib/marketplace-api";
-import { appendNextParam } from "@/lib/redirects";
+import { appendNextParam, getPhoneVerificationPath } from "@/lib/redirects";
 import {
   getAccessToken,
   getRefreshToken,
@@ -71,5 +71,11 @@ export async function requireSessionContext(nextPath = "/") {
 }
 
 export async function requireVerifiedSession(nextPath = "/sell") {
-  return requireSessionContext(nextPath);
+  const session = await requireSessionContext(nextPath);
+
+  if (!session.user.phoneVerified) {
+    redirect(getPhoneVerificationPath(nextPath));
+  }
+
+  return session;
 }

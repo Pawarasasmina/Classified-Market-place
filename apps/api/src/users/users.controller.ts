@@ -1,8 +1,18 @@
-import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
@@ -25,11 +35,64 @@ export class UsersController {
     return this.usersService.updateCurrentUser(user.id, updateUserDto);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Patch('me/password')
+  changePassword(
+    @CurrentUser() user: { id: string },
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    return this.usersService.changePassword(user.id, changePasswordDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('me')
+  deactivateCurrentUser(@CurrentUser() user: { id: string }) {
+    return this.usersService.deactivateCurrentUser(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'admin')
+  @Get('admin/all')
+  findAllForAdmin() {
+    return this.usersService.findAllForAdmin();
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'admin')
   @Get('admin/chat-users')
   findAdminChatUsers(@CurrentUser() user: { id: string }) {
     return this.usersService.findChatUsers(user.id, ['USER', 'user']);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'admin')
+  @Get('admin/:id')
+  findOneForAdmin(@Param('id') id: string) {
+    return this.usersService.findOneForAdmin(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'admin')
+  @Patch('admin/:id')
+  updateForAdmin(
+    @Param('id') id: string,
+    @Body() updateUserDto: AdminUpdateUserDto,
+  ) {
+    return this.usersService.updateForAdmin(id, updateUserDto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'admin')
+  @Get('admin/:id/listings')
+  findListingsForAdmin(@Param('id') id: string) {
+    return this.usersService.findListingsForAdmin(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'admin')
+  @Get('admin/:id/bookings')
+  findBookingsForAdmin(@Param('id') id: string) {
+    return this.usersService.findBookingsForAdmin(id);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -26,6 +26,7 @@ export type ApiCategory = {
   schemaDefinition?: {
     fields?: ApiCategoryField[] | null;
   } | null;
+  listingExpiryDays?: number;
   isActive: boolean;
   parentId?: string | null;
   parent?: ApiCategory | null;
@@ -59,10 +60,12 @@ export type ApiUser = {
 export type ApiListingStatus =
   | "PENDING"
   | "ACTIVE"
+  | "PAUSED"
   | "REJECTED"
   | "DELETED"
   | "EXPIRED"
   | "SOLD"
+  | "REMOVED"
   | "DRAFT";
 
 export type ApiListingImage = {
@@ -82,6 +85,10 @@ export type ApiListing = {
   location: string;
   status: ApiListingStatus;
   attributes?: Record<string, unknown> | null;
+  publishedAt?: string | null;
+  expiresAt?: string | null;
+  soldAt?: string | null;
+  removedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   sellerId: string;
@@ -115,6 +122,7 @@ export type MarketplaceCategory = {
   icon: string;
   countLabel: string;
   schema: AttributeField[];
+  listingExpiryDays: number;
   parentSlug?: string | null;
   children?: MarketplaceCategory[];
   isActive: boolean;
@@ -130,7 +138,20 @@ export type MarketplaceListing = {
   priceValue: number;
   location: string;
   condition: string;
-  status: "Pending" | "Active" | "Rejected" | "Deleted" | "Expired" | "Sold" | "Draft";
+  status:
+    | "Pending"
+    | "Active"
+    | "Paused"
+    | "Rejected"
+    | "Deleted"
+    | "Expired"
+    | "Sold"
+    | "Removed"
+    | "Draft";
+  publishedAt?: string | null;
+  expiresAt?: string | null;
+  soldAt?: string | null;
+  removedAt?: string | null;
   postedLabel: string;
   description: string;
   featureBullets: string[];
@@ -159,9 +180,64 @@ export type MarketplaceSeller = {
   totalListings: number;
 };
 
+export type AdminUserStats = {
+  totalListings: number;
+  activeListings: number;
+  pendingListings: number;
+  pausedListings: number;
+  rejectedListings: number;
+  deletedListings: number;
+  bookingCount: number;
+  offerCount: number;
+};
+
+export type AdminUser = ApiUser & {
+  adminStats: AdminUserStats;
+};
+
+export type AdminBookingParticipant = {
+  id: string;
+  conversationId: string;
+  userId: string;
+  unreadCount: number;
+  lastReadAt?: string | null;
+  mutedAt?: string | null;
+  joinedAt: string;
+  user: ApiUser;
+};
+
+export type AdminBookingMessage = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  type: string;
+  legacyBody?: string | null;
+  encryptedBody?: string | null;
+  encryptedPayload?: string | null;
+  listingId?: string | null;
+  offerAmount?: string | number | null;
+  offerCurrency?: string | null;
+  offerStatus?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sender: ApiUser;
+};
+
+export type AdminBooking = {
+  id: string;
+  listingId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  listing?: MarketplaceListing | null;
+  participants: AdminBookingParticipant[];
+  messages: AdminBookingMessage[];
+};
+
 export type FormActionState = {
   message?: string | null;
   fieldErrors?: Record<string, string>;
+  draftListingId?: string;
+  savedAt?: string;
 };
 
 const categoryPresets: Record<
@@ -387,6 +463,8 @@ function humanizeListingStatus(status: ApiListingStatus): MarketplaceListing["st
       return "Pending";
     case "ACTIVE":
       return "Active";
+    case "PAUSED":
+      return "Paused";
     case "REJECTED":
       return "Rejected";
     case "DELETED":
@@ -395,6 +473,8 @@ function humanizeListingStatus(status: ApiListingStatus): MarketplaceListing["st
       return "Expired";
     case "SOLD":
       return "Sold";
+    case "REMOVED":
+      return "Removed";
     default:
       return "Draft";
   }
@@ -451,6 +531,7 @@ export function mapCategory(category: ApiCategory): MarketplaceCategory {
       ? formatCountLabel(category._count.listings)
       : preset?.countLabel ?? "Live inventory",
     schema,
+    listingExpiryDays: category.listingExpiryDays ?? 30,
     parentSlug: category.parent?.slug ?? null,
     children: category.children?.map(mapCategory),
     isActive: category.isActive,
@@ -480,6 +561,10 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
         ? attributes.condition
         : humanizeListingStatus(listing.status),
     status: humanizeListingStatus(listing.status),
+    publishedAt: listing.publishedAt ?? null,
+    expiresAt: listing.expiresAt ?? null,
+    soldAt: listing.soldAt ?? null,
+    removedAt: listing.removedAt ?? null,
     postedLabel: formatRelativeTime(listing.createdAt),
     description: listing.description,
     featureBullets:

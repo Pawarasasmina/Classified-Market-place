@@ -5,6 +5,10 @@ import {
   mapListing,
   mapSeller,
   mapSessionUser,
+  type AdminBooking,
+  type AdminBookingMessage,
+  type AdminBookingParticipant,
+  type AdminUser,
   type ApiCategory,
   type ApiListing,
   type ApiListingStatus,
@@ -36,6 +40,16 @@ type ListingQuery = {
 type AuthResponse = {
   accessToken: string;
   refreshToken: string;
+  refreshTokenExpiresAt?: string;
+  emailVerificationPreviewUrl?: string | null;
+  newDevice?: boolean;
+  user: ApiUser;
+};
+
+type RegisterResponse = {
+  message: string;
+  email: string;
+  emailVerificationPreviewUrl?: string | null;
   user: ApiUser;
 };
 
@@ -46,6 +60,7 @@ type ListingImagePayload = {
 };
 
 type ListingPayload = {
+  clientDraftKey?: string;
   categorySlug: string;
   title: string;
   description: string;
@@ -55,6 +70,21 @@ type ListingPayload = {
   status?: ApiListingStatus;
   attributes: Record<string, unknown>;
   images?: ListingImagePayload[];
+};
+
+type ListingDraftPayload = Partial<ListingPayload> & {
+  clientDraftKey: string;
+  listingId?: string;
+};
+
+type ApiAdminBooking = {
+  id: string;
+  listingId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  listing?: ApiListing | null;
+  participants: AdminBookingParticipant[];
+  messages: AdminBookingMessage[];
 };
 
 function getApiBaseUrl() {
@@ -135,6 +165,9 @@ function mapAuthResponse(response: AuthResponse) {
   return {
     accessToken: response.accessToken,
     refreshToken: response.refreshToken,
+    refreshTokenExpiresAt: response.refreshTokenExpiresAt,
+    emailVerificationPreviewUrl: response.emailVerificationPreviewUrl,
+    newDevice: response.newDevice,
     user: mapSessionUser(response.user),
   };
 }
@@ -151,6 +184,73 @@ export async function fetchAdminCategories(accessToken: string) {
   return categories.map(mapCategory);
 }
 
+export async function fetchAdminUsers(accessToken: string) {
+  return apiRequest<AdminUser[]>("/users/admin/all", {
+    accessToken,
+  });
+}
+
+export async function fetchAdminUser(accessToken: string, userId: string) {
+  return apiRequest<AdminUser>(`/users/admin/${userId}`, {
+    accessToken,
+  });
+}
+
+export async function updateAdminUser(
+  accessToken: string,
+  userId: string,
+  payload: {
+    displayName?: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
+    bio?: string | null;
+    location?: string | null;
+    role?: string;
+    emailVerified?: boolean;
+    phoneVerified?: boolean;
+  }
+) {
+  return apiRequest<AdminUser>(`/users/admin/${userId}`, {
+    method: "PATCH",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchAdminUserListings(
+  accessToken: string,
+  userId: string
+) {
+  const listings = await apiRequest<ApiListing[]>(
+    `/users/admin/${userId}/listings`,
+    {
+      accessToken,
+    }
+  );
+
+  return listings.map(mapListing);
+}
+
+export async function fetchAdminUserBookings(
+  accessToken: string,
+  userId: string
+) {
+  const bookings = await apiRequest<ApiAdminBooking[]>(
+    `/users/admin/${userId}/bookings`,
+    {
+      accessToken,
+    }
+  );
+
+  return bookings.map(
+    (booking): AdminBooking => ({
+      ...booking,
+      listing: booking.listing ? mapListing(booking.listing) : null,
+    })
+  );
+}
+
 export async function createCategory(
   accessToken: string,
   payload: {
@@ -158,6 +258,7 @@ export async function createCategory(
     slug?: string;
     description?: string;
     parentSlug?: string;
+    listingExpiryDays?: number;
   }
 ) {
   const category = await apiRequest<ApiCategory>("/categories/admin", {
@@ -177,6 +278,7 @@ export async function updateCategory(
     description?: string;
     parentSlug?: string;
     isActive?: boolean;
+    listingExpiryDays?: number;
   }
 ) {
   const category = await apiRequest<ApiCategory>(`/categories/admin/${slug}`, {
@@ -297,7 +399,33 @@ export async function updateCurrentUser(
   return mapSessionUser(user);
 }
 
-export async function loginUser(payload: { email: string; password: string }) {
+export async function deactivateCurrentUser(accessToken: string) {
+  return apiRequest<{ message: string }>("/users/me", {
+    method: "DELETE",
+    accessToken,
+  });
+}
+
+export async function changePassword(
+  accessToken: string,
+  payload: {
+    currentPassword?: string;
+    newPassword: string;
+  }
+) {
+  return apiRequest<{ message: string }>("/users/me/password", {
+    method: "PATCH",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function loginUser(payload: {
+  email: string;
+  password: string;
+  rememberMe?: boolean;
+}) {
   return mapAuthResponse(
     await apiRequest<AuthResponse>("/auth/login", {
       method: "POST",
@@ -312,18 +440,25 @@ export async function registerUser(payload: {
   email: string;
   phone?: string;
   password: string;
+  termsAccepted: boolean;
 }) {
-  return mapAuthResponse(
-    await apiRequest<AuthResponse>("/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    })
-  );
+  const response = await apiRequest<RegisterResponse>("/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return {
+    message: response.message,
+    email: response.email,
+    emailVerificationPreviewUrl: response.emailVerificationPreviewUrl,
+    user: mapSessionUser(response.user),
+  };
 }
 
 export async function googleLoginUser(payload: {
   idToken?: string;
+  accessToken?: string;
   email?: string;
   displayName?: string;
   googleId?: string;
@@ -352,6 +487,84 @@ export async function logoutSession(refreshToken: string) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken }),
+  });
+}
+
+export async function forgotPassword(payload: { email: string }) {
+  return apiRequest<{ message: string; resetPreviewUrl?: string | null }>(
+    "/auth/forgot-password",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export async function resetPassword(payload: {
+  token: string;
+  password: string;
+}) {
+  return apiRequest<{ message: string }>("/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function verifyEmailToken(token: string) {
+  const response = await apiRequest<AuthResponse & { message: string }>(
+    "/auth/verify-email",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    }
+  );
+
+  return {
+    ...mapAuthResponse(response),
+    message: response.message,
+  };
+}
+
+export async function resendEmailVerification(accessToken: string) {
+  return apiRequest<{
+    message: string;
+    emailVerificationPreviewUrl?: string | null;
+  }>("/auth/resend-email-verification", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export type AuthSession = {
+  id: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export async function fetchAuthSessions(accessToken: string) {
+  return apiRequest<AuthSession[]>("/auth/sessions", {
+    accessToken,
+  });
+}
+
+export async function revokeAuthSession(accessToken: string, sessionId: string) {
+  return apiRequest<{ message: string }>(`/auth/sessions/${sessionId}`, {
+    method: "DELETE",
+    accessToken,
+  });
+}
+
+export async function logoutAllSessions(accessToken: string) {
+  return apiRequest<{ message: string }>("/auth/logout-all", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
   });
 }
 
@@ -398,6 +611,35 @@ export async function requestPhoneOtp(
 
 export async function createListing(accessToken: string, payload: ListingPayload) {
   const listing = await apiRequest<ApiListing>("/listings", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return mapListing(listing);
+}
+
+export async function saveListingDraft(
+  accessToken: string,
+  payload: ListingDraftPayload
+) {
+  const listing = await apiRequest<ApiListing>("/listings/drafts", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return mapListing(listing);
+}
+
+export async function publishListingDraft(
+  accessToken: string,
+  listingId: string,
+  payload: ListingPayload
+) {
+  const listing = await apiRequest<ApiListing>(`/listings/${listingId}/publish`, {
     method: "POST",
     accessToken,
     headers: { "Content-Type": "application/json" },

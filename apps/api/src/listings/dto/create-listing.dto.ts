@@ -15,6 +15,10 @@ import { ListingStatus } from '@prisma/client';
 import { ListingImageInputDto } from './listing-image-input.dto';
 
 export class CreateListingDto {
+  @IsOptional()
+  @IsString()
+  clientDraftKey?: string;
+
   @IsString()
   @IsNotEmpty()
   title!: string;
@@ -50,7 +54,7 @@ export class CreateListingDto {
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(10)
+  @ArrayMaxSize(20)
   @ValidateNested({ each: true })
   @Type(() => ListingImageInputDto)
   images?: ListingImageInputDto[];

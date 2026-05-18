@@ -1,9 +1,9 @@
-import { ListingForm } from "@/components/marketplace/listing-form";
-import { requireSessionContext } from "@/lib/auth-dal";
+import { SellWizard } from "@/components/marketplace/sell-wizard";
+import { requireVerifiedSession } from "@/lib/auth-dal";
 import { fetchCategories } from "@/lib/marketplace-api";
 
 export default async function SellPage() {
-  await requireSessionContext("/sell");
+  await requireVerifiedSession("/sell");
   const categories = await fetchCategories();
 
   return (
@@ -16,7 +16,7 @@ export default async function SellPage() {
           enter review before they appear in customer search.
         </p>
       </div>
-      <ListingForm categories={categories} />
+      <SellWizard categories={categories} />
     </div>
   );
 }

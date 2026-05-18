@@ -11,7 +11,7 @@ type RegisterPageProps = {
 
 export default async function RegisterPage(props: RegisterPageProps) {
   const searchParams = await props.searchParams;
-  const nextPath = getSafeNextPath(searchParams.next, "/sell");
+  const nextPath = getSafeNextPath(searchParams.next, "/my-listings");
   const user = await getSessionUser();
 
   if (user) {

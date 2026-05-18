@@ -2,10 +2,16 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { logoutAction } from "@/app/(main)/actions";
+import { CategoryIcon } from "@/components/marketplace/category-icon";
 import { ColorProfileToggle } from "@/components/marketplace/color-profile-toggle";
-import type { SessionUser } from "@/lib/marketplace";
+import { GoogleOneTapPrompt } from "@/components/marketplace/google-auth-form";
+import {
+  buildMarketplaceCategoryTree,
+  type MarketplaceCategoryNode,
+} from "@/lib/category-tree";
+import type { MarketplaceCategory, SessionUser } from "@/lib/marketplace";
 
 const customerNavLinks = [
   { href: "/", label: "Home" },
@@ -20,11 +26,167 @@ const customerNavLinks = [
 
 const adminNavLinks = [
   { href: "/admin", label: "Dashboard" },
+  { href: "/admin/users", label: "Users" },
   { href: "/admin/categories", label: "Categories" },
   { href: "/admin#moderation", label: "Moderation" },
   { href: "/messages", label: "Support Inbox" },
   { href: "/profile", label: "Profile" },
 ];
+
+function CategoryChildLinks({
+  nodes,
+  customerPreview,
+}: {
+  nodes: MarketplaceCategoryNode[];
+  customerPreview: boolean;
+}) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {nodes.map((node) => (
+        <div key={node.slug} className="grid gap-2">
+          <Link
+            href={withCustomerPreview(`/search?category=${node.slug}`, customerPreview)}
+            className="rounded-md px-3 py-2 text-sm font-black text-[var(--foreground)] hover:bg-[var(--surface-strong)]"
+          >
+            {node.name}
+          </Link>
+          {node.nestedChildren.length ? (
+            <div className="grid gap-1 pl-3">
+              {node.nestedChildren.slice(0, 7).map((child) => (
+                <Link
+                  key={child.slug}
+                  href={withCustomerPreview(
+                    `/search?category=${child.slug}`,
+                    customerPreview
+                  )}
+                  className="rounded-md px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"
+                >
+                  {child.name}
+                </Link>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CustomerCategoryMenu({
+  categories,
+  customerPreview,
+  active,
+}: {
+  categories: MarketplaceCategory[];
+  customerPreview: boolean;
+  active: boolean;
+}) {
+  const tree = useMemo(() => buildMarketplaceCategoryTree(categories), [categories]);
+  const [open, setOpen] = useState(false);
+  const [activeSlug, setActiveSlug] = useState(tree[0]?.slug ?? "");
+  const activeNode = tree.find((category) => category.slug === activeSlug) ?? tree[0];
+
+  if (!tree.length) {
+    return (
+      <Link
+        href={withCustomerPreview("/categories", customerPreview)}
+        className={`px-3 py-2 font-semibold ${active ? "nav-link-active" : "nav-link"}`}
+      >
+        Categories
+      </Link>
+    );
+  }
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        onFocus={() => setOpen(true)}
+        className={`px-3 py-2 font-semibold ${active ? "nav-link-active" : "nav-link"}`}
+      >
+        Categories
+      </button>
+      {open ? (
+        <div className="absolute left-1/2 top-[calc(100%+0.65rem)] z-50 w-[min(56rem,calc(100vw-3rem))] -translate-x-1/2 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] shadow-2xl">
+          <div className="grid max-h-[30rem] lg:grid-cols-[17rem_1fr]">
+            <div className="overflow-y-auto border-r border-[var(--line)] bg-[var(--surface-strong)] p-3">
+              <Link
+                href={withCustomerPreview("/categories", customerPreview)}
+                className="mb-2 block rounded-md px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-[var(--brand-strong)] hover:bg-white"
+              >
+                All categories
+              </Link>
+              {tree.map((category) => (
+                <button
+                  key={category.slug}
+                  type="button"
+                  onMouseEnter={() => setActiveSlug(category.slug)}
+                  onClick={() => setActiveSlug(category.slug)}
+                  className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm font-bold ${
+                    activeNode?.slug === category.slug
+                      ? "bg-white text-[var(--brand-strong)]"
+                      : "text-[var(--foreground)] hover:bg-white"
+                  }`}
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--brand-soft)] text-[var(--brand)]">
+                    <CategoryIcon slug={category.slug} className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{category.name}</span>
+                    <span className="block text-xs font-semibold text-[var(--muted)]">
+                      {category.nestedChildren.length
+                        ? `${category.nestedChildren.length} subcategories`
+                        : category.countLabel}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="overflow-y-auto p-5">
+              {activeNode ? (
+                <>
+                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="section-eyebrow">Browse {activeNode.name}</p>
+                      <h3 className="mt-2 text-2xl font-black">{activeNode.name}</h3>
+                      <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">
+                        {activeNode.description}
+                      </p>
+                    </div>
+                    <Link
+                      href={withCustomerPreview(
+                        `/search?category=${activeNode.slug}`,
+                        customerPreview
+                      )}
+                      className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-black text-white"
+                    >
+                      View all
+                    </Link>
+                  </div>
+                  {activeNode.nestedChildren.length ? (
+                    <CategoryChildLinks
+                      nodes={activeNode.nestedChildren}
+                      customerPreview={customerPreview}
+                    />
+                  ) : (
+                    <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4 text-sm text-[var(--muted)]">
+                      Listings in this category use the standard marketplace filters.
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function isActive(pathname: string, href: string) {
   const baseHref = href.split("#")[0]?.split("?")[0] ?? href;
@@ -57,9 +219,11 @@ function withCustomerPreview(href: string, enabled: boolean) {
 export function MarketplaceShell({
   children,
   user,
+  categories,
 }: {
   children: ReactNode;
   user: SessionUser | null;
+  categories: MarketplaceCategory[];
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -74,11 +238,41 @@ export function MarketplaceShell({
   const adminExperience = adminShell || adminLogin;
   const shouldRedirectToAdmin =
     adminShell && !adminWorkspaceRoute(pathname);
+  const search = searchParams.toString();
+  const oneTapNextPath = search ? `${pathname}?${search}` : pathname;
+  const showOneTap =
+    !user &&
+    !adminExperience &&
+    pathname !== "/login" &&
+    pathname !== "/register";
   const navLinks = adminShell
     ? adminNavLinks
     : adminLogin
       ? []
       : customerNavLinks;
+
+  useEffect(() => {
+    const root = document.documentElement;
+
+    if (adminExperience) {
+      root.dataset.adminShell = "true";
+      root.dataset.colorProfile = "light";
+      root.style.colorScheme = "light";
+      return;
+    }
+
+    delete root.dataset.adminShell;
+
+    try {
+      const stored = window.localStorage.getItem("smartmarket-color-profile");
+      const profile = stored === "light" ? "light" : "dark";
+      root.dataset.colorProfile = profile;
+      root.style.colorScheme = profile;
+    } catch {
+      root.dataset.colorProfile = "dark";
+      root.style.colorScheme = "dark";
+    }
+  }, [adminExperience]);
 
   useEffect(() => {
     if (shouldRedirectToAdmin) {
@@ -92,6 +286,7 @@ export function MarketplaceShell({
         adminExperience ? "admin-shell" : ""
       }`}
     >
+      {showOneTap ? <GoogleOneTapPrompt nextPath={oneTapNextPath} /> : null}
       <header className="marketplace-header sticky top-0 z-40">
         <div className="mx-auto flex max-w-[92rem] flex-col gap-4 px-4 py-4 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-10">
           <Link
@@ -119,21 +314,30 @@ export function MarketplaceShell({
 
           {navLinks.length ? (
             <nav className="hidden flex-wrap gap-2 text-sm lg:flex">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={
-                    adminShell ? link.href : withCustomerPreview(link.href, customerPreview)
-                  }
-                  className={`px-3 py-2 font-semibold ${
-                    isActive(pathname, link.href)
-                      ? "nav-link-active"
-                      : "nav-link"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {navLinks.map((link) =>
+                !adminShell && link.href === "/categories" ? (
+                  <CustomerCategoryMenu
+                    key={link.href}
+                    categories={categories}
+                    customerPreview={customerPreview}
+                    active={isActive(pathname, link.href)}
+                  />
+                ) : (
+                  <Link
+                    key={link.href}
+                    href={
+                      adminShell ? link.href : withCustomerPreview(link.href, customerPreview)
+                    }
+                    className={`px-3 py-2 font-semibold ${
+                      isActive(pathname, link.href)
+                        ? "nav-link-active"
+                        : "nav-link"
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                )
+              )}
             </nav>
           ) : null}
           <div className="flex flex-wrap items-center gap-2 text-sm">

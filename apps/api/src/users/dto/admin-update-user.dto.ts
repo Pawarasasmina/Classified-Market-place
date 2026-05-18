@@ -7,6 +7,10 @@ export class AdminUpdateUserDto {
 
   @IsOptional()
   @IsString()
+  displayName?: string;
+
+  @IsOptional()
+  @IsString()
   phone?: string | null;
 
   @IsOptional()
@@ -14,7 +18,15 @@ export class AdminUpdateUserDto {
   avatarUrl?: string | null;
 
   @IsOptional()
-  @IsIn(['user', 'admin'])
+  @IsString()
+  bio?: string | null;
+
+  @IsOptional()
+  @IsString()
+  location?: string | null;
+
+  @IsOptional()
+  @IsIn(['USER', 'ADMIN', 'user', 'admin'])
   role?: string;
 
   @IsOptional()
@@ -24,4 +36,12 @@ export class AdminUpdateUserDto {
   @IsOptional()
   @IsBoolean()
   isPhoneVerified?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  emailVerified?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  phoneVerified?: boolean;
 }

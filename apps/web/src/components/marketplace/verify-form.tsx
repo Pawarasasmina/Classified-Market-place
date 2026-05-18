@@ -68,8 +68,8 @@ export function VerifyForm({
             className="surface-input w-full text-sm tracking-[0.4em]"
           />
           <p className="text-sm text-[var(--muted)]">
-            Request a code first. In Phase 1, the app can run in dev OTP mode and
-            show the preview code directly until real SMS delivery is connected.
+            Request a code first. In dev OTP mode, the preview code appears here;
+            with Twilio enabled, the code is sent by SMS.
           </p>
           {verifyState.fieldErrors?.otpCode ? (
             <p className="text-sm text-[#b93820]">{verifyState.fieldErrors.otpCode}</p>

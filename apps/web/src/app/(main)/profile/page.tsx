@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { logoutAction } from "@/app/(main)/actions";
-import { ProfileForm } from "@/components/marketplace/profile-form";
+import {
+  ChangePasswordForm,
+  DeactivateAccountForm,
+  EmailVerificationPanel,
+  PhoneVerificationPanel,
+  ProfileForm,
+} from "@/components/marketplace/profile-form";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchMyListings } from "@/lib/marketplace-api";
 
@@ -27,12 +33,30 @@ export default async function ProfilePage() {
         </div>
         <div className="mt-5 grid gap-2 text-sm text-[var(--muted)]">
           <p><span className="font-bold text-[var(--foreground)]">Listings:</span> {listings.length}</p>
-          <p><span className="font-bold text-[var(--foreground)]">Phone:</span> {user.phone ?? "Not added"}</p>
+          <p>
+            <span className="font-bold text-[var(--foreground)]">Mobile:</span>{" "}
+            {user.phone ?? "Not added"}
+          </p>
+          <p>
+            <span className="font-bold text-[var(--foreground)]">Mobile status:</span>{" "}
+            <span className={user.phoneVerified ? "text-[var(--success)]" : "text-[#b93820]"}>
+              {user.phoneVerified ? "Verified" : "Not verified"}
+            </span>
+          </p>
+          <p>
+            <span className="font-bold text-[var(--foreground)]">Email status:</span>{" "}
+            <span className={user.emailVerified ? "text-[var(--success)]" : "text-[#b93820]"}>
+              {user.emailVerified ? "Verified" : "Not verified"}
+            </span>
+          </p>
           <p><span className="font-bold text-[var(--foreground)]">Location:</span> {user.location ?? "Not added"}</p>
         </div>
         <div className="mt-5 flex flex-wrap gap-2">
           <Link href="/my-listings" className="action-secondary px-3 py-2 text-sm font-bold">
             My listings
+          </Link>
+          <Link href="/profile/sessions" className="action-secondary px-3 py-2 text-sm font-bold">
+            Sessions
           </Link>
           <form action={logoutAction}>
             <button className="action-secondary px-3 py-2 text-sm font-bold">
@@ -49,6 +73,10 @@ export default async function ProfilePage() {
           <p className="mt-2 text-[var(--muted)]">Update your public seller information and avatar.</p>
         </div>
         <ProfileForm user={user} />
+        <PhoneVerificationPanel phone={user.phone} verified={user.phoneVerified} />
+        <EmailVerificationPanel verified={user.emailVerified} />
+        <ChangePasswordForm />
+        <DeactivateAccountForm />
       </section>
     </div>
   );

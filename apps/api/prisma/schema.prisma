@@ -12,6 +12,7 @@ enum ListingStatus {
   DRAFT
   PENDING
   ACTIVE
+  PAUSED
   REJECTED
   DELETED
   EXPIRED
@@ -46,6 +47,10 @@ model User {
   location                 String?
   emailVerified            Boolean                   @default(false) @map("isEmailVerified")
   phoneVerified            Boolean                   @default(false) @map("isPhoneVerified")
+  failedLoginAttempts      Int                       @default(0)
+  lockedUntil              DateTime?
+  termsAcceptedAt          DateTime?
+  deactivatedAt            DateTime?
   role                     String                    @default("USER")
   reputationScore          Int                       @default(0)
   createdAt                DateTime                  @default(now())
@@ -53,31 +58,36 @@ model User {
   listings                 Listing[]
   phoneOtps                PhoneOtpChallenge[]
   refreshTokens            RefreshToken[]
+  passwordResetTokens      PasswordResetToken[]
+  emailVerificationTokens  EmailVerificationToken[]
+  authAuditLogs            AuthAuditLog[]
   conversationParticipants ConversationParticipant[]
   sentMessages             Message[]                 @relation("SentMessages")
   readReceipts             MessageReadReceipt[]
 }
 
 model Category {
-  id               String     @id @default(uuid())
-  name             String
-  slug             String     @unique
-  description      String?
-  schemaDefinition Json?
-  isActive         Boolean    @default(true)
-  parentId         String?
-  sortOrder        Int        @default(0)
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-  parent           Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children         Category[] @relation("CategoryTree")
-  listings         Listing[]
+  id                String     @id @default(uuid())
+  name              String
+  slug              String     @unique
+  description       String?
+  schemaDefinition  Json?
+  listingExpiryDays Int        @default(30)
+  isActive          Boolean    @default(true)
+  parentId          String?
+  sortOrder         Int        @default(0)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  parent            Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children          Category[] @relation("CategoryTree")
+  listings          Listing[]
 
   @@index([parentId])
 }
 
 model Listing {
   id             String         @id @default(uuid())
+  clientDraftKey String?
   title          String
   description    String
   price          Decimal        @db.Decimal(12, 2)
@@ -85,6 +95,10 @@ model Listing {
   location       String
   status         ListingStatus  @default(DRAFT)
   attributes     Json?
+  publishedAt    DateTime?
+  expiresAt      DateTime?
+  soldAt         DateTime?
+  removedAt      DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   sellerId       String
@@ -95,9 +109,11 @@ model Listing {
   conversations  Conversation[]
   sharedMessages Message[]      @relation("SharedListingMessages")
 
+  @@unique([sellerId, clientDraftKey])
   @@index([sellerId])
   @@index([categoryId])
   @@index([status])
+  @@index([expiresAt])
 }
 
 model ListingImage {
@@ -192,17 +208,59 @@ model RefreshToken {
   @@index([expiresAt])
 }
 
+model PasswordResetToken {
+  id         String    @id @default(uuid())
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
+
+model EmailVerificationToken {
+  id         String    @id @default(uuid())
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
+
+model AuthAuditLog {
+  id        String   @id @default(uuid())
+  event     String
+  email     String?
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([event, createdAt])
+  @@index([email, createdAt])
+}
+
 model PhoneOtpChallenge {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   phone      String
   codeHash   String
   expiresAt  DateTime
   consumedAt DateTime?
-  attempts   Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
   userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([phone, createdAt])

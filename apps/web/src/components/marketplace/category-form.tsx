@@ -92,6 +92,9 @@ export function CategoryForm({
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
+  const [listingExpiryDays, setListingExpiryDays] = useState(
+    presetParentSlug ? "30" : "30"
+  );
 
   const childrenByParent = useMemo(
     () => buildChildrenByParent(categories),
@@ -234,6 +237,25 @@ export function CategoryForm({
             className="resize-none rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
           />
           {fieldMessage(state, "description")}
+        </label>
+
+        <label className="grid gap-2">
+          <span className="text-sm font-semibold text-[var(--foreground)]">
+            Listing expiry days
+          </span>
+          <input
+            name="listingExpiryDays"
+            type="number"
+            min="1"
+            max="365"
+            value={listingExpiryDays}
+            onChange={(event) => setListingExpiryDays(event.target.value)}
+            className="rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+          />
+          <p className="text-xs text-[var(--muted)]">
+            Listings in this category expire after this many days once active.
+          </p>
+          {fieldMessage(state, "listingExpiryDays")}
         </label>
 
         {mode === "sub" ? (

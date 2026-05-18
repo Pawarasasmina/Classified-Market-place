@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { deleteListingAction } from "@/app/(main)/actions";
+import {
+  deleteListingAction,
+  updateListingStatusAction,
+} from "@/app/(main)/actions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchMyListings } from "@/lib/marketplace-api";
 
@@ -8,6 +11,7 @@ export default async function MyListingsPage() {
   const listings = await fetchMyListings(accessToken);
   const activeCount = listings.filter((listing) => listing.status === "Active").length;
   const pendingCount = listings.filter((listing) => listing.status === "Pending").length;
+  const draftCount = listings.filter((listing) => listing.status === "Draft").length;
 
   return (
     <div className="page grid gap-6">
@@ -27,11 +31,12 @@ export default async function MyListingsPage() {
         </Link>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
         {[
           ["Total", listings.length],
           ["Active", activeCount],
           ["Pending", pendingCount],
+          ["Drafts", draftCount],
         ].map(([label, value]) => (
           <div key={label} className="panel">
             <p className="text-sm text-[var(--muted)]">{label}</p>
@@ -62,27 +67,52 @@ export default async function MyListingsPage() {
                 <p className="mt-1 text-sm text-[var(--muted)]">
                   {listing.priceLabel} / {listing.location}
                 </p>
+                {listing.expiresAt && listing.status === "Active" ? (
+                  <p className="mt-1 text-xs font-bold text-[var(--muted)]">
+                    Expires {new Date(listing.expiresAt).toLocaleDateString()}
+                  </p>
+                ) : null}
                 <p className="mt-2 line-clamp-2 text-sm text-[var(--muted)]">
                   {listing.description}
                 </p>
               </div>
               <div className="grid gap-2">
-                <Link
-                  href={`/listings/${listing.id}`}
-                  className="action-secondary px-3 py-2 text-center text-sm font-bold"
-                >
-                  View
-                </Link>
+                {listing.status !== "Draft" && listing.status !== "Removed" ? (
+                  <Link
+                    href={`/listings/${listing.id}`}
+                    className="action-secondary px-3 py-2 text-center text-sm font-bold"
+                  >
+                    View
+                  </Link>
+                ) : null}
                 <Link
                   href={`/listings/${listing.id}/edit`}
                   className="action-secondary px-3 py-2 text-center text-sm font-bold"
                 >
                   Edit
                 </Link>
+                {listing.status === "Active" || listing.status === "Paused" ? (
+                  <form action={updateListingStatusAction}>
+                    <input type="hidden" name="listingId" value={listing.id} />
+                    <input type="hidden" name="status" value="SOLD" />
+                    <button className="w-full rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-bold">
+                      Mark sold
+                    </button>
+                  </form>
+                ) : null}
+                {listing.status !== "Removed" && listing.status !== "Deleted" ? (
+                  <form action={updateListingStatusAction}>
+                    <input type="hidden" name="listingId" value={listing.id} />
+                    <input type="hidden" name="status" value="REMOVED" />
+                    <button className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-bold text-red-700">
+                      Remove
+                    </button>
+                  </form>
+                ) : null}
                 <form action={deleteListingAction}>
                   <input type="hidden" name="listingId" value={listing.id} />
                   <button className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-bold text-red-700">
-                    Delete
+                    Delete permanently
                   </button>
                 </form>
               </div>

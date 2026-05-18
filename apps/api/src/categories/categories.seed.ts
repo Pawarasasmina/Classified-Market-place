@@ -4,6 +4,7 @@ type DefaultCategory = {
   description: string;
   parentSlug?: string;
   sortOrder?: number;
+  listingExpiryDays?: number;
   schemaDefinition?: {
     fields: Array<{
       key: string;
@@ -49,6 +50,7 @@ export const defaultCategories: DefaultCategory[] = [
     slug: 'property',
     description: 'Apartments, villas, offices, and land.',
     sortOrder: 20,
+    listingExpiryDays: 60,
   },
   {
     name: 'Apartments',
@@ -56,6 +58,7 @@ export const defaultCategories: DefaultCategory[] = [
     parentSlug: 'property',
     description: 'Apartments for rent or sale.',
     sortOrder: 21,
+    listingExpiryDays: 60,
     schemaDefinition: {
       fields: [
         {

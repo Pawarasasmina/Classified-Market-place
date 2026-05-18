@@ -18,6 +18,10 @@ export function appendNextParam(path: string, nextPath: string) {
   return `${path}${separator}next=${encodeURIComponent(nextPath)}`;
 }
 
+export function getPhoneVerificationPath(nextPath: string) {
+  return appendNextParam("/verify", nextPath);
+}
+
 export function getPostAuthPath(
   user: { role?: string } | null | undefined,
   nextPath: string

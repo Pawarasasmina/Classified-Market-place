@@ -13,9 +13,11 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { VerifiedPhoneGuard } from '../common/guards/verified-phone.guard';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { ModerateListingDto } from './dto/moderate-listing.dto';
 import { QueryListingsDto } from './dto/query-listings.dto';
+import { SaveListingDraftDto } from './dto/save-listing-draft.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { ListingsService } from './listings.service';
 
@@ -47,12 +49,31 @@ export class ListingsController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedPhoneGuard)
   create(
-    @CurrentUser() user: { id: string; role: string },
+    @CurrentUser() user: { id: string; role: string; phoneVerified: boolean },
     @Body() createListingDto: CreateListingDto,
   ) {
     return this.listingsService.create(user, createListingDto);
+  }
+
+  @Post('drafts')
+  @UseGuards(JwtAuthGuard)
+  saveDraft(
+    @CurrentUser() user: { id: string; role: string },
+    @Body() saveListingDraftDto: SaveListingDraftDto,
+  ) {
+    return this.listingsService.saveDraft(user, saveListingDraftDto);
+  }
+
+  @Post(':id/publish')
+  @UseGuards(JwtAuthGuard, VerifiedPhoneGuard)
+  publishDraft(
+    @CurrentUser() user: { id: string; role: string; phoneVerified: boolean },
+    @Param('id') id: string,
+    @Body() createListingDto: CreateListingDto,
+  ) {
+    return this.listingsService.publishDraft(user, id, createListingDto);
   }
 
   @Patch(':id')

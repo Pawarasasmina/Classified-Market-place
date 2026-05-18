@@ -43,4 +43,9 @@ export class UpdateCategoryDto {
   @IsInt()
   @Min(0)
   sortOrder?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  listingExpiryDays?: number;
 }

@@ -8,6 +8,11 @@ export class GoogleLoginDto {
 
   @IsOptional()
   @IsString()
+  @MinLength(10)
+  accessToken?: string;
+
+  @IsOptional()
+  @IsString()
   googleId?: string;
 
   @IsOptional()

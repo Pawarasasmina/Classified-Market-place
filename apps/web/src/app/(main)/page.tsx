@@ -3,6 +3,10 @@ import { redirect } from "next/navigation";
 import { CategoryIcon } from "@/components/marketplace/category-icon";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { getSessionUser } from "@/lib/auth-dal";
+import {
+  buildMarketplaceCategoryTree,
+  flattenMarketplaceCategoryTree,
+} from "@/lib/category-tree";
 import { fetchCategories, fetchListings } from "@/lib/marketplace-api";
 
 type HomePageProps = {
@@ -33,7 +37,9 @@ export default async function HomePage(props: HomePageProps) {
     fetchCategories(),
     fetchListings({ take: 9 }),
   ]);
-  const popularCategories = categories.slice(0, 6);
+  const categoryTree = buildMarketplaceCategoryTree(categories);
+  const flatCategories = flattenMarketplaceCategoryTree(categoryTree);
+  const popularCategories = categoryTree.slice(0, 6);
   const activeCategoryCount = categories.filter((category) => category.isActive).length;
   const previewListings = listings.slice(0, 3);
 
@@ -73,9 +79,9 @@ export default async function HomePage(props: HomePageProps) {
               </span>
               <select name="category" className="surface-input text-sm">
                 <option value="">All categories</option>
-                {categories.map((category) => (
+                {flatCategories.map(({ category, depth }) => (
                   <option key={category.slug} value={category.slug}>
-                    {category.parentSlug ? "- " : ""}
+                    {"- ".repeat(depth)}
                     {category.name}
                   </option>
                 ))}

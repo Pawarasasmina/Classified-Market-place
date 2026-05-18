@@ -50,7 +50,7 @@ export class UpdateListingDto {
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(10)
+  @ArrayMaxSize(20)
   @ValidateNested({ each: true })
   @Type(() => ListingImageInputDto)
   images?: ListingImageInputDto[];

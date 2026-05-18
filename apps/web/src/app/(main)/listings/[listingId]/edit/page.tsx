@@ -1,7 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { ListingForm } from "@/components/marketplace/listing-form";
 import { requireSessionContext } from "@/lib/auth-dal";
-import { fetchCategories, fetchListing } from "@/lib/marketplace-api";
+import {
+  fetchCategories,
+  fetchListing,
+  fetchMyListings,
+} from "@/lib/marketplace-api";
 
 type EditListingPageProps = {
   params: Promise<{ listingId: string }>;
@@ -9,11 +13,14 @@ type EditListingPageProps = {
 
 export default async function EditListingPage(props: EditListingPageProps) {
   const { listingId } = await props.params;
-  const { user } = await requireSessionContext(`/listings/${listingId}/edit`);
-  const [categories, listing] = await Promise.all([
+  const { accessToken, user } = await requireSessionContext(`/listings/${listingId}/edit`);
+  const [categories, publicListing, myListings] = await Promise.all([
     fetchCategories(),
     fetchListing(listingId),
+    fetchMyListings(accessToken),
   ]);
+  const listing =
+    publicListing ?? myListings.find((item) => item.id === listingId) ?? null;
 
   if (!listing) {
     notFound();

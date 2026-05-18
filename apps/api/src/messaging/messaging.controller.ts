@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { VerifiedPhoneGuard } from '../common/guards/verified-phone.guard';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
@@ -17,6 +18,7 @@ export class MessagingController {
   }
 
   @Post('conversations')
+  @UseGuards(VerifiedPhoneGuard)
   createConversation(
     @CurrentUser() user: { id: string },
     @Body() dto: CreateConversationDto,
@@ -33,6 +35,7 @@ export class MessagingController {
   }
 
   @Post('conversations/:conversationId/messages')
+  @UseGuards(VerifiedPhoneGuard)
   sendMessage(
     @CurrentUser() user: { id: string },
     @Param('conversationId') conversationId: string,

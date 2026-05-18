@@ -23,10 +23,11 @@ export default async function VerifyPage(props: VerifyPageProps) {
       <div className="panel-dark p-6">
         <p className="section-eyebrow">OTP verification</p>
         <h1 className="mt-3 text-3xl font-black text-white">
-          Verify your phone before listing creation.
+          Verify your mobile number.
         </h1>
         <p className="mt-4 text-base leading-8 text-[#d7d9ea]">
-          Phone verification protects buyers and sellers before a listing goes live.
+          Phone verification protects buyers and sellers before posting listings
+          or sending messages.
         </p>
       </div>
 

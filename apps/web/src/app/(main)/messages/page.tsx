@@ -1,5 +1,5 @@
 import { InboxWorkspace } from "@/components/marketplace/inbox-workspace";
-import { requireSessionContext } from "@/lib/auth-dal";
+import { requireVerifiedSession } from "@/lib/auth-dal";
 import { getMessagingApiBaseUrl } from "@/lib/messaging-api";
 
 type MessagesPageProps = {
@@ -10,7 +10,7 @@ type MessagesPageProps = {
 };
 
 export default async function MessagesPage(props: MessagesPageProps) {
-  const { accessToken, user } = await requireSessionContext("/messages");
+  const { accessToken, user } = await requireVerifiedSession("/messages");
   const searchParams = await props.searchParams;
 
   return (

@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { CategoryIcon } from "@/components/marketplace/category-icon";
+import {
+  buildMarketplaceCategoryTree,
+  flattenMarketplaceCategoryTree,
+  type MarketplaceCategoryNode,
+} from "@/lib/category-tree";
 import { fetchCategories } from "@/lib/marketplace-api";
 
 type CategoriesPageProps = {
@@ -17,13 +22,59 @@ function previewHref(path: string, customerPreview: boolean) {
   return `${path}${separator}view=customer`;
 }
 
+function SubcategoryLinks({
+  nodes,
+  customerPreview,
+}: {
+  nodes: MarketplaceCategoryNode[];
+  customerPreview: boolean;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {nodes.map((node) => (
+        <div
+          key={node.slug}
+          className="rounded-md border border-[var(--line)] bg-[var(--surface)] p-4"
+        >
+          <Link
+            href={previewHref(`/search?category=${node.slug}`, customerPreview)}
+            className="font-black text-[var(--foreground)] hover:text-[var(--brand-strong)]"
+          >
+            {node.name}
+          </Link>
+          {node.nestedChildren.length ? (
+            <div className="mt-3 grid gap-2">
+              {node.nestedChildren.map((child) => (
+                <Link
+                  key={child.slug}
+                  href={previewHref(`/search?category=${child.slug}`, customerPreview)}
+                  className="text-sm font-semibold text-[var(--muted)] hover:text-[var(--brand-strong)]"
+                >
+                  {child.name}
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-[var(--muted)]">{node.countLabel}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default async function CategoriesPage(props: CategoriesPageProps) {
   const searchParams = await props.searchParams;
   const customerPreview = searchParams.view === "customer";
   const categories = await fetchCategories();
-  const topLevel = categories.filter((category) => !category.parentSlug);
-  const childCategories = categories.filter((category) => category.parentSlug);
-  const showcaseCategories = childCategories.length ? childCategories : categories;
+  const categoryTree = buildMarketplaceCategoryTree(categories);
+  const flatCategories = flattenMarketplaceCategoryTree(categoryTree);
+  const leafCategories = flatCategories
+    .filter(({ category }) => category.nestedChildren.length === 0)
+    .map(({ category }) => category);
+  const showcaseCategories = leafCategories.length
+    ? leafCategories
+    : flatCategories.map(({ category }) => category);
 
   return (
     <div className="page grid gap-10">
@@ -57,11 +108,11 @@ export default async function CategoriesPage(props: CategoriesPageProps) {
             </h2>
           </div>
           <p className="text-sm font-semibold text-[var(--muted)]">
-            {topLevel.length} parent categories
+            {categoryTree.length} parent categories
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {topLevel.map((category) => (
+          {categoryTree.map((category) => (
             <Link
               key={category.slug}
               href={previewHref(`/search?category=${category.slug}`, customerPreview)}
@@ -81,6 +132,59 @@ export default async function CategoriesPage(props: CategoriesPageProps) {
                 {category.countLabel}
               </p>
             </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="marketplace-section">
+        <div className="section-header">
+          <div>
+            <p className="section-eyebrow">Browse tree</p>
+            <h2 className="mt-2 text-3xl font-black text-white">
+              Main categories with matching subcategories.
+            </h2>
+          </div>
+          <p className="text-sm font-semibold text-[var(--muted)]">
+            {flatCategories.length} active category nodes
+          </p>
+        </div>
+
+        <div className="grid gap-5">
+          {categoryTree.map((category) => (
+            <section
+              key={category.slug}
+              className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-5"
+            >
+              <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+                <div className="flex gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[var(--brand-soft)] text-[var(--brand)]">
+                    <CategoryIcon slug={category.slug} className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black">{category.name}</h3>
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--muted)]">
+                      {category.description}
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href={previewHref(`/search?category=${category.slug}`, customerPreview)}
+                  className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-black text-white"
+                >
+                  View all
+                </Link>
+              </div>
+              {category.nestedChildren.length ? (
+                <SubcategoryLinks
+                  nodes={category.nestedChildren}
+                  customerPreview={customerPreview}
+                />
+              ) : (
+                <p className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
+                  Listings in this main category use standard filters.
+                </p>
+              )}
+            </section>
           ))}
         </div>
       </section>

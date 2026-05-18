@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -11,6 +12,7 @@ import { CreateListingDto } from './dto/create-listing.dto';
 import { ListingImageInputDto } from './dto/listing-image-input.dto';
 import { ModerateListingDto } from './dto/moderate-listing.dto';
 import { QueryListingsDto } from './dto/query-listings.dto';
+import { SaveListingDraftDto } from './dto/save-listing-draft.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { defaultListings, demoSellers } from './listings.seed';
 
@@ -21,6 +23,19 @@ type BcryptModule = {
 type ActingUser = {
   id: string;
   role: string;
+};
+
+type ListingCategory = {
+  id: string;
+  slug: string;
+  listingExpiryDays: number;
+};
+
+type ListingLifecycleData = {
+  publishedAt?: Date | null;
+  expiresAt?: Date | null;
+  soldAt?: Date | null;
+  removedAt?: Date | null;
 };
 
 const bcryptLib = bcrypt as BcryptModule;
@@ -69,6 +84,34 @@ function toImageCreates(images: ListingImageInputDto[] | undefined) {
   }));
 }
 
+function addDays(date: Date, days: number) {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function normalizeFingerprintValue(value: string | null | undefined) {
+  return (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function getListingFingerprint(listing: {
+  sellerId: string;
+  categoryId: string;
+  title: string;
+  description: string;
+  price: Prisma.Decimal | number | string;
+  currency: string;
+  location: string;
+}) {
+  return [
+    listing.sellerId,
+    listing.categoryId,
+    normalizeFingerprintValue(listing.title),
+    normalizeFingerprintValue(listing.description),
+    listing.price.toString(),
+    normalizeFingerprintValue(listing.currency),
+    normalizeFingerprintValue(listing.location),
+  ].join('|');
+}
+
 function withoutListHeavyAttributes<
   T extends { attributes: Prisma.JsonValue | null },
 >(listing: T) {
@@ -95,6 +138,132 @@ function withoutListHeavyAttributes<
 @Injectable()
 export class ListingsService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async expireDueListings() {
+    await this.prisma.listing.updateMany({
+      where: {
+        status: ListingStatus.ACTIVE,
+        expiresAt: {
+          lt: new Date(),
+        },
+      },
+      data: {
+        status: ListingStatus.EXPIRED,
+      },
+    });
+  }
+
+  private getLifecycleDataForStatus(
+    status: ListingStatus,
+    category: ListingCategory,
+  ): ListingLifecycleData {
+    const now = new Date();
+
+    if (status === ListingStatus.ACTIVE) {
+      return {
+        publishedAt: now,
+        expiresAt: addDays(now, category.listingExpiryDays),
+        soldAt: null,
+        removedAt: null,
+      };
+    }
+
+    if (status === ListingStatus.SOLD) {
+      return {
+        soldAt: now,
+      };
+    }
+
+    if (status === ListingStatus.REMOVED || status === ListingStatus.DELETED) {
+      return {
+        removedAt: now,
+      };
+    }
+
+    if (status === ListingStatus.DRAFT || status === ListingStatus.PENDING) {
+      return {
+        publishedAt: null,
+        expiresAt: null,
+        soldAt: null,
+        removedAt: null,
+      };
+    }
+
+    return {};
+  }
+
+  private async resolveCategory(categorySlug: string) {
+    const category = await this.prisma.category.findUnique({
+      where: { slug: categorySlug },
+    });
+
+    if (!category || !category.isActive) {
+      throw new NotFoundException('Category not found');
+    }
+
+    return category;
+  }
+
+  private async resolveDraftCategory(categorySlug?: string) {
+    if (categorySlug) {
+      return this.resolveCategory(categorySlug);
+    }
+
+    const category = await this.prisma.category.findFirst({
+      where: { isActive: true },
+      orderBy: [{ parentId: 'asc' }, { sortOrder: 'asc' }, { name: 'asc' }],
+    });
+
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+
+    return category;
+  }
+
+  private async getCategorySlugScope(categorySlug: string) {
+    const categories = await this.prisma.category.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        slug: true,
+        parentId: true,
+      },
+    });
+    const selected = categories.find((category) => category.slug === categorySlug);
+
+    if (!selected) {
+      return [categorySlug];
+    }
+
+    const childrenByParent = new Map<string, typeof categories>();
+
+    for (const category of categories) {
+      if (!category.parentId) {
+        continue;
+      }
+
+      const children = childrenByParent.get(category.parentId) ?? [];
+      children.push(category);
+      childrenByParent.set(category.parentId, children);
+    }
+
+    const scopedSlugs = new Set<string>();
+    const queue = [selected];
+
+    while (queue.length) {
+      const category = queue.shift();
+
+      if (!category || scopedSlugs.has(category.slug)) {
+        continue;
+      }
+
+      scopedSlugs.add(category.slug);
+      queue.push(...(childrenByParent.get(category.id) ?? []));
+    }
+
+    return Array.from(scopedSlugs);
+  }
 
   async onModuleInit() {
     await this.seedDefaults();
@@ -152,6 +321,7 @@ export class ListingsService implements OnModuleInit {
           currency: listing.currency,
           location: listing.location,
           status: listing.status,
+          ...this.getLifecycleDataForStatus(listing.status, category),
           attributes: listing.attributes,
           sellerId: seller.id,
           categoryId: category.id,
@@ -169,36 +339,230 @@ export class ListingsService implements OnModuleInit {
   }
 
   async create(user: ActingUser, createListingDto: CreateListingDto) {
-    const category = await this.prisma.category.findUnique({
-      where: { slug: createListingDto.categorySlug },
+    const category = await this.resolveCategory(createListingDto.categorySlug);
+    const clientDraftKey = createListingDto.clientDraftKey?.trim() || undefined;
+    const images = toImageCreates(createListingDto.images);
+    const status =
+      createListingDto.status ??
+      (isAdminRole(user.role) ? ListingStatus.ACTIVE : ListingStatus.PENDING);
+    const data = {
+      clientDraftKey,
+      title: createListingDto.title,
+      description: createListingDto.description,
+      price: new Prisma.Decimal(createListingDto.price),
+      currency: createListingDto.currency ?? 'AED',
+      location: createListingDto.location,
+      status,
+      ...this.getLifecycleDataForStatus(status, category),
+      attributes: toJsonValue(createListingDto.attributes),
+      categoryId: category.id,
+      images: images?.length ? { create: images } : undefined,
+    };
+    const keyedListing = clientDraftKey
+      ? await this.prisma.listing.findUnique({
+          where: {
+            sellerId_clientDraftKey: {
+              sellerId: user.id,
+              clientDraftKey,
+            },
+          },
+          include: listingInclude,
+        })
+      : null;
+
+    if (keyedListing && keyedListing.status !== ListingStatus.DRAFT) {
+      return withoutListHeavyAttributes(keyedListing);
+    }
+
+    const matchingDraft =
+      keyedListing ??
+      (await this.prisma.listing.findFirst({
+        where: {
+          sellerId: user.id,
+          status: ListingStatus.DRAFT,
+          categoryId: category.id,
+          title: createListingDto.title,
+          description: createListingDto.description,
+          price: new Prisma.Decimal(createListingDto.price),
+          currency: createListingDto.currency ?? 'AED',
+          location: createListingDto.location,
+        },
+        orderBy: { updatedAt: 'desc' },
+        include: listingInclude,
+      }));
+
+    if (matchingDraft) {
+      return this.prisma.listing.update({
+        where: { id: matchingDraft.id },
+        data: {
+          ...data,
+          images: {
+            deleteMany: {},
+            create: images ?? [],
+          },
+        },
+        include: listingInclude,
+      });
+    }
+
+    return this.prisma.listing.create({
+      data: {
+        ...data,
+        sellerId: user.id,
+      },
+      include: listingInclude,
     });
+  }
+
+  async saveDraft(user: ActingUser, draftDto: SaveListingDraftDto) {
+    const clientDraftKey = draftDto.clientDraftKey.trim();
+
+    if (!clientDraftKey) {
+      throw new BadRequestException('Draft key is required');
+    }
+
+    const existing = draftDto.listingId
+      ? await this.prisma.listing.findUnique({
+          where: { id: draftDto.listingId },
+        })
+      : await this.prisma.listing.findUnique({
+          where: {
+            sellerId_clientDraftKey: {
+              sellerId: user.id,
+              clientDraftKey,
+            },
+          },
+        });
+
+    if (existing && existing.sellerId !== user.id && !isAdminRole(user.role)) {
+      throw new ForbiddenException('You can only update your own drafts');
+    }
+
+    if (existing && existing.status !== ListingStatus.DRAFT) {
+      const publishedListing = await this.prisma.listing.findUnique({
+        where: { id: existing.id },
+        include: listingInclude,
+      });
+
+      if (publishedListing) {
+        return withoutListHeavyAttributes(publishedListing);
+      }
+
+      throw new BadRequestException('Only draft listings can be auto-saved');
+    }
+
+    const category = draftDto.categorySlug
+      ? await this.resolveCategory(draftDto.categorySlug)
+      : existing
+        ? await this.prisma.category.findUnique({
+            where: { id: existing.categoryId },
+          })
+        : await this.resolveDraftCategory();
 
     if (!category) {
       throw new NotFoundException('Category not found');
     }
 
-    const images = toImageCreates(createListingDto.images);
+    const images = toImageCreates(draftDto.images);
+    const baseData = {
+      clientDraftKey,
+      title: draftDto.title ?? existing?.title ?? 'Untitled draft',
+      description: draftDto.description ?? existing?.description ?? '',
+      price:
+        typeof draftDto.price === 'number'
+          ? new Prisma.Decimal(draftDto.price)
+          : existing?.price ?? new Prisma.Decimal(0),
+      currency: draftDto.currency ?? existing?.currency ?? 'AED',
+      location: draftDto.location ?? existing?.location ?? '',
+      status: ListingStatus.DRAFT,
+      attributes:
+        draftDto.attributes === undefined
+          ? undefined
+          : toJsonValue(draftDto.attributes),
+      categoryId: category.id,
+    };
+
+    if (existing) {
+      return this.prisma.listing.update({
+        where: { id: existing.id },
+        data: {
+          ...baseData,
+          images:
+            images === undefined
+              ? undefined
+              : {
+                  deleteMany: {},
+                  create: images,
+                },
+        },
+        include: listingInclude,
+      });
+    }
 
     return this.prisma.listing.create({
       data: {
-        title: createListingDto.title,
-        description: createListingDto.description,
-        price: new Prisma.Decimal(createListingDto.price),
-        currency: createListingDto.currency ?? 'AED',
-        location: createListingDto.location,
-        status:
-          createListingDto.status ??
-          (isAdminRole(user.role) ? ListingStatus.ACTIVE : ListingStatus.PENDING),
-        attributes: toJsonValue(createListingDto.attributes),
+        ...baseData,
         sellerId: user.id,
-        categoryId: category.id,
         images: images?.length ? { create: images } : undefined,
       },
       include: listingInclude,
     });
   }
 
+  async publishDraft(
+    user: ActingUser,
+    id: string,
+    createListingDto: CreateListingDto,
+  ) {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id },
+    });
+
+    if (!listing || listing.status === ListingStatus.DELETED) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    const isAdmin = isAdminRole(user.role);
+
+    if (!isAdmin && listing.sellerId !== user.id) {
+      throw new ForbiddenException('You can only publish your own drafts');
+    }
+
+    if (listing.status !== ListingStatus.DRAFT) {
+      throw new BadRequestException('Only draft listings can be published');
+    }
+
+    const category = await this.resolveCategory(createListingDto.categorySlug);
+    const images = toImageCreates(createListingDto.images);
+    const status = isAdmin ? ListingStatus.ACTIVE : ListingStatus.PENDING;
+
+    return this.prisma.listing.update({
+      where: { id },
+      data: {
+        title: createListingDto.title,
+        description: createListingDto.description,
+        price: new Prisma.Decimal(createListingDto.price),
+        currency: createListingDto.currency ?? 'AED',
+        location: createListingDto.location,
+        status,
+        ...this.getLifecycleDataForStatus(status, category),
+        attributes: toJsonValue(createListingDto.attributes),
+        categoryId: category.id,
+        images: {
+          deleteMany: {},
+          create: images ?? [],
+        },
+      },
+      include: listingInclude,
+    });
+  }
+
   async findAll(query: QueryListingsDto, includeHidden = false) {
+    await this.expireDueListings();
+    const categorySlugs = query.categorySlug
+      ? await this.getCategorySlugScope(query.categorySlug)
+      : undefined;
+
     const where: Prisma.ListingWhereInput = {
       ...(includeHidden
         ? query.status
@@ -206,10 +570,10 @@ export class ListingsService implements OnModuleInit {
           : {}
         : { status: ListingStatus.ACTIVE }),
       ...(query.sellerId ? { sellerId: query.sellerId } : {}),
-      ...(query.categorySlug
+      ...(categorySlugs
         ? {
             category: {
-              slug: query.categorySlug,
+              slug: { in: categorySlugs },
             },
           }
         : {}),
@@ -272,12 +636,19 @@ export class ListingsService implements OnModuleInit {
   }
 
   async findOne(id: string) {
+    await this.expireDueListings();
+
     const listing = await this.prisma.listing.findUnique({
       where: { id },
       include: listingInclude,
     });
 
-    if (!listing || listing.status === ListingStatus.DELETED) {
+    if (
+      !listing ||
+      listing.status === ListingStatus.DELETED ||
+      listing.status === ListingStatus.REMOVED ||
+      listing.status === ListingStatus.DRAFT
+    ) {
       throw new NotFoundException('Listing not found');
     }
 
@@ -300,20 +671,23 @@ export class ListingsService implements OnModuleInit {
     }
 
     let categoryId = listing.categoryId;
+    let lifecycleCategory: ListingCategory | undefined;
 
     if (updateListingDto.categorySlug) {
-      const category = await this.prisma.category.findUnique({
-        where: { slug: updateListingDto.categorySlug },
-      });
-
-      if (!category) {
-        throw new NotFoundException('Category not found');
-      }
+      const category = await this.resolveCategory(updateListingDto.categorySlug);
 
       categoryId = category.id;
+      lifecycleCategory = category;
     }
 
     const images = toImageCreates(updateListingDto.images);
+    const ownerLifecycleStatus =
+      updateListingDto.status === ListingStatus.SOLD ||
+      updateListingDto.status === ListingStatus.REMOVED ||
+      updateListingDto.status === ListingStatus.PAUSED
+        ? updateListingDto.status
+        : undefined;
+    const nextStatus = isAdmin ? updateListingDto.status : ownerLifecycleStatus;
 
     return this.prisma.listing.update({
       where: { id },
@@ -326,7 +700,17 @@ export class ListingsService implements OnModuleInit {
             : undefined,
         currency: updateListingDto.currency,
         location: updateListingDto.location,
-        status: isAdmin ? updateListingDto.status : undefined,
+        status: nextStatus,
+        ...(nextStatus
+          ? this.getLifecycleDataForStatus(
+              nextStatus,
+              lifecycleCategory ??
+                (await this.prisma.category.findUnique({
+                  where: { id: categoryId },
+                })) ??
+                (await this.resolveDraftCategory()),
+            )
+          : {}),
         attributes: toJsonValue(updateListingDto.attributes),
         categoryId,
         images:
@@ -342,6 +726,8 @@ export class ListingsService implements OnModuleInit {
   }
 
   async findMine(userId: string) {
+    await this.expireDueListings();
+
     const listings = await this.prisma.listing.findMany({
       where: {
         sellerId: userId,
@@ -353,7 +739,18 @@ export class ListingsService implements OnModuleInit {
       include: listingInclude,
     });
 
-    return listings.map((listing) => withoutListHeavyAttributes(listing));
+    const publishedFingerprints = new Set(
+      listings
+        .filter((listing) => listing.status !== ListingStatus.DRAFT)
+        .map((listing) => getListingFingerprint(listing)),
+    );
+    const visibleListings = listings.filter(
+      (listing) =>
+        listing.status !== ListingStatus.DRAFT ||
+        !publishedFingerprints.has(getListingFingerprint(listing)),
+    );
+
+    return visibleListings.map((listing) => withoutListHeavyAttributes(listing));
   }
 
   async remove(user: ActingUser, id: string) {
@@ -372,7 +769,8 @@ export class ListingsService implements OnModuleInit {
     return this.prisma.listing.update({
       where: { id },
       data: {
-        status: ListingStatus.DELETED,
+        status: isAdminRole(user.role) ? ListingStatus.DELETED : ListingStatus.REMOVED,
+        removedAt: new Date(),
       },
       include: listingInclude,
     });
@@ -381,6 +779,9 @@ export class ListingsService implements OnModuleInit {
   async moderate(id: string, dto: ModerateListingDto) {
     const listing = await this.prisma.listing.findUnique({
       where: { id },
+      include: {
+        category: true,
+      },
     });
 
     if (!listing) {
@@ -391,6 +792,7 @@ export class ListingsService implements OnModuleInit {
       where: { id },
       data: {
         status: dto.status,
+        ...this.getLifecycleDataForStatus(dto.status, listing.category),
       },
       include: listingInclude,
     });

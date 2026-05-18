@@ -1,4 +1,8 @@
 import { ListingCard } from "@/components/marketplace/listing-card";
+import {
+  buildMarketplaceCategoryTree,
+  flattenMarketplaceCategoryTree,
+} from "@/lib/category-tree";
 import { fetchCategories, fetchListings } from "@/lib/marketplace-api";
 
 type SearchPageProps = {
@@ -68,6 +72,8 @@ export default async function SearchPage(props: SearchPageProps) {
       sort,
     }),
   ]);
+  const categoryTree = buildMarketplaceCategoryTree(categories);
+  const flatCategories = flattenMarketplaceCategoryTree(categoryTree);
   const selectedCategory = categories.find((item) => item.slug === category);
 
   return (
@@ -109,9 +115,9 @@ export default async function SearchPage(props: SearchPageProps) {
               <span>Category</span>
               <select name="category" defaultValue={category} className="surface-input text-sm">
                 <option value="">All categories</option>
-                {categories.map((item) => (
+                {flatCategories.map(({ category: item, depth }) => (
                   <option key={item.slug} value={item.slug}>
-                    {item.parentSlug ? "- " : ""}
+                    {"- ".repeat(depth)}
                     {item.name}
                   </option>
                 ))}
@@ -174,7 +180,7 @@ export default async function SearchPage(props: SearchPageProps) {
               >
                 All
               </a>
-              {categories.slice(0, 8).map((item) => (
+              {flatCategories.slice(0, 10).map(({ category: item, depth }) => (
                 <a
                   key={item.slug}
                   href={buildSearchHref({
@@ -192,6 +198,7 @@ export default async function SearchPage(props: SearchPageProps) {
                       : "border border-[var(--line)] text-[var(--muted)]"
                   }`}
                 >
+                  {depth ? "- " : ""}
                   {item.name}
                 </a>
               ))}
