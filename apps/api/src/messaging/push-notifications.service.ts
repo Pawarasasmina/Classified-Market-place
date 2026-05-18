@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { MessageType } from '@prisma/client';
 
 @Injectable()
 export class PushNotificationsService {
@@ -9,9 +10,12 @@ export class PushNotificationsService {
     conversationId: string;
     senderName: string;
     preview: string;
+    deepLink: string;
+    listingTitle: string | null;
+    messageType: MessageType;
   }) {
     this.logger.log(
-      `Push fallback queued for user ${input.recipientId} in conversation ${input.conversationId}: ${input.senderName} - ${input.preview}`,
+      `Push fallback queued for user ${input.recipientId} in conversation ${input.conversationId}: ${input.senderName} - ${input.preview} (${input.messageType}) ${input.listingTitle ? `listing=${input.listingTitle} ` : ''}link=${input.deepLink}`,
     );
   }
 }

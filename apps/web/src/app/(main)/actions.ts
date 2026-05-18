@@ -194,6 +194,7 @@ export async function loginAction(
     const session = await loginUser(parsed.data);
     await setSessionTokens(session);
     redirectPath = getPostAuthPath(session.user, nextPath);
+    revalidatePath("/", "layout");
   } catch (error) {
     return {
       message: getActionMessage(error, "We could not sign you in."),
@@ -228,6 +229,7 @@ export async function googleLoginAction(
     const session = await googleLoginUser(parsed.data);
     await setSessionTokens(session);
     redirectPath = getPostAuthPath(session.user, nextPath);
+    revalidatePath("/", "layout");
   } catch (error) {
     return {
       message: getActionMessage(error, "We could not complete Google login."),
@@ -262,6 +264,7 @@ export async function registerAction(
       phone: parsed.data.phone || undefined,
     });
     await setSessionTokens(session);
+    revalidatePath("/", "layout");
   } catch (error) {
     return {
       message: getActionMessage(error, "We could not create your account."),
@@ -466,6 +469,7 @@ export async function logoutAction() {
   }
 
   await clearAccessToken();
+  revalidatePath("/", "layout");
   redirect("/");
 }
 

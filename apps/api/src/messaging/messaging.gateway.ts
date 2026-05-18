@@ -155,10 +155,7 @@ export class MessagingGateway
   ) {
     const user = this.requireSocketUser(client);
     const result = await this.messagingService.markRead(user.id, body.conversationId);
-    this.server.to(this.roomName(body.conversationId)).emit('message:read', {
-      conversationId: body.conversationId,
-      userId: user.id,
-    });
+    this.server.to(this.roomName(body.conversationId)).emit('message:read', result);
     return result;
   }
 
@@ -202,14 +199,47 @@ export class MessagingGateway
     @Ack() ack?: (message: unknown) => void,
   ) {
     const user = this.requireSocketUser(client);
-    const message = await this.messagingService.updateOffer(
+    const result = await this.messagingService.updateOffer(
       user.id,
       body.messageId,
       body.update,
     );
-    this.server.to(this.roomName(body.conversationId)).emit('offer:updated', message);
-    ack?.(message);
-    return message;
+    this.server
+      .to(this.roomName(body.conversationId))
+      .emit('offer:updated', result);
+    this.server
+      .to(this.roomName(body.conversationId))
+      .emit('message:new', result.systemMessage);
+    ack?.(result);
+    return result;
+  }
+
+  @SubscribeMessage('message:delete')
+  async deleteMessage(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody()
+    body: {
+      messageId: string;
+      conversationId: string;
+      scope?: 'me' | 'everyone';
+    },
+    @Ack() ack?: (message: unknown) => void,
+  ) {
+    const user = this.requireSocketUser(client);
+    const result = await this.messagingService.deleteMessage(
+      user.id,
+      body.messageId,
+      body.scope === 'me' ? 'me' : 'everyone',
+    );
+
+    if (result.scope === 'everyone') {
+      this.server
+        .to(this.roomName(body.conversationId))
+        .emit('message:deleted', result.message);
+    }
+
+    ack?.(result);
+    return result;
   }
 
   private requireSocketUser(client: AuthenticatedSocket) {

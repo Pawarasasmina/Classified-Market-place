@@ -1,8 +1,21 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { BlockConversationCounterpartDto } from './dto/block-conversation-counterpart.dto';
 import { CreateConversationDto } from './dto/create-conversation.dto';
+import { ReportEntityDto } from './dto/report-entity.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { UpdateConversationPreferencesDto } from './dto/update-conversation-preferences.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
 import { MessagingService } from './messaging.service';
 
@@ -12,8 +25,11 @@ export class MessagingController {
   constructor(private readonly messagingService: MessagingService) {}
 
   @Get('conversations')
-  findConversations(@CurrentUser() user: { id: string }) {
-    return this.messagingService.findConversations(user.id);
+  findConversations(
+    @CurrentUser() user: { id: string },
+    @Query('archived') archived?: string,
+  ) {
+    return this.messagingService.findConversations(user.id, archived === 'true');
   }
 
   @Post('conversations')
@@ -49,6 +65,50 @@ export class MessagingController {
     return this.messagingService.markRead(user.id, conversationId);
   }
 
+  @Patch('conversations/:conversationId/preferences')
+  updateConversationPreferences(
+    @CurrentUser() user: { id: string },
+    @Param('conversationId') conversationId: string,
+    @Body() dto: UpdateConversationPreferencesDto,
+  ) {
+    return this.messagingService.updateConversationPreferences(
+      user.id,
+      conversationId,
+      dto,
+    );
+  }
+
+  @Post('conversations/:conversationId/block')
+  blockConversationCounterpart(
+    @CurrentUser() user: { id: string },
+    @Param('conversationId') conversationId: string,
+    @Body() dto: BlockConversationCounterpartDto,
+  ) {
+    return this.messagingService.blockConversationCounterpart(
+      user.id,
+      conversationId,
+      dto.reason,
+    );
+  }
+
+  @Post('conversations/:conversationId/report')
+  reportConversation(
+    @CurrentUser() user: { id: string },
+    @Param('conversationId') conversationId: string,
+    @Body() dto: ReportEntityDto,
+  ) {
+    return this.messagingService.reportConversation(user.id, conversationId, dto);
+  }
+
+  @Post('messages/:messageId/report')
+  reportMessage(
+    @CurrentUser() user: { id: string },
+    @Param('messageId') messageId: string,
+    @Body() dto: ReportEntityDto,
+  ) {
+    return this.messagingService.reportMessage(user.id, messageId, dto);
+  }
+
   @Patch('messages/:messageId/offer')
   updateOffer(
     @CurrentUser() user: { id: string },
@@ -56,5 +116,23 @@ export class MessagingController {
     @Body() dto: UpdateOfferDto,
   ) {
     return this.messagingService.updateOffer(user.id, messageId, dto);
+  }
+
+  @Get('admin/reports')
+  listOpenReports(@CurrentUser() user: { id: string; role: string }) {
+    return this.messagingService.listOpenReports(user);
+  }
+
+  @Delete('messages/:messageId')
+  deleteMessage(
+    @CurrentUser() user: { id: string },
+    @Param('messageId') messageId: string,
+    @Query('scope') scope?: string,
+  ) {
+    return this.messagingService.deleteMessage(
+      user.id,
+      messageId,
+      scope === 'me' ? 'me' : 'everyone',
+    );
   }
 }

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { cache } from "react";
+import { unstable_noStore as noStore } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   fetchCurrentUser,
@@ -14,7 +14,8 @@ import {
   setSessionTokens,
 } from "@/lib/session";
 
-export const getSessionContext = cache(async () => {
+export async function getSessionContext() {
+  noStore();
   const accessToken = await getAccessToken();
 
   if (!accessToken) {
@@ -53,12 +54,12 @@ export const getSessionContext = cache(async () => {
 
     throw error;
   }
-});
+}
 
-export const getSessionUser = cache(async () => {
+export async function getSessionUser() {
   const session = await getSessionContext();
   return session?.user ?? null;
-});
+}
 
 export async function requireSessionContext(nextPath = "/") {
   const session = await getSessionContext();
