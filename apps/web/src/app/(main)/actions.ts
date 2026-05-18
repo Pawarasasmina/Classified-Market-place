@@ -272,6 +272,7 @@ export async function loginAction(
     const session = await loginUser(parsed.data);
     await setSessionTokens(session);
     redirectPath = getPostAuthPath(session.user, nextPath);
+    revalidatePath("/", "layout");
   } catch (error) {
     return {
       message: getActionMessage(error, "We could not sign you in."),
@@ -767,6 +768,55 @@ export async function logoutAction() {
     await logoutSession(refreshToken).catch(() => null);
   }
 
+  await clearAccessToken();
+  revalidatePath("/", "layout");
+  redirect("/");
+}
+
+export async function logoutAllAction() {
+  const session = await requireSessionContext("/profile/sessions");
+  await logoutAllSessions(session.accessToken).catch(() => null);
+  await clearAccessToken();
+  redirect("/");
+}
+
+export async function revokeSessionAction(formData: FormData) {
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const { accessToken } = await requireSessionContext("/profile/sessions");
+
+  if (sessionId) {
+    await revokeAuthSession(accessToken, sessionId).catch(() => null);
+  }
+
+  revalidatePath("/profile/sessions");
+}
+
+export async function resendEmailVerificationAction(
+  _previousState: FormActionState,
+  _formData: FormData
+): Promise<FormActionState> {
+  void _previousState;
+  void _formData;
+
+  const { accessToken } = await requireSessionContext("/verify-email");
+
+  try {
+    const response = await resendEmailVerification(accessToken);
+    return {
+      message: response.emailVerificationPreviewUrl
+        ? `${response.message} Dev verification link: ${response.emailVerificationPreviewUrl}`
+        : response.message,
+    };
+  } catch (error) {
+    return {
+      message: getActionMessage(error, "We could not resend verification."),
+    };
+  }
+}
+
+export async function deactivateAccountAction() {
+  const { accessToken } = await requireSessionContext("/profile");
+  await deactivateCurrentUser(accessToken);
   await clearAccessToken();
   redirect("/");
 }

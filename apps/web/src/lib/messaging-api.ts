@@ -12,7 +12,14 @@ export type OfferStatus = "PENDING" | "ACCEPTED" | "DECLINED";
 export type ChatParticipant = {
   userId: string;
   displayName: string;
+  role: string;
+  avatarUrl: string | null;
   online: boolean;
+};
+
+export type ChatReadReceipt = {
+  userId: string;
+  readAt: string;
 };
 
 export type AdminChatUser = {
@@ -34,6 +41,10 @@ export type ChatListing = {
   price: number;
   currency: string;
   categoryName: string;
+  status: string;
+  location: string;
+  sellerId: string;
+  primaryImageUrl: string | null;
 };
 
 export type ChatMessage = {
@@ -41,6 +52,8 @@ export type ChatMessage = {
   conversationId: string;
   senderId: string;
   senderName: string;
+  senderRole: string;
+  senderAvatarUrl: string | null;
   type: ChatMessageType;
   body: string | null;
   payload: Record<string, unknown> | null;
@@ -49,8 +62,18 @@ export type ChatMessage = {
   offerAmount: number | null;
   offerCurrency: string | null;
   offerStatus: OfferStatus | null;
+  deletedAt: string | null;
+  readBy: ChatReadReceipt[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type ChatCounterpart = {
+  userId: string;
+  displayName: string;
+  role: string;
+  avatarUrl: string | null;
+  online: boolean;
 };
 
 export type ChatConversation = {
@@ -58,10 +81,75 @@ export type ChatConversation = {
   listingId: string | null;
   listing: ChatListing | null;
   unreadCount: number;
+  archivedAt: string | null;
+  mutedAt: string | null;
+  canSend: boolean;
+  sendDisabledReason: string | null;
+  blockedByMe: boolean;
+  blockedByOther: boolean;
   participants: ChatParticipant[];
+  counterpart: ChatCounterpart | null;
   title: string;
   lastMessage: ChatMessage | null;
   updatedAt: string;
+};
+
+export type ChatOfferUpdateResult = {
+  offerMessage: ChatMessage;
+  systemMessage: ChatMessage;
+};
+
+export type ChatDeleteMessageResult =
+  | {
+      scope: "me";
+      conversationId: string;
+      messageId: string;
+      lastMessage: ChatMessage | null;
+      updatedAt: string;
+    }
+  | {
+      scope: "everyone";
+      conversationId: string;
+      message: ChatMessage;
+      updatedAt: string;
+    };
+
+export type ChatReportReceipt = {
+  id: string;
+  status: string;
+  createdAt: string;
+};
+
+export type ChatAdminReports = {
+  conversationReports: Array<{
+    id: string;
+    conversationId: string;
+    listingId: string | null;
+    listingTitle: string | null;
+    reporter: {
+      id: string;
+      displayName: string;
+      role: string;
+    };
+    reason: string;
+    details: string | null;
+    status: string;
+    createdAt: string;
+  }>;
+  messageReports: Array<{
+    id: string;
+    messageId: string;
+    conversationId: string;
+    reporter: {
+      id: string;
+      displayName: string;
+      role: string;
+    };
+    reason: string;
+    details: string | null;
+    status: string;
+    createdAt: string;
+  }>;
 };
 
 function getApiBaseUrl() {
@@ -96,6 +184,13 @@ export function getMessagingApiBaseUrl() {
 
 export async function fetchConversations(accessToken: string) {
   return messagingRequest<ChatConversation[]>("/messaging/conversations", accessToken);
+}
+
+export async function fetchArchivedConversations(accessToken: string) {
+  return messagingRequest<ChatConversation[]>(
+    "/messaging/conversations?archived=true",
+    accessToken
+  );
 }
 
 export async function fetchAdminChatUsers(accessToken: string) {
