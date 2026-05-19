@@ -1,4 +1,4 @@
-import { ListingStatus } from '@prisma/client';
+import { BoostPlacement, ListingStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsEnum,
@@ -47,6 +47,10 @@ export class QueryListingsDto {
   @IsOptional()
   @IsIn(['newest', 'price_asc', 'price_desc'])
   sort?: 'newest' | 'price_asc' | 'price_desc';
+
+  @IsOptional()
+  @IsEnum(BoostPlacement)
+  boostPlacement?: BoostPlacement;
 
   @IsOptional()
   @Type(() => Number)

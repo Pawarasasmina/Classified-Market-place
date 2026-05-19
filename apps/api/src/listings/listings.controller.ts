@@ -7,12 +7,18 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { MAX_LISTING_IMAGE_BYTES } from '../media/media.constants';
+import { MediaService } from '../media/media.service';
+import type { UploadedImageFile } from '../media/media.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { ModerateListingDto } from './dto/moderate-listing.dto';
 import { QueryListingsDto } from './dto/query-listings.dto';
@@ -21,7 +27,10 @@ import { ListingsService } from './listings.service';
 
 @Controller('listings')
 export class ListingsController {
-  constructor(private readonly listingsService: ListingsService) {}
+  constructor(
+    private readonly listingsService: ListingsService,
+    private readonly mediaService: MediaService,
+  ) {}
 
   @Get()
   findAll(@Query() query: QueryListingsDto) {
@@ -62,6 +71,20 @@ export class ListingsController {
     @Body() createListingDto: CreateListingDto,
   ) {
     return this.listingsService.create(user, createListingDto);
+  }
+
+  @Post('images')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_LISTING_IMAGE_BYTES, files: 1 },
+    }),
+  )
+  uploadImage(
+    @CurrentUser() user: { id: string },
+    @UploadedFile() file?: UploadedImageFile,
+  ) {
+    return this.mediaService.uploadListingImage(user.id, file);
   }
 
   @Patch(':id')

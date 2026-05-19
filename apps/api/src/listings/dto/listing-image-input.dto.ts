@@ -1,8 +1,21 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  ValidateIf,
+} from 'class-validator';
 
 export class ListingImageInputDto {
+  @ValidateIf((image: ListingImageInputDto) => !image.assetId)
   @IsString()
-  url!: string;
+  @IsNotEmpty()
+  url?: string;
+
+  @IsOptional()
+  @IsUUID()
+  assetId?: string;
 
   @IsOptional()
   @IsString()

@@ -26,6 +26,11 @@ export function ListingCard({
           style={{ background: media.overlay }}
         />
         <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+          {listing.isBoosted ? (
+            <span className="listing-featured-badge">
+              Featured
+            </span>
+          ) : null}
           <span className="listing-chip uppercase tracking-[0.18em] text-white">
             {listing.subcategory}
           </span>

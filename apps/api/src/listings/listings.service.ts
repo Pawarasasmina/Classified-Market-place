@@ -1,11 +1,19 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
-import { ListingStatus, Prisma } from '@prisma/client';
+import {
+  BoostPlacement,
+  BoostStatus,
+  ListingStatus,
+  Prisma,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { MAX_LISTING_IMAGES } from '../media/media.constants';
+import { MediaService } from '../media/media.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { ListingImageInputDto } from './dto/listing-image-input.dto';
@@ -21,6 +29,19 @@ type BcryptModule = {
 type ActingUser = {
   id: string;
   role: string;
+};
+
+type ExistingListingImage = {
+  url: string;
+  mediaAssetId?: string | null;
+};
+
+type PreparedListingImage = {
+  url: string;
+  altText?: string;
+  sortOrder: number;
+  isPrimary: boolean;
+  mediaAssetId?: string;
 };
 
 const bcryptLib = bcrypt as BcryptModule;
@@ -50,7 +71,23 @@ const listingInclude = {
   images: {
     orderBy: [{ isPrimary: 'desc' as const }, { sortOrder: 'asc' as const }],
   },
+  boosts: {
+    where: {
+      status: BoostStatus.ACTIVE,
+    },
+    orderBy: [{ startsAt: 'desc' as const }],
+  },
 };
+
+type ListingWithIncludes = Prisma.ListingGetPayload<{
+  include: typeof listingInclude;
+}>;
+
+const boostPlacementPriority = [
+  BoostPlacement.SEARCH_TOP,
+  BoostPlacement.CATEGORY_TOP,
+  BoostPlacement.FEATURED,
+];
 
 function isAdminRole(role: string) {
   return role.toUpperCase() === 'ADMIN';
@@ -58,15 +95,6 @@ function isAdminRole(role: string) {
 
 function toJsonValue(value: Record<string, unknown> | undefined) {
   return value as Prisma.InputJsonValue | undefined;
-}
-
-function toImageCreates(images: ListingImageInputDto[] | undefined) {
-  return images?.map((image, index) => ({
-    url: image.url,
-    altText: image.altText,
-    sortOrder: index,
-    isPrimary: image.isPrimary ?? index === 0,
-  }));
 }
 
 function hasModeratedListingChanges(dto: UpdateListingDto) {
@@ -80,6 +108,20 @@ function hasModeratedListingChanges(dto: UpdateListingDto) {
     dto.attributes,
     dto.images,
   ].some((value) => value !== undefined);
+}
+
+function buildActiveBoostWhere(
+  now: Date,
+  placement?: BoostPlacement,
+): Prisma.BoostListRelationFilter {
+  return {
+    some: {
+      status: BoostStatus.ACTIVE,
+      startsAt: { lte: now },
+      endsAt: { gt: now },
+      ...(placement ? { placement } : {}),
+    },
+  };
 }
 
 function withoutListHeavyAttributes<
@@ -107,7 +149,10 @@ function withoutListHeavyAttributes<
 
 @Injectable()
 export class ListingsService implements OnModuleInit {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mediaService?: MediaService,
+  ) {}
 
   async onModuleInit() {
     await this.seedDefaults();
@@ -190,9 +235,12 @@ export class ListingsService implements OnModuleInit {
       throw new NotFoundException('Category not found');
     }
 
-    const images = toImageCreates(createListingDto.images);
+    const images = await this.prepareListingImages(
+      user.id,
+      createListingDto.images,
+    );
 
-    return this.prisma.listing.create({
+    const listing = await this.prisma.listing.create({
       data: {
         title: createListingDto.title,
         description: createListingDto.description,
@@ -205,13 +253,22 @@ export class ListingsService implements OnModuleInit {
         attributes: toJsonValue(createListingDto.attributes),
         sellerId: user.id,
         categoryId: category.id,
-        images: images?.length ? { create: images } : undefined,
+        images: images?.length
+          ? { create: images.map((image) => this.toListingImageCreate(image)) }
+          : undefined,
       },
       include: listingInclude,
     });
+
+    await this.attachPreparedImagesToListing(listing.id, images);
+
+    return listing;
   }
 
   async findAll(query: QueryListingsDto, includeHidden = false) {
+    const now = new Date();
+    const activeBoostWhere = buildActiveBoostWhere(now, query.boostPlacement);
+    const take = query.take ?? 25;
     const where: Prisma.ListingWhereInput = {
       ...(includeHidden
         ? query.status
@@ -252,7 +309,9 @@ export class ListingsService implements OnModuleInit {
       ...(query.search
         ? {
             OR: [
-              { title: { contains: query.search, mode: 'insensitive' as const } },
+              {
+                title: { contains: query.search, mode: 'insensitive' as const },
+              },
               {
                 description: {
                   contains: query.search,
@@ -277,12 +336,67 @@ export class ListingsService implements OnModuleInit {
           ? { price: 'desc' }
           : { createdAt: 'desc' };
 
-    const listings = await this.prisma.listing.findMany({
-      where,
-      orderBy,
-      take: query.take ?? 25,
-      include: listingInclude,
-    });
+    if (includeHidden) {
+      const listings = await this.prisma.listing.findMany({
+        where,
+        orderBy,
+        take,
+        include: listingInclude,
+      });
+
+      return listings.map((listing) => withoutListHeavyAttributes(listing));
+    }
+
+    const boostedListings: ListingWithIncludes[] = [];
+    const boostedIds = new Set<string>();
+    const placements = query.boostPlacement
+      ? [query.boostPlacement]
+      : boostPlacementPriority;
+
+    for (const placement of placements) {
+      if (boostedListings.length >= take) {
+        break;
+      }
+
+      const placementBoostWhere = buildActiveBoostWhere(now, placement);
+      const placementBoostedListings = await this.prisma.listing.findMany({
+        where: {
+          ...where,
+          ...(boostedIds.size ? { id: { notIn: [...boostedIds] } } : {}),
+          boosts: placementBoostWhere,
+        },
+        orderBy,
+        take: take - boostedListings.length,
+        include: {
+          ...listingInclude,
+          boosts: {
+            where: placementBoostWhere.some,
+            orderBy: [{ endsAt: 'asc' as const }],
+          },
+        },
+      });
+
+      for (const listing of placementBoostedListings) {
+        boostedIds.add(listing.id);
+      }
+
+      boostedListings.push(...placementBoostedListings);
+    }
+
+    const normalListings =
+      boostedListings.length >= take
+        ? []
+        : await this.prisma.listing.findMany({
+            where: {
+              ...where,
+              id: { notIn: [...boostedIds] },
+            },
+            orderBy,
+            take: take - boostedListings.length,
+            include: listingInclude,
+          });
+
+    const listings = [...boostedListings, ...normalListings].slice(0, take);
 
     return listings.map((listing) => withoutListHeavyAttributes(listing));
   }
@@ -317,9 +431,14 @@ export class ListingsService implements OnModuleInit {
     return listing;
   }
 
-  async update(user: ActingUser, id: string, updateListingDto: UpdateListingDto) {
+  async update(
+    user: ActingUser,
+    id: string,
+    updateListingDto: UpdateListingDto,
+  ) {
     const listing = await this.prisma.listing.findUnique({
       where: { id },
+      include: { images: true },
     });
 
     if (!listing || listing.status === ListingStatus.DELETED) {
@@ -346,11 +465,15 @@ export class ListingsService implements OnModuleInit {
       categoryId = category.id;
     }
 
-    const images = toImageCreates(updateListingDto.images);
+    const images = await this.prepareListingImages(
+      user.id,
+      updateListingDto.images,
+      listing.images ?? [],
+    );
     const shouldResubmitForModeration =
       !isAdmin && hasModeratedListingChanges(updateListingDto);
 
-    return this.prisma.listing.update({
+    const updatedListing = await this.prisma.listing.update({
       where: { id },
       data: {
         title: updateListingDto.title,
@@ -373,11 +496,15 @@ export class ListingsService implements OnModuleInit {
             ? undefined
             : {
                 deleteMany: {},
-                create: images,
+                create: images.map((image) => this.toListingImageCreate(image)),
               },
       },
       include: listingInclude,
     });
+
+    await this.attachPreparedImagesToListing(updatedListing.id, images);
+
+    return updatedListing;
   }
 
   async findMine(userId: string) {
@@ -433,5 +560,123 @@ export class ListingsService implements OnModuleInit {
       },
       include: listingInclude,
     });
+  }
+
+  private async prepareListingImages(
+    userId: string,
+    images: ListingImageInputDto[] | undefined,
+    existingImages: ExistingListingImage[] = [],
+  ) {
+    if (images === undefined) {
+      return undefined;
+    }
+
+    if (images.length > MAX_LISTING_IMAGES) {
+      throw new BadRequestException(
+        `A listing can have up to ${MAX_LISTING_IMAGES} images`,
+      );
+    }
+
+    if (!images.length) {
+      return [];
+    }
+
+    const primaryIndex = Math.max(
+      images.findIndex((image) => image.isPrimary),
+      0,
+    );
+
+    return Promise.all(
+      images.map(async (image, index) => {
+        const resolvedImage = await this.resolveListingImage(
+          userId,
+          image,
+          existingImages,
+        );
+
+        return {
+          ...resolvedImage,
+          altText: image.altText?.trim() || undefined,
+          sortOrder: index,
+          isPrimary: index === primaryIndex,
+        } satisfies PreparedListingImage;
+      }),
+    );
+  }
+
+  private async resolveListingImage(
+    userId: string,
+    image: ListingImageInputDto,
+    existingImages: ExistingListingImage[],
+  ) {
+    if (image.assetId) {
+      const asset = await this.requireMediaService().getOwnedListingImageAsset(
+        userId,
+        image.assetId,
+      );
+
+      return { url: asset.url, mediaAssetId: asset.id };
+    }
+
+    const url = image.url?.trim();
+
+    if (!url) {
+      throw new BadRequestException('Listing image is missing an upload');
+    }
+
+    if (url.startsWith('data:image/')) {
+      const asset =
+        await this.requireMediaService().createListingImageAssetFromDataUrl(
+          userId,
+          url,
+        );
+
+      return { url: asset.url, mediaAssetId: asset.id };
+    }
+
+    const existingImage = existingImages.find((item) => item.url === url);
+
+    if (existingImage) {
+      return {
+        url: existingImage.url,
+        mediaAssetId: existingImage.mediaAssetId ?? undefined,
+      };
+    }
+
+    throw new BadRequestException(
+      'Upload listing images before attaching them',
+    );
+  }
+
+  private toListingImageCreate(image: PreparedListingImage) {
+    return {
+      url: image.url,
+      altText: image.altText,
+      sortOrder: image.sortOrder,
+      isPrimary: image.isPrimary,
+      mediaAsset: image.mediaAssetId
+        ? { connect: { id: image.mediaAssetId } }
+        : undefined,
+    };
+  }
+
+  private async attachPreparedImagesToListing(
+    listingId: string,
+    images: PreparedListingImage[] | undefined,
+  ) {
+    const assetIds =
+      images?.flatMap((image) =>
+        image.mediaAssetId ? [image.mediaAssetId] : [],
+      ) ?? [];
+
+    await this.mediaService?.attachImagesToListing(listingId, assetIds);
+  }
+
+  private requireMediaService() {
+    if (!this.mediaService) {
+      throw new BadRequestException('Image uploads are not configured');
+    }
+
+    return this.mediaService;
   }
 }

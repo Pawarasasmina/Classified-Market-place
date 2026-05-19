@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
+  boostListing,
+  completeBoostPayment,
   createCategory,
   createListing,
   deleteCategory,
@@ -103,6 +105,12 @@ const requestPhoneOtpSchema = z.object({
     .string()
     .trim()
     .regex(/^\+\d{6,15}$/, "Use an international phone format like +971551234567."),
+});
+
+const boostListingSchema = z.object({
+  listingId: z.string().trim().min(1),
+  placement: z.enum(["FEATURED", "SEARCH_TOP", "CATEGORY_TOP"]),
+  durationDays: z.coerce.number().int().min(1).max(30).default(7),
 });
 
 const categorySchema = z.object({
@@ -396,6 +404,35 @@ export async function deleteListingAction(formData: FormData) {
   }
 
   revalidatePath("/my-listings");
+  redirect("/my-listings");
+}
+
+export async function boostListingAction(formData: FormData) {
+  const parsed = boostListingSchema.safeParse({
+    listingId: formData.get("listingId"),
+    placement: formData.get("placement"),
+    durationDays: formData.get("durationDays") || 7,
+  });
+
+  const { accessToken } = await requireSessionContext("/my-listings");
+
+  if (parsed.success) {
+    const boost = await boostListing(accessToken, parsed.data.listingId, {
+      placement: parsed.data.placement,
+      durationDays: parsed.data.durationDays,
+    });
+
+    await completeBoostPayment(accessToken, boost.id, {
+      durationDays: parsed.data.durationDays,
+      providerRef: boost.payment?.providerRef,
+    });
+
+    revalidatePath("/");
+    revalidatePath("/search");
+    revalidatePath("/my-listings");
+    revalidatePath(`/listings/${parsed.data.listingId}`);
+  }
+
   redirect("/my-listings");
 }
 

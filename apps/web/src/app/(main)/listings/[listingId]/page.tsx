@@ -74,6 +74,11 @@ export default async function ListingDetailPage(props: ListingDetailPageProps) {
             <img src={media.src} alt={media.alt} className="h-full w-full object-cover" />
             <div className="absolute inset-0" style={{ background: media.overlay }} />
             <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+              {listing.isBoosted ? (
+                <span className="rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-black text-white">
+                  Featured
+                </span>
+              ) : null}
               <span className="rounded-md bg-[rgba(9,12,26,0.78)] px-3 py-2 text-xs font-black uppercase tracking-wide text-white">
                 {listing.subcategory}
               </span>
@@ -89,6 +94,12 @@ export default async function ListingDetailPage(props: ListingDetailPageProps) {
             <p className="mt-2 text-sm text-[#5b6478]">
               {listing.location} / {listing.postedLabel}
             </p>
+            {listing.isBoosted ? (
+              <p className="mt-3 text-sm font-black text-[var(--accent)]">
+                Featured placement active
+                {listing.boostEndsLabel ? ` / ${listing.boostEndsLabel}` : ""}
+              </p>
+            ) : null}
             <p className="mt-5 leading-7 text-[#404a60]">
               {listing.description}
             </p>

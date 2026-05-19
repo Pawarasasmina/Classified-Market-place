@@ -1,5 +1,10 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { ListingStatus } from '@prisma/client';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
+import { BoostPlacement, BoostStatus, ListingStatus } from '@prisma/client';
+import { MAX_LISTING_IMAGES } from '../media/media.constants';
 import { ListingsService } from './listings.service';
 
 describe('ListingsService normal-user posting', () => {
@@ -19,6 +24,11 @@ describe('ListingsService normal-user posting', () => {
       findUnique: jest.Mock;
       upsert: jest.Mock;
     };
+  };
+  let mediaService: {
+    createListingImageAssetFromDataUrl: jest.Mock;
+    getOwnedListingImageAsset: jest.Mock;
+    attachImagesToListing: jest.Mock;
   };
 
   const category = {
@@ -58,8 +68,26 @@ describe('ListingsService normal-user posting', () => {
         upsert: jest.fn(),
       },
     };
+    mediaService = {
+      createListingImageAssetFromDataUrl: jest
+        .fn()
+        .mockImplementation(
+          (_userId: string, _dataUrl: string, index?: string) => ({
+            id:
+              index ??
+              `asset-${mediaService.createListingImageAssetFromDataUrl.mock.calls.length}`,
+            url: `http://127.0.0.1:3001/uploads/listing-images/${mediaService.createListingImageAssetFromDataUrl.mock.calls.length}.jpg`,
+            uploadedById: 'user-1',
+            type: 'IMAGE',
+            mimeType: 'image/jpeg',
+            byteSize: 100,
+          }),
+        ),
+      getOwnedListingImageAsset: jest.fn(),
+      attachImagesToListing: jest.fn(),
+    };
 
-    service = new ListingsService(prisma as never);
+    service = new ListingsService(prisma as never, mediaService as never);
   });
 
   it('lets regular users create listings without a seller role and forces moderation', async () => {
@@ -107,6 +135,78 @@ describe('ListingsService normal-user posting', () => {
     );
   });
 
+  it('stores submitted data URL images and normalizes the primary image', async () => {
+    await service.create(
+      { id: 'user-1', role: 'USER' },
+      {
+        categorySlug: 'electronics',
+        title: 'Clean phone',
+        description: 'Barely used phone with box',
+        price: 350,
+        location: 'Dubai Marina',
+        images: [
+          {
+            url: 'data:image/jpeg;base64,first',
+            altText: 'Front',
+          },
+          {
+            url: 'data:image/jpeg;base64,second',
+            altText: 'Back',
+            isPrimary: true,
+          },
+        ],
+      },
+    );
+
+    const createCall = prisma.listing.create.mock.calls[0][0];
+    const imageCreates = createCall.data.images.create;
+
+    expect(
+      mediaService.createListingImageAssetFromDataUrl,
+    ).toHaveBeenCalledTimes(2);
+    expect(imageCreates).toMatchObject([
+      {
+        altText: 'Front',
+        sortOrder: 0,
+        isPrimary: false,
+        mediaAsset: { connect: { id: 'asset-1' } },
+      },
+      {
+        altText: 'Back',
+        sortOrder: 1,
+        isPrimary: true,
+        mediaAsset: { connect: { id: 'asset-2' } },
+      },
+    ]);
+    expect(mediaService.attachImagesToListing).toHaveBeenCalledWith(
+      'listing-1',
+      ['asset-1', 'asset-2'],
+    );
+  });
+
+  it('rejects listings with too many images', async () => {
+    await expect(
+      service.create(
+        { id: 'user-1', role: 'USER' },
+        {
+          categorySlug: 'electronics',
+          title: 'Clean phone',
+          description: 'Barely used phone with box',
+          price: 350,
+          location: 'Dubai Marina',
+          images: Array.from(
+            { length: MAX_LISTING_IMAGES + 1 },
+            (_, index) => ({
+              url: `data:image/jpeg;base64,${index}`,
+            }),
+          ),
+        },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.listing.create).not.toHaveBeenCalled();
+  });
+
   it('includes child categories when searching by a parent category', async () => {
     prisma.listing.findMany.mockResolvedValue([]);
 
@@ -119,6 +219,100 @@ describe('ListingsService normal-user posting', () => {
             OR: [{ slug: 'motors' }, { parent: { slug: 'motors' } }],
           },
           status: ListingStatus.ACTIVE,
+        }),
+      }),
+    );
+  });
+
+  it('sorts actively boosted listings above normal search results', async () => {
+    const now = Date.now();
+    const boostedListing = {
+      id: 'boosted-listing',
+      attributes: null,
+      boosts: [
+        {
+          placement: BoostPlacement.SEARCH_TOP,
+          status: BoostStatus.ACTIVE,
+          startsAt: new Date(now - 60_000),
+          endsAt: new Date(now + 60_000),
+        },
+      ],
+    };
+    const normalListing = {
+      id: 'normal-listing',
+      attributes: null,
+      boosts: [],
+    };
+    prisma.listing.findMany
+      .mockResolvedValueOnce([boostedListing])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([normalListing]);
+
+    await expect(service.findAll({ take: 2 })).resolves.toMatchObject([
+      { id: 'boosted-listing' },
+      { id: 'normal-listing' },
+    ]);
+
+    expect(prisma.listing.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          boosts: {
+            some: expect.objectContaining({
+              status: BoostStatus.ACTIVE,
+              startsAt: expect.objectContaining({ lte: expect.any(Date) }),
+              endsAt: expect.objectContaining({ gt: expect.any(Date) }),
+            }),
+          },
+        }),
+      }),
+    );
+  });
+
+  it('requires a valid active boost date range before a listing can affect ranking', async () => {
+    const normalListing = {
+      id: 'normal-listing',
+      attributes: null,
+      boosts: [],
+    };
+    prisma.listing.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([normalListing]);
+
+    await expect(service.findAll({ take: 1 })).resolves.toMatchObject([
+      { id: 'normal-listing' },
+    ]);
+
+    const boostedSearchCalls = prisma.listing.findMany.mock.calls.slice(0, 3);
+
+    for (const [query] of boostedSearchCalls) {
+      expect(query.where.boosts.some).toEqual(
+        expect.objectContaining({
+          status: BoostStatus.ACTIVE,
+          startsAt: expect.objectContaining({ lte: expect.any(Date) }),
+          endsAt: expect.objectContaining({ gt: expect.any(Date) }),
+        }),
+      );
+    }
+  });
+
+  it('can rank listings by a specific active boost placement', async () => {
+    prisma.listing.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+    await service.findAll({ boostPlacement: BoostPlacement.CATEGORY_TOP });
+
+    expect(prisma.listing.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          boosts: {
+            some: expect.objectContaining({
+              placement: BoostPlacement.CATEGORY_TOP,
+            }),
+          },
         }),
       }),
     );
@@ -164,5 +358,40 @@ describe('ListingsService normal-user posting', () => {
         }),
       }),
     );
+  });
+
+  it('keeps existing listing images during update without re-uploading them', async () => {
+    prisma.listing.findUnique.mockResolvedValue({
+      ...listing,
+      status: ListingStatus.ACTIVE,
+      images: [
+        {
+          url: 'http://127.0.0.1:3001/uploads/listing-images/existing.jpg',
+          mediaAssetId: 'asset-existing',
+        },
+      ],
+    });
+
+    await service.update({ id: 'user-1', role: 'USER' }, 'listing-1', {
+      images: [
+        {
+          url: 'http://127.0.0.1:3001/uploads/listing-images/existing.jpg',
+        },
+      ],
+    });
+
+    const updateCall = prisma.listing.update.mock.calls[0][0];
+
+    expect(
+      mediaService.createListingImageAssetFromDataUrl,
+    ).not.toHaveBeenCalled();
+    expect(updateCall.data.images.create).toMatchObject([
+      {
+        url: 'http://127.0.0.1:3001/uploads/listing-images/existing.jpg',
+        sortOrder: 0,
+        isPrimary: true,
+        mediaAsset: { connect: { id: 'asset-existing' } },
+      },
+    ]);
   });
 });

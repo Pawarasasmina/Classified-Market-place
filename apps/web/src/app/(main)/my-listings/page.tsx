@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { deleteListingAction } from "@/app/(main)/actions";
+import { boostListingAction, deleteListingAction } from "@/app/(main)/actions";
 import { requireSessionContext } from "@/lib/auth-dal";
-import { fetchMyListings } from "@/lib/marketplace-api";
+import { boostPlans, fetchMyListings } from "@/lib/marketplace-api";
 
 export default async function MyListingsPage() {
   const { accessToken } = await requireSessionContext("/my-listings");
   const listings = await fetchMyListings(accessToken);
   const activeCount = listings.filter((listing) => listing.status === "Active").length;
-  const pendingCount = listings.filter((listing) => listing.status === "Pending").length;
+  const boostedCount = listings.filter((listing) => listing.isBoosted).length;
 
   return (
     <div className="page grid gap-6">
@@ -31,7 +31,7 @@ export default async function MyListingsPage() {
         {[
           ["Total", listings.length],
           ["Active", activeCount],
-          ["Pending", pendingCount],
+          ["Boosted", boostedCount],
         ].map(([label, value]) => (
           <div key={label} className="panel">
             <p className="text-sm text-[var(--muted)]">{label}</p>
@@ -45,7 +45,7 @@ export default async function MyListingsPage() {
           listings.map((listing) => (
             <section
               key={listing.id}
-              className="panel grid gap-4 md:grid-cols-[9rem_1fr_auto] md:items-center"
+              className="panel grid gap-4 md:grid-cols-[9rem_1fr_minmax(14rem,18rem)] md:items-center"
             >
               <div className="h-32 overflow-hidden rounded-md bg-[var(--surface-strong)]">
                 {listing.imageUrls[0] ? (
@@ -58,10 +58,21 @@ export default async function MyListingsPage() {
                   <span className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-2 py-1 text-xs font-bold">
                     {listing.status}
                   </span>
+                  {listing.isBoosted ? (
+                    <span className="rounded-md border border-[var(--accent-strong)] bg-[var(--accent-soft)] px-2 py-1 text-xs font-black text-[var(--accent-strong)]">
+                      Featured
+                    </span>
+                  ) : null}
                 </div>
                 <p className="mt-1 text-sm text-[var(--muted)]">
                   {listing.priceLabel} / {listing.location}
                 </p>
+                {listing.isBoosted ? (
+                  <p className="mt-2 text-sm font-bold text-[var(--success)]">
+                    Boost active: {listing.boostLabel}
+                    {listing.boostEndsLabel ? ` / ${listing.boostEndsLabel}` : ""}
+                  </p>
+                ) : null}
                 <p className="mt-2 line-clamp-2 text-sm text-[var(--muted)]">
                   {listing.description}
                 </p>
@@ -83,6 +94,49 @@ export default async function MyListingsPage() {
                 >
                   Edit
                 </Link>
+                {listing.status === "Active" && !listing.isBoosted ? (
+                  <form action={boostListingAction} className="grid gap-2">
+                    <input type="hidden" name="listingId" value={listing.id} />
+                    <label className="grid gap-1 text-xs font-bold text-[var(--muted)]">
+                      Boost plan
+                      <select
+                        name="placement"
+                        defaultValue={boostPlans[0].placement}
+                        className="surface-input rounded-md px-3 py-2 text-sm font-bold"
+                      >
+                        {boostPlans.map((plan) => (
+                          <option key={plan.placement} value={plan.placement}>
+                            {plan.label} / {plan.priceLabel}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-xs font-bold text-[var(--muted)]">
+                      Duration
+                      <select
+                        name="durationDays"
+                        defaultValue={String(boostPlans[0].durationDays)}
+                        className="surface-input rounded-md px-3 py-2 text-sm font-bold"
+                      >
+                        <option value="7">7 days</option>
+                        <option value="14">14 days</option>
+                        <option value="30">30 days</option>
+                      </select>
+                    </label>
+                    <button className="action-primary px-3 py-2 text-sm font-black">
+                      Boost listing
+                    </button>
+                  </form>
+                ) : listing.isBoosted ? (
+                  <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm font-bold text-[var(--success)]">
+                    Active boost
+                    {listing.boostEndsLabel ? (
+                      <span className="block text-xs text-[var(--muted)]">
+                        {listing.boostEndsLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
                 <form action={deleteListingAction}>
                   <input type="hidden" name="listingId" value={listing.id} />
                   <button className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-bold text-red-700">

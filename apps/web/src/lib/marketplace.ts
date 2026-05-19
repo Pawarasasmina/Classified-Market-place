@@ -65,6 +65,33 @@ export type ApiListingStatus =
   | "SOLD"
   | "DRAFT";
 
+export type ApiBoostPlacement = "FEATURED" | "SEARCH_TOP" | "CATEGORY_TOP";
+
+export type ApiBoostStatus = "SCHEDULED" | "ACTIVE" | "EXPIRED" | "CANCELLED";
+
+export type ApiTransactionStatus =
+  | "PENDING"
+  | "SUCCEEDED"
+  | "FAILED"
+  | "CANCELLED"
+  | "REFUNDED";
+
+export type ApiBoost = {
+  id: string;
+  placement: ApiBoostPlacement;
+  status: ApiBoostStatus;
+  startsAt: string;
+  endsAt: string;
+  transaction?: {
+    id: string;
+    status: ApiTransactionStatus;
+    amount?: number | string;
+    currency?: string;
+    provider?: string | null;
+    providerRef?: string | null;
+  } | null;
+};
+
 export type ApiListingImage = {
   id: string;
   url: string;
@@ -89,6 +116,7 @@ export type ApiListing = {
   category?: ApiCategory;
   seller?: ApiUser;
   images?: ApiListingImage[];
+  boosts?: ApiBoost[];
 };
 
 export type SessionUser = {
@@ -146,6 +174,10 @@ export type MarketplaceListing = {
   viewCount: string;
   chatCount: number;
   saved: boolean;
+  isBoosted: boolean;
+  boostPlacements: ApiBoostPlacement[];
+  boostLabel?: string;
+  boostEndsLabel?: string;
 };
 
 export type MarketplaceSeller = {
@@ -315,6 +347,47 @@ function formatJoinedLabel(value: string) {
   return `Member since ${createdAt.getFullYear()}`;
 }
 
+function formatShortDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+
+  return date.toLocaleDateString("en", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function humanizeBoostPlacement(placement: ApiBoostPlacement) {
+  switch (placement) {
+    case "SEARCH_TOP":
+      return "Search top";
+    case "CATEGORY_TOP":
+      return "Category top";
+    default:
+      return "Featured";
+  }
+}
+
+function getActiveBoosts(boosts: ApiBoost[] | undefined) {
+  const now = Date.now();
+
+  return (boosts ?? []).filter((boost) => {
+    const startsAt = new Date(boost.startsAt).getTime();
+    const endsAt = new Date(boost.endsAt).getTime();
+
+    return (
+      boost.status === "ACTIVE" &&
+      Number.isFinite(startsAt) &&
+      Number.isFinite(endsAt) &&
+      startsAt <= now &&
+      endsAt > now
+    );
+  });
+}
+
 function normalizeAttributes(
   attributes: Record<string, unknown> | null | undefined
 ): Record<string, string | number | boolean> {
@@ -465,6 +538,12 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
   const attributes = normalizeAttributes(removeReservedListingAttributes(listing.attributes));
   const preset = categoryPresets[listing.category?.slug ?? ""];
   const featureBullets = buildFeatureBullets(attributes);
+  const activeBoosts = getActiveBoosts(listing.boosts);
+  const boostPlacements = [...new Set(activeBoosts.map((boost) => boost.placement))];
+  const soonestBoostEnd = activeBoosts
+    .map((boost) => boost.endsAt)
+    .sort((first, second) => new Date(first).getTime() - new Date(second).getTime())[0];
+  const boostEndsLabel = soonestBoostEnd ? formatShortDate(soonestBoostEnd) : undefined;
 
   return {
     id: listing.id,
@@ -497,6 +576,13 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
     viewCount: "Fresh listing",
     chatCount: 0,
     saved: false,
+    isBoosted: activeBoosts.length > 0,
+    boostPlacements,
+    boostLabel:
+      boostPlacements.length > 0
+        ? boostPlacements.map(humanizeBoostPlacement).join(" + ")
+        : undefined,
+    boostEndsLabel: boostEndsLabel ? `Ends ${boostEndsLabel}` : undefined,
   };
 }
 

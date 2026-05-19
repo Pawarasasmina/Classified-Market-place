@@ -5,6 +5,8 @@ import {
   mapListing,
   mapSeller,
   mapSessionUser,
+  type ApiBoost,
+  type ApiBoostPlacement,
   type ApiCategory,
   type ApiListing,
   type ApiListingStatus,
@@ -30,8 +32,39 @@ type ListingQuery = {
   minPrice?: number;
   maxPrice?: number;
   sort?: "newest" | "price_asc" | "price_desc";
+  boostPlacement?: "FEATURED" | "SEARCH_TOP" | "CATEGORY_TOP";
   take?: number;
 };
+
+export const boostPlans = [
+  {
+    placement: "FEATURED",
+    label: "Featured",
+    durationDays: 7,
+    priceLabel: "AED 25",
+    description: "Highlighted badge and boosted ordering across marketplace lists.",
+  },
+  {
+    placement: "SEARCH_TOP",
+    label: "Search top",
+    durationDays: 7,
+    priceLabel: "AED 25",
+    description: "Prioritized placement when buyers search across active listings.",
+  },
+  {
+    placement: "CATEGORY_TOP",
+    label: "Category top",
+    durationDays: 7,
+    priceLabel: "AED 25",
+    description: "Prioritized placement inside the listing category results.",
+  },
+] satisfies {
+  placement: ApiBoostPlacement;
+  label: string;
+  durationDays: number;
+  priceLabel: string;
+  description: string;
+}[];
 
 type AuthResponse = {
   accessToken: string;
@@ -55,6 +88,21 @@ type ListingPayload = {
   status?: ApiListingStatus;
   attributes: Record<string, unknown>;
   images?: ListingImagePayload[];
+};
+
+type CreateBoostPayload = {
+  placement?: ApiBoostPlacement;
+  durationDays?: number;
+  startsAt?: string;
+  endsAt?: string;
+};
+
+type BoostResponse = ApiBoost & {
+  payment?: {
+    provider: string;
+    providerRef: string;
+    checkoutUrl?: string;
+  };
 };
 
 function getApiBaseUrl() {
@@ -206,6 +254,7 @@ export async function fetchListings(query: ListingQuery = {}) {
       minPrice: query.minPrice,
       maxPrice: query.maxPrice,
       sort: query.sort,
+      boostPlacement: query.boostPlacement,
       take: query.take,
     },
   });
@@ -228,6 +277,7 @@ export async function fetchAdminListings(
       minPrice: query.minPrice,
       maxPrice: query.maxPrice,
       sort: query.sort,
+      boostPlacement: query.boostPlacement,
       take: query.take,
     },
   });
@@ -445,6 +495,32 @@ export async function deleteListing(accessToken: string, listingId: string) {
   });
 
   return mapListing(listing);
+}
+
+export async function boostListing(
+  accessToken: string,
+  listingId: string,
+  payload: CreateBoostPayload
+) {
+  return apiRequest<BoostResponse>(`/listings/${listingId}/boosts`, {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function completeBoostPayment(
+  accessToken: string,
+  boostId: string,
+  payload: { durationDays?: number; providerRef?: string } = {}
+) {
+  return apiRequest<BoostResponse>(`/boosts/${boostId}/payment/succeed`, {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function moderateListing(
