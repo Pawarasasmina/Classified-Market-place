@@ -220,7 +220,7 @@ export function MarketplaceShell({
                 Classified Marketplace
               </p>
               <p className="marketplace-footer-muted mt-2 max-w-2xl">
-                A modern local marketplace for trusted discovery, seller tools,
+                A modern local marketplace for trusted discovery, item posting,
                 and direct conversations.
               </p>
             </div>

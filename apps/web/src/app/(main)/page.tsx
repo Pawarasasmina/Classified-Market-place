@@ -133,7 +133,7 @@ export default async function HomePage(props: HomePageProps) {
           <div className="mt-6 grid gap-3">
             {[
               "Verified category schemas and live search filters",
-              "Simple posting flow for sellers",
+              "Simple posting flow for every account",
               "Saved items and direct buyer chat",
             ].map((item) => (
               <div key={item} className="feature-rail text-sm">

@@ -62,7 +62,17 @@ const listingSchema = z.object({
     .string()
     .trim()
     .min(10, "Description must be at least 10 characters."),
-  price: z.coerce.number().min(0, "Price must be 0 or more."),
+  price: z
+    .string()
+    .trim()
+    .min(1, "Price is required.")
+    .refine((value) => Number.isFinite(Number(value)), {
+      message: "Enter a valid price.",
+    })
+    .transform(Number)
+    .refine((value) => value >= 0, {
+      message: "Price must be 0 or more.",
+    }),
   currency: z.string().trim().min(3).default("AED"),
   location: z.string().trim().min(2, "Location is required."),
 });
@@ -151,14 +161,33 @@ function parseAttributes(formData: FormData) {
 }
 
 function parseImages(formData: FormData, title: string) {
-  return formData
-    .getAll("image")
+  const imageValues = formData.getAll("image");
+
+  for (const [key, value] of formData.entries()) {
+    if (key.startsWith("photo:")) {
+      imageValues.push(value);
+    }
+  }
+
+  return imageValues
     .flatMap((value) => {
       if (typeof value !== "string" || !value.trim()) {
         return [];
       }
 
-      return [{ url: value.trim(), altText: title }];
+      const trimmed = value.trim();
+
+      try {
+        const photo = JSON.parse(trimmed) as { dataUrl?: unknown };
+
+        if (typeof photo.dataUrl === "string" && photo.dataUrl.trim()) {
+          return [{ url: photo.dataUrl.trim(), altText: title }];
+        }
+      } catch {
+        return [{ url: trimmed, altText: title }];
+      }
+
+      return [{ url: trimmed, altText: title }];
     })
     .slice(0, 10)
     .map((image, index) => ({

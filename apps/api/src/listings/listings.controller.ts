@@ -41,6 +41,15 @@ export class ListingsController {
     return this.listingsService.findMine(user.id);
   }
 
+  @Get('me/items/:id')
+  @UseGuards(JwtAuthGuard)
+  findMineOne(
+    @CurrentUser() user: { id: string; role: string },
+    @Param('id') id: string,
+  ) {
+    return this.listingsService.findOneForUser(user, id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.listingsService.findOne(id);

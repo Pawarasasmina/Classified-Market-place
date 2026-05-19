@@ -692,7 +692,7 @@ export function InboxWorkspace({
     setIsSending(true);
     setError("");
     const now = new Date().toISOString();
-    const tempId = `temp-${Date.now()}-${tempIdRef.current++}`;
+    const tempId = `temp-${now}-${tempIdRef.current++}`;
     const tempMessage: ChatMessage = {
       id: tempId,
       conversationId: activeConversationId,
@@ -1267,8 +1267,8 @@ export function InboxWorkspace({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[24rem_1fr]">
-      <aside className="panel h-fit">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+      <aside className="panel h-fit min-w-0 overflow-hidden">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="section-eyebrow">Inbox</p>
@@ -1307,7 +1307,7 @@ export function InboxWorkspace({
               key={conversation.id}
               type="button"
               onClick={() => void openConversation(conversation, inboxView)}
-              className={`rounded-md border px-4 py-3 text-left text-sm transition ${
+              className={`w-full min-w-0 rounded-md border px-4 py-3 text-left text-sm transition ${
                 conversation.id === activeConversationId
                   ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--foreground)]"
                   : "border-[var(--line)] bg-[var(--surface)] hover:border-[var(--brand)]"
@@ -1329,13 +1329,13 @@ export function InboxWorkspace({
               <span className="mt-2 block truncate text-[var(--muted)]">
                 {messagePreview(conversation.lastMessage, currentUserId)}
               </span>
-              <div className="mt-3 flex items-center justify-between gap-2 text-xs text-[var(--muted)]">
-                <span>
+              <div className="mt-3 flex min-w-0 items-center justify-between gap-2 text-xs text-[var(--muted)]">
+                <span className="min-w-0 truncate">
                   {conversation.counterpart
                     ? `${conversation.counterpart.displayName} · ${conversation.counterpart.role}`
                     : "Conversation"}
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   {conversation.mutedAt ? (
                     <span className="rounded-full border border-[var(--line)] px-2 py-1">
                       Muted
@@ -1380,7 +1380,7 @@ export function InboxWorkspace({
         ) : null}
       </aside>
 
-      <section className="panel">
+      <section className="panel min-w-0">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="section-eyebrow">Chat</p>

@@ -46,7 +46,7 @@ export default async function ProfilePage() {
         <div>
           <p className="section-eyebrow">Customer account</p>
           <h2 className="mt-2 text-3xl font-black">Profile</h2>
-          <p className="mt-2 text-[var(--muted)]">Update your public seller information and avatar.</p>
+          <p className="mt-2 text-[var(--muted)]">Update your public profile and avatar for buying, selling, and chat.</p>
         </div>
         <ProfileForm user={user} />
       </section>

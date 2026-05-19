@@ -100,7 +100,8 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
           {listing ? "Update your marketplace listing." : "Tell buyers what you are selling."}
         </h2>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          Use a precise title, honest condition details, and a few good photos.
+          No separate seller account is needed. Use a precise title, honest
+          condition details, and a few good photos.
         </p>
       </div>
 
@@ -283,7 +284,7 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
         disabled={pending}
         className="action-primary w-fit px-5 py-3 text-sm font-bold disabled:opacity-60"
       >
-        {pending ? "Saving..." : listing ? "Save listing" : "Create listing"}
+        {pending ? "Saving..." : listing ? "Save for review" : "Submit for review"}
       </button>
     </form>
   );

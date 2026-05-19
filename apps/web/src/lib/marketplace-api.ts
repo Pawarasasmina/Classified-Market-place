@@ -256,6 +256,22 @@ export async function fetchMyListings(accessToken: string) {
   return listings.map(mapListing);
 }
 
+export async function fetchMyListing(accessToken: string, listingId: string) {
+  try {
+    const listing = await apiRequest<ApiListing>(`/listings/me/items/${listingId}`, {
+      accessToken,
+    });
+
+    return mapListing(listing);
+  } catch (error) {
+    if (error instanceof MarketplaceApiError && error.status === 404) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
 export async function fetchSellerProfile(userId: string) {
   try {
     const profile = await apiRequest<ApiUser>(`/users/${userId}`);

@@ -69,7 +69,7 @@ export default async function ListingDetailPage(props: ListingDetailPageProps) {
       </div>
 
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="overflow-hidden rounded-md border border-[var(--line)] bg-white shadow-sm">
+        <div className="overflow-hidden rounded-md border border-[var(--line)] bg-white text-[#11182d] shadow-sm">
           <div className="relative h-[28rem] bg-[var(--surface-strong)]">
             <img src={media.src} alt={media.alt} className="h-full w-full object-cover" />
             <div className="absolute inset-0" style={{ background: media.overlay }} />
@@ -84,12 +84,12 @@ export default async function ListingDetailPage(props: ListingDetailPageProps) {
           </div>
           <div className="grid gap-6 p-5">
           <div>
-            <h1 className="mt-3 text-3xl font-bold">{listing.title}</h1>
-            <p className="mt-3 text-3xl font-black">{listing.priceLabel}</p>
-            <p className="mt-2 text-sm text-[var(--muted)]">
+            <h1 className="mt-3 text-3xl font-bold text-[#11182d]">{listing.title}</h1>
+            <p className="mt-3 text-3xl font-black text-[#11182d]">{listing.priceLabel}</p>
+            <p className="mt-2 text-sm text-[#5b6478]">
               {listing.location} / {listing.postedLabel}
             </p>
-            <p className="mt-5 leading-7 text-[var(--muted)]">
+            <p className="mt-5 leading-7 text-[#404a60]">
               {listing.description}
             </p>
 
@@ -97,7 +97,7 @@ export default async function ListingDetailPage(props: ListingDetailPageProps) {
               {listing.featureBullets.map((feature) => (
                 <span
                   key={feature}
-                  className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--muted)]"
+                  className="rounded-md border border-[#d8ddf0] bg-[#eef1ff] px-3 py-2 text-sm font-semibold text-[#283163]"
                 >
                   {feature}
                 </span>
@@ -107,7 +107,7 @@ export default async function ListingDetailPage(props: ListingDetailPageProps) {
 
           {gallery.length > 1 ? (
             <div>
-              <p className="text-sm font-bold">Photos</p>
+              <p className="text-sm font-bold text-[#11182d]">Photos</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
                 {gallery.slice(0, 6).map((src, index) => (
                   <div key={`${src}-${index}`} className="h-28 overflow-hidden rounded-md bg-[var(--surface-strong)]">
@@ -120,14 +120,14 @@ export default async function ListingDetailPage(props: ListingDetailPageProps) {
 
             {Object.keys(listing.attributes).length ? (
             <div>
-              <p className="text-sm font-bold">Listing details</p>
+              <p className="text-sm font-bold text-[#11182d]">Listing details</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {Object.entries(listing.attributes).map(([key, value]) => (
-                  <div key={key} className="rounded-md border border-[var(--line)] p-3">
-                    <p className="text-xs font-semibold uppercase text-[var(--muted)]">
+                  <div key={key} className="rounded-md border border-[#d8ddf0] bg-[#fbfcff] p-3">
+                    <p className="text-xs font-semibold uppercase text-[#5b6478]">
                       {key}
                     </p>
-                    <p className="mt-1 font-semibold">{String(value)}</p>
+                    <p className="mt-1 font-semibold text-[#11182d]">{String(value)}</p>
                   </div>
                 ))}
               </div>

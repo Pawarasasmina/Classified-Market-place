@@ -13,10 +13,10 @@ export default async function MyListingsPage() {
     <div className="page grid gap-6">
       <div className="panel-dark flex flex-wrap items-end justify-between gap-4 p-6">
         <div>
-          <p className="section-eyebrow">Seller dashboard</p>
+          <p className="section-eyebrow">Your selling activity</p>
           <h1 className="mt-2 text-3xl font-black text-white">My listings</h1>
           <p className="mt-2 text-[#d7d9ea]">
-            Manage your inventory and moderation status.
+            Manage the items you post from this account and track moderation status.
           </p>
         </div>
         <Link
@@ -68,10 +68,14 @@ export default async function MyListingsPage() {
               </div>
               <div className="grid gap-2">
                 <Link
-                  href={`/listings/${listing.id}`}
+                  href={
+                    listing.status === "Active"
+                      ? `/listings/${listing.id}`
+                      : `/listings/${listing.id}/edit`
+                  }
                   className="action-secondary px-3 py-2 text-center text-sm font-bold"
                 >
-                  View
+                  {listing.status === "Active" ? "View" : "Review"}
                 </Link>
                 <Link
                   href={`/listings/${listing.id}/edit`}

@@ -164,7 +164,7 @@ export function CategoryForm({
           }}
           className={`rounded px-4 py-2 ${
             mode === "main"
-              ? "bg-white text-[var(--brand-strong)] shadow-sm"
+              ? "bg-[var(--brand)] text-white shadow-sm"
               : "text-[var(--muted)]"
           }`}
         >
@@ -175,7 +175,7 @@ export function CategoryForm({
           onClick={() => setMode("sub")}
           className={`rounded px-4 py-2 ${
             mode === "sub"
-              ? "bg-white text-[var(--brand-strong)] shadow-sm"
+              ? "bg-[var(--brand)] text-white shadow-sm"
               : "text-[var(--muted)]"
           }`}
         >

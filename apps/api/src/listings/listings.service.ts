@@ -69,6 +69,19 @@ function toImageCreates(images: ListingImageInputDto[] | undefined) {
   }));
 }
 
+function hasModeratedListingChanges(dto: UpdateListingDto) {
+  return [
+    dto.title,
+    dto.description,
+    dto.price,
+    dto.currency,
+    dto.location,
+    dto.categorySlug,
+    dto.attributes,
+    dto.images,
+  ].some((value) => value !== undefined);
+}
+
 function withoutListHeavyAttributes<
   T extends { attributes: Prisma.JsonValue | null },
 >(listing: T) {
@@ -186,9 +199,9 @@ export class ListingsService implements OnModuleInit {
         price: new Prisma.Decimal(createListingDto.price),
         currency: createListingDto.currency ?? 'AED',
         location: createListingDto.location,
-        status:
-          createListingDto.status ??
-          (isAdminRole(user.role) ? ListingStatus.ACTIVE : ListingStatus.PENDING),
+        status: isAdminRole(user.role)
+          ? (createListingDto.status ?? ListingStatus.ACTIVE)
+          : ListingStatus.PENDING,
         attributes: toJsonValue(createListingDto.attributes),
         sellerId: user.id,
         categoryId: category.id,
@@ -209,7 +222,10 @@ export class ListingsService implements OnModuleInit {
       ...(query.categorySlug
         ? {
             category: {
-              slug: query.categorySlug,
+              OR: [
+                { slug: query.categorySlug },
+                { parent: { slug: query.categorySlug } },
+              ],
             },
           }
         : {}),
@@ -277,8 +293,25 @@ export class ListingsService implements OnModuleInit {
       include: listingInclude,
     });
 
+    if (!listing || listing.status !== ListingStatus.ACTIVE) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    return listing;
+  }
+
+  async findOneForUser(user: ActingUser, id: string) {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id },
+      include: listingInclude,
+    });
+
     if (!listing || listing.status === ListingStatus.DELETED) {
       throw new NotFoundException('Listing not found');
+    }
+
+    if (!isAdminRole(user.role) && listing.sellerId !== user.id) {
+      throw new ForbiddenException('You can only view your own draft listings');
     }
 
     return listing;
@@ -314,6 +347,8 @@ export class ListingsService implements OnModuleInit {
     }
 
     const images = toImageCreates(updateListingDto.images);
+    const shouldResubmitForModeration =
+      !isAdmin && hasModeratedListingChanges(updateListingDto);
 
     return this.prisma.listing.update({
       where: { id },
@@ -326,7 +361,11 @@ export class ListingsService implements OnModuleInit {
             : undefined,
         currency: updateListingDto.currency,
         location: updateListingDto.location,
-        status: isAdmin ? updateListingDto.status : undefined,
+        status: isAdmin
+          ? updateListingDto.status
+          : shouldResubmitForModeration
+            ? ListingStatus.PENDING
+            : undefined,
         attributes: toJsonValue(updateListingDto.attributes),
         categoryId,
         images:
