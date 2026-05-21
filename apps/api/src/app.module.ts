@@ -8,8 +8,11 @@ import { CategoriesModule } from './categories/categories.module';
 import { ListingsModule } from './listings/listings.module';
 import { MediaModule } from './media/media.module';
 import { MessagingModule } from './messaging/messaging.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ReportsModule } from './reports/reports.module';
+import { TransactionsModule } from './transactions/transactions.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -24,6 +27,9 @@ import { UsersModule } from './users/users.module';
     MediaModule,
     ListingsModule,
     MessagingModule,
+    NotificationsModule,
+    TransactionsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

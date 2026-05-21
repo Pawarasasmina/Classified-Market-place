@@ -58,7 +58,8 @@ export class DevPaymentProvider implements PaymentProvider {
     if (
       status !== 'succeeded' &&
       status !== 'failed' &&
-      status !== 'cancelled'
+      status !== 'cancelled' &&
+      status !== 'refunded'
     ) {
       throw new BadRequestException('Dev payment webhook status is invalid');
     }

@@ -34,7 +34,7 @@ export default function RootLayout({
       data-color-profile="dark"
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <Script
           id="color-profile-script"
           strategy="beforeInteractive"

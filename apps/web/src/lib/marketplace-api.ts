@@ -3,20 +3,27 @@ import "server-only";
 import {
   mapCategory,
   mapListing,
+  mapListingReport,
   mapSeller,
   mapSessionUser,
+  mapTransaction,
   type ApiBoost,
   type ApiBoostPlacement,
   type ApiCategory,
   type ApiListing,
+  type ApiListingReport,
   type ApiListingStatus,
+  type ApiReportStatus,
+  type ApiTransaction,
+  type ApiTransactionStatus,
+  type ApiTransactionType,
   type ApiUser,
 } from "@/lib/marketplace";
 
 export class MarketplaceApiError extends Error {
   constructor(
     message: string,
-    public readonly status: number
+    public readonly status: number,
   ) {
     super(message);
     this.name = "MarketplaceApiError";
@@ -36,20 +43,37 @@ type ListingQuery = {
   take?: number;
 };
 
+type TransactionQuery = {
+  status?: ApiTransactionStatus;
+  type?: ApiTransactionType;
+  userId?: string;
+  listingId?: string;
+  take?: number;
+};
+
+type ListingReportQuery = {
+  status?: ApiReportStatus;
+  listingId?: string;
+  reporterId?: string;
+  take?: number;
+};
+
 export const boostPlans = [
   {
     placement: "FEATURED",
     label: "Featured",
     durationDays: 7,
     priceLabel: "AED 25",
-    description: "Highlighted badge and boosted ordering across marketplace lists.",
+    description:
+      "Highlighted badge and boosted ordering across marketplace lists.",
   },
   {
     placement: "SEARCH_TOP",
     label: "Search top",
     durationDays: 7,
     priceLabel: "AED 25",
-    description: "Prioritized placement when buyers search across active listings.",
+    description:
+      "Prioritized placement when buyers search across active listings.",
   },
   {
     placement: "CATEGORY_TOP",
@@ -136,7 +160,7 @@ async function apiRequest<T>(
   }: RequestInit & {
     accessToken?: string;
     searchParams?: Record<string, string | number | undefined>;
-  } = {}
+  } = {},
 ) {
   const url = new URL(path, getApiBaseUrl());
 
@@ -164,12 +188,15 @@ async function apiRequest<T>(
   } catch {
     throw new MarketplaceApiError(
       `Marketplace API is unavailable at ${getApiBaseUrl()}.`,
-      503
+      503,
     );
   }
 
   if (!response.ok) {
-    throw new MarketplaceApiError(await parseErrorMessage(response), response.status);
+    throw new MarketplaceApiError(
+      await parseErrorMessage(response),
+      response.status,
+    );
   }
 
   if (response.status === 204) {
@@ -206,7 +233,7 @@ export async function createCategory(
     slug?: string;
     description?: string;
     parentSlug?: string;
-  }
+  },
 ) {
   const category = await apiRequest<ApiCategory>("/categories/admin", {
     method: "POST",
@@ -225,7 +252,7 @@ export async function updateCategory(
     description?: string;
     parentSlug?: string;
     isActive?: boolean;
-  }
+  },
 ) {
   const category = await apiRequest<ApiCategory>(`/categories/admin/${slug}`, {
     method: "PATCH",
@@ -264,7 +291,7 @@ export async function fetchListings(query: ListingQuery = {}) {
 
 export async function fetchAdminListings(
   accessToken: string,
-  query: ListingQuery = {}
+  query: ListingQuery = {},
 ) {
   const listings = await apiRequest<ApiListing[]>("/listings/admin/all", {
     accessToken,
@@ -308,9 +335,12 @@ export async function fetchMyListings(accessToken: string) {
 
 export async function fetchMyListing(accessToken: string, listingId: string) {
   try {
-    const listing = await apiRequest<ApiListing>(`/listings/me/items/${listingId}`, {
-      accessToken,
-    });
+    const listing = await apiRequest<ApiListing>(
+      `/listings/me/items/${listingId}`,
+      {
+        accessToken,
+      },
+    );
 
     return mapListing(listing);
   } catch (error) {
@@ -320,6 +350,138 @@ export async function fetchMyListing(accessToken: string, listingId: string) {
 
     throw error;
   }
+}
+
+export async function fetchMyTransactions(
+  accessToken: string,
+  query: TransactionQuery = {},
+) {
+  const transactions = await apiRequest<ApiTransaction[]>("/transactions/me", {
+    accessToken,
+    searchParams: {
+      status: query.status,
+      type: query.type,
+      listingId: query.listingId,
+      take: query.take,
+    },
+  });
+
+  return transactions.map(mapTransaction);
+}
+
+export async function fetchTransaction(
+  accessToken: string,
+  transactionId: string,
+) {
+  const transaction = await apiRequest<ApiTransaction>(
+    `/transactions/${transactionId}`,
+    {
+      accessToken,
+    },
+  );
+
+  return mapTransaction(transaction);
+}
+
+export async function fetchAdminTransactions(
+  accessToken: string,
+  query: TransactionQuery = {},
+) {
+  const transactions = await apiRequest<ApiTransaction[]>(
+    "/admin/transactions",
+    {
+      accessToken,
+      searchParams: {
+        status: query.status,
+        type: query.type,
+        userId: query.userId,
+        listingId: query.listingId,
+        take: query.take,
+      },
+    },
+  );
+
+  return transactions.map(mapTransaction);
+}
+
+export async function createListingReport(
+  accessToken: string,
+  listingId: string,
+  payload: {
+    reason: string;
+    details?: string;
+  },
+) {
+  const report = await apiRequest<ApiListingReport>(
+    `/listings/${listingId}/reports`,
+    {
+      method: "POST",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  return mapListingReport(report);
+}
+
+export async function fetchMyListingReports(
+  accessToken: string,
+  query: ListingReportQuery = {},
+) {
+  const reports = await apiRequest<ApiListingReport[]>("/reports/me", {
+    accessToken,
+    searchParams: {
+      status: query.status,
+      listingId: query.listingId,
+      take: query.take,
+    },
+  });
+
+  return reports.map(mapListingReport);
+}
+
+export async function fetchAdminListingReports(
+  accessToken: string,
+  query: ListingReportQuery = {},
+) {
+  const reports = await apiRequest<ApiListingReport[]>(
+    "/admin/listing-reports",
+    {
+      accessToken,
+      searchParams: {
+        status: query.status,
+        listingId: query.listingId,
+        reporterId: query.reporterId,
+        take: query.take,
+      },
+    },
+  );
+
+  return reports.map(mapListingReport);
+}
+
+export async function updateListingReport(
+  accessToken: string,
+  reportId: string,
+  payload: {
+    status?: ApiReportStatus;
+    details?: string;
+    adminNotes?: string;
+    listingStatus?: ApiListingStatus;
+  },
+) {
+  const report = await apiRequest<ApiListingReport>(
+    `/admin/listing-reports/${reportId}`,
+    {
+      method: "PATCH",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  return mapListingReport(report);
 }
 
 export async function fetchSellerProfile(userId: string) {
@@ -351,7 +513,7 @@ export async function updateCurrentUser(
     avatarUrl?: string;
     bio?: string;
     location?: string;
-  }
+  },
 ) {
   const user = await apiRequest<ApiUser>("/users/me", {
     method: "PATCH",
@@ -369,7 +531,7 @@ export async function loginUser(payload: { email: string; password: string }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    })
+    }),
   );
 }
 
@@ -384,7 +546,7 @@ export async function registerUser(payload: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    })
+    }),
   );
 }
 
@@ -399,7 +561,7 @@ export async function googleLoginUser(payload: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    })
+    }),
   );
 }
 
@@ -409,7 +571,7 @@ export async function refreshSession(refreshToken: string) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
-    })
+    }),
   );
 }
 
@@ -426,7 +588,7 @@ export async function verifyPhone(
   payload: {
     phone: string;
     otpCode: string;
-  }
+  },
 ) {
   const response = await apiRequest<{ message: string; user: ApiUser }>(
     "/auth/verify-phone",
@@ -435,7 +597,7 @@ export async function verifyPhone(
       accessToken,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    }
+    },
   );
 
   return {
@@ -448,7 +610,7 @@ export async function requestPhoneOtp(
   accessToken: string,
   payload: {
     phone: string;
-  }
+  },
 ) {
   return apiRequest<{
     message: string;
@@ -462,7 +624,10 @@ export async function requestPhoneOtp(
   });
 }
 
-export async function createListing(accessToken: string, payload: ListingPayload) {
+export async function createListing(
+  accessToken: string,
+  payload: ListingPayload,
+) {
   const listing = await apiRequest<ApiListing>("/listings", {
     method: "POST",
     accessToken,
@@ -476,7 +641,7 @@ export async function createListing(accessToken: string, payload: ListingPayload
 export async function updateListing(
   accessToken: string,
   listingId: string,
-  payload: Partial<ListingPayload>
+  payload: Partial<ListingPayload>,
 ) {
   const listing = await apiRequest<ApiListing>(`/listings/${listingId}`, {
     method: "PATCH",
@@ -500,7 +665,7 @@ export async function deleteListing(accessToken: string, listingId: string) {
 export async function boostListing(
   accessToken: string,
   listingId: string,
-  payload: CreateBoostPayload
+  payload: CreateBoostPayload,
 ) {
   return apiRequest<BoostResponse>(`/listings/${listingId}/boosts`, {
     method: "POST",
@@ -513,7 +678,7 @@ export async function boostListing(
 export async function completeBoostPayment(
   accessToken: string,
   boostId: string,
-  payload: { durationDays?: number; providerRef?: string } = {}
+  payload: { durationDays?: number; providerRef?: string } = {},
 ) {
   return apiRequest<BoostResponse>(`/boosts/${boostId}/payment/succeed`, {
     method: "POST",
@@ -526,7 +691,7 @@ export async function completeBoostPayment(
 export async function moderateListing(
   accessToken: string,
   listingId: string,
-  status: ApiListingStatus
+  status: ApiListingStatus,
 ) {
   const listing = await apiRequest<ApiListing>(
     `/listings/admin/${listingId}/moderate`,
@@ -535,7 +700,7 @@ export async function moderateListing(
       accessToken,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
-    }
+    },
   );
 
   return mapListing(listing);

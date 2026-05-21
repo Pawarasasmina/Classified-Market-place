@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { logoutAction } from "@/app/(main)/actions";
 import { ColorProfileToggle } from "@/components/marketplace/color-profile-toggle";
+import { NotificationBell } from "@/components/marketplace/notification-bell";
 import type { SessionUser } from "@/lib/marketplace";
 
 const customerNavLinks = [
@@ -14,6 +15,9 @@ const customerNavLinks = [
   { href: "/sell", label: "Sell" },
   { href: "/saved", label: "Saved" },
   { href: "/messages", label: "Messages" },
+  { href: "/notifications", label: "Notifications" },
+  { href: "/transactions", label: "Purchases" },
+  { href: "/reports", label: "Reports" },
   { href: "/my-listings", label: "My Listings" },
   { href: "/profile", label: "Profile" },
 ];
@@ -22,7 +26,10 @@ const adminNavLinks = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/categories", label: "Categories" },
   { href: "/admin#moderation", label: "Moderation" },
+  { href: "/admin/listing-reports", label: "Reports" },
+  { href: "/admin/transactions", label: "Ledger" },
   { href: "/messages", label: "Support Inbox" },
+  { href: "/notifications", label: "Notifications" },
   { href: "/profile", label: "Profile" },
 ];
 
@@ -57,9 +64,13 @@ function withCustomerPreview(href: string, enabled: boolean) {
 export function MarketplaceShell({
   children,
   user,
+  accessToken,
+  notificationsApiBaseUrl,
 }: {
   children: ReactNode;
   user: SessionUser | null;
+  accessToken: string | null;
+  notificationsApiBaseUrl: string;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -72,8 +83,7 @@ export function MarketplaceShell({
     pathname === "/login" &&
     (searchParams.get("next") ?? "").startsWith("/admin");
   const adminExperience = adminShell || adminLogin;
-  const shouldRedirectToAdmin =
-    adminShell && !adminWorkspaceRoute(pathname);
+  const shouldRedirectToAdmin = adminShell && !adminWorkspaceRoute(pathname);
   const navLinks = adminShell
     ? adminNavLinks
     : adminLogin
@@ -96,7 +106,9 @@ export function MarketplaceShell({
         <div className="mx-auto flex max-w-[92rem] flex-col gap-4 px-4 py-4 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-10">
           <Link
             href={
-              adminExperience ? "/admin" : withCustomerPreview("/", customerPreview)
+              adminExperience
+                ? "/admin"
+                : withCustomerPreview("/", customerPreview)
             }
             className="flex items-center gap-3"
           >
@@ -123,7 +135,9 @@ export function MarketplaceShell({
                 <Link
                   key={link.href}
                   href={
-                    adminShell ? link.href : withCustomerPreview(link.href, customerPreview)
+                    adminShell
+                      ? link.href
+                      : withCustomerPreview(link.href, customerPreview)
                   }
                   className={`px-3 py-2 font-semibold ${
                     isActive(pathname, link.href)
@@ -140,6 +154,12 @@ export function MarketplaceShell({
             {!adminExperience ? <ColorProfileToggle /> : null}
             {user ? (
               <>
+                {accessToken ? (
+                  <NotificationBell
+                    accessToken={accessToken}
+                    apiBaseUrl={notificationsApiBaseUrl}
+                  />
+                ) : null}
                 <span className="marketplace-header-badge rounded-md px-3 py-2 font-semibold">
                   {user.displayName}
                 </span>
@@ -153,7 +173,10 @@ export function MarketplaceShell({
                     View customer view
                   </Link>
                 ) : customerPreview ? (
-                  <Link href="/admin" className="marketplace-header-button px-3 py-2 font-semibold">
+                  <Link
+                    href="/admin"
+                    className="marketplace-header-button px-3 py-2 font-semibold"
+                  >
                     Back to admin
                   </Link>
                 ) : null}
@@ -188,7 +211,9 @@ export function MarketplaceShell({
                 <Link
                   key={link.href}
                   href={
-                    adminShell ? link.href : withCustomerPreview(link.href, customerPreview)
+                    adminShell
+                      ? link.href
+                      : withCustomerPreview(link.href, customerPreview)
                   }
                   className={`whitespace-nowrap rounded-md px-3 py-2 font-semibold ${
                     isActive(pathname, link.href)
@@ -225,10 +250,18 @@ export function MarketplaceShell({
               </p>
             </div>
             <div className="marketplace-footer-muted flex flex-wrap gap-3">
-              <Link href={withCustomerPreview("/search", customerPreview)}>Browse</Link>
-              <Link href={withCustomerPreview("/sell", customerPreview)}>Sell</Link>
-              <Link href={withCustomerPreview("/messages", customerPreview)}>Messages</Link>
-              <Link href={withCustomerPreview("/profile", customerPreview)}>Account</Link>
+              <Link href={withCustomerPreview("/search", customerPreview)}>
+                Browse
+              </Link>
+              <Link href={withCustomerPreview("/sell", customerPreview)}>
+                Sell
+              </Link>
+              <Link href={withCustomerPreview("/messages", customerPreview)}>
+                Messages
+              </Link>
+              <Link href={withCustomerPreview("/profile", customerPreview)}>
+                Account
+              </Link>
             </div>
           </div>
         </footer>

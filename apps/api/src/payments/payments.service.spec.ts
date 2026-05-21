@@ -23,7 +23,6 @@ describe('PaymentsService', () => {
     transaction: {
       findFirst: jest.Mock;
       update: jest.Mock;
-      updateMany: jest.Mock;
     };
     $transaction: jest.Mock;
   };
@@ -31,6 +30,10 @@ describe('PaymentsService', () => {
     name: string;
     createPaymentIntent: jest.Mock;
     parseWebhook: jest.Mock;
+  };
+  let notifications: {
+    notifyBoostActivated: jest.Mock;
+    notifyTransactionStatusChanged: jest.Mock;
   };
   let service: PaymentsService;
 
@@ -78,11 +81,10 @@ describe('PaymentsService', () => {
       },
       transaction: {
         findFirst: jest.fn().mockResolvedValue(transaction),
-        update: jest.fn().mockResolvedValue({
+        update: jest.fn().mockImplementation(({ data }) => ({
           ...transaction,
-          status: TransactionStatus.SUCCEEDED,
-        }),
-        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          ...data,
+        })),
       },
       $transaction: jest.fn((callback) => callback(prisma)),
     };
@@ -100,7 +102,15 @@ describe('PaymentsService', () => {
         status: 'succeeded',
       }),
     };
-    service = new PaymentsService(prisma as never, provider as never);
+    notifications = {
+      notifyBoostActivated: jest.fn(),
+      notifyTransactionStatusChanged: jest.fn(),
+    };
+    service = new PaymentsService(
+      prisma as never,
+      provider as never,
+      notifications as never,
+    );
   });
 
   it('creates boost payment intents through the configured provider', async () => {
@@ -145,6 +155,28 @@ describe('PaymentsService', () => {
         data: expect.objectContaining({
           status: BoostStatus.ACTIVE,
         }),
+      }),
+    );
+    expect(notifications.notifyBoostActivated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'seller-1',
+        listingId: 'listing-1',
+        listingTitle: 'Clean phone',
+        transactionId: 'transaction-1',
+        startsAt: expect.any(Date),
+        endsAt: expect.any(Date),
+      }),
+    );
+    expect(notifications.notifyTransactionStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'seller-1',
+        transactionId: 'transaction-1',
+        listingId: 'listing-1',
+        status: TransactionStatus.SUCCEEDED,
+        amount: transaction.amount,
+        currency: 'AED',
+        provider: 'dev',
+        providerRef: 'dev-payment-1',
       }),
     );
   });
@@ -200,7 +232,52 @@ describe('PaymentsService', () => {
     );
   });
 
+  it('treats repeated successful provider webhooks as idempotent', async () => {
+    prisma.transaction.findFirst.mockResolvedValue({
+      ...transaction,
+      status: TransactionStatus.SUCCEEDED,
+      metadata: {
+        paidAt: '2026-05-19T00:00:00.000Z',
+      },
+    });
+    prisma.boost.findFirst
+      .mockResolvedValueOnce({
+        ...boost,
+        status: BoostStatus.ACTIVE,
+      })
+      .mockResolvedValueOnce({
+        ...boost,
+        status: BoostStatus.ACTIVE,
+      });
+
+    await expect(
+      service.handleWebhook(
+        'dev',
+        { providerRef: 'dev-payment-1', status: 'succeeded' },
+        {},
+      ),
+    ).resolves.toMatchObject({
+      received: true,
+      status: 'succeeded',
+      boost: expect.objectContaining({
+        id: 'boost-1',
+        status: BoostStatus.ACTIVE,
+      }),
+    });
+
+    expect(prisma.transaction.update).not.toHaveBeenCalled();
+    expect(prisma.boost.update).not.toHaveBeenCalled();
+    expect(notifications.notifyBoostActivated).not.toHaveBeenCalled();
+    expect(notifications.notifyTransactionStatusChanged).not.toHaveBeenCalled();
+  });
+
   it('marks failed webhooks as terminal transaction failures', async () => {
+    prisma.transaction.findFirst.mockResolvedValue({
+      ...transaction,
+      metadata: {
+        checkoutUrl: 'https://payments.example/checkout',
+      },
+    });
     provider.parseWebhook.mockResolvedValue({
       provider: 'dev',
       providerRef: 'dev-payment-1',
@@ -213,16 +290,67 @@ describe('PaymentsService', () => {
       {},
     );
 
-    expect(prisma.transaction.updateMany).toHaveBeenCalledWith(
+    expect(prisma.transaction.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
-          provider: 'dev',
-          providerRef: 'dev-payment-1',
-          status: TransactionStatus.PENDING,
-        }),
+        where: { id: 'transaction-1' },
         data: expect.objectContaining({
           status: TransactionStatus.FAILED,
+          metadata: expect.objectContaining({
+            checkoutUrl: 'https://payments.example/checkout',
+            terminalPaymentStatus: 'failed',
+            terminalAt: expect.any(String),
+          }),
         }),
+      }),
+    );
+    expect(notifications.notifyTransactionStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'seller-1',
+        transactionId: 'transaction-1',
+        listingId: 'listing-1',
+        status: TransactionStatus.FAILED,
+      }),
+    );
+  });
+
+  it('marks refunded webhooks as refunded and keeps metadata', async () => {
+    prisma.transaction.findFirst.mockResolvedValue({
+      ...transaction,
+      status: TransactionStatus.SUCCEEDED,
+      metadata: {
+        paidAt: '2026-05-19T00:00:00.000Z',
+      },
+    });
+    provider.parseWebhook.mockResolvedValue({
+      provider: 'dev',
+      providerRef: 'dev-payment-1',
+      status: 'refunded',
+    });
+
+    await service.handleWebhook(
+      'dev',
+      { providerRef: 'dev-payment-1', status: 'refunded' },
+      {},
+    );
+
+    expect(prisma.transaction.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'transaction-1' },
+        data: expect.objectContaining({
+          status: TransactionStatus.REFUNDED,
+          metadata: expect.objectContaining({
+            paidAt: '2026-05-19T00:00:00.000Z',
+            terminalPaymentStatus: 'refunded',
+          }),
+        }),
+      }),
+    );
+    expect(notifications.notifyTransactionStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'seller-1',
+        transactionId: 'transaction-1',
+        listingId: 'listing-1',
+        status: TransactionStatus.REFUNDED,
       }),
     );
   });

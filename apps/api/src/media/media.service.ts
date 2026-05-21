@@ -22,9 +22,14 @@ export type UploadedImageFile = {
   buffer?: Buffer;
 };
 
+export type MediaUploadActor = {
+  id: string;
+  role?: string;
+};
+
 export type ListingImageAsset = Pick<
   MediaAsset,
-  'id' | 'url' | 'uploadedById' | 'type' | 'mimeType' | 'byteSize'
+  'id' | 'url' | 'uploadedById' | 'listingId' | 'type' | 'mimeType' | 'byteSize'
 >;
 
 const dataUrlPattern =
@@ -110,19 +115,29 @@ export class MediaService {
   ) {}
 
   async uploadListingImage(
-    userId: string,
+    actor: string | MediaUploadActor,
     file: UploadedImageFile | undefined,
+    listingId?: string,
   ) {
     if (!file?.buffer || !file.mimetype) {
       throw new BadRequestException('Choose an image file to upload');
     }
 
     const mimeType = validateImageBuffer(file.buffer, file.mimetype);
+    const userId = typeof actor === 'string' ? actor : actor.id;
+
+    if (listingId) {
+      await this.assertCanAttachToListing(
+        typeof actor === 'string' ? { id: actor } : actor,
+        listingId,
+      );
+    }
 
     return this.createListingImageAsset(userId, {
       buffer: file.buffer,
       mimeType,
       originalName: file.originalname,
+      listingId,
     });
   }
 
@@ -146,6 +161,7 @@ export class MediaService {
         id: true,
         url: true,
         uploadedById: true,
+        listingId: true,
         type: true,
         mimeType: true,
         byteSize: true,
@@ -186,6 +202,7 @@ export class MediaService {
       buffer: Buffer;
       mimeType: ListingImageMimeType;
       originalName?: string;
+      listingId?: string;
     },
   ) {
     const stored = await this.imageStorage.storeListingImage(input);
@@ -197,6 +214,7 @@ export class MediaService {
     return this.prisma.mediaAsset.create({
       data: {
         uploadedById: userId,
+        listingId: input.listingId,
         type: 'IMAGE',
         url: stored.url,
         storageKey: stored.storageKey,
@@ -208,10 +226,31 @@ export class MediaService {
         id: true,
         url: true,
         uploadedById: true,
+        listingId: true,
         type: true,
         mimeType: true,
         byteSize: true,
       },
     });
+  }
+
+  private async assertCanAttachToListing(
+    actor: MediaUploadActor,
+    listingId: string,
+  ) {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { sellerId: true },
+    });
+
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    if (actor.role?.toUpperCase() === 'ADMIN' || listing.sellerId === actor.id) {
+      return;
+    }
+
+    throw new ForbiddenException('You can only attach images to your listings');
   }
 }

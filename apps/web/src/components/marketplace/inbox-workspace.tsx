@@ -230,6 +230,7 @@ export function InboxWorkspace({
   const [offerCurrency, setOfferCurrency] = useState("AED");
   const [imageUrl, setImageUrl] = useState("");
   const [error, setError] = useState("");
+  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [staffReports, setStaffReports] = useState<ChatAdminReports | null>(null);
@@ -547,6 +548,7 @@ export function InboxWorkspace({
 
     async function load() {
       setError("");
+      setIsLoadingConversations(true);
 
       try {
         const [active, archived] = await Promise.all([
@@ -614,6 +616,10 @@ export function InboxWorkspace({
       } catch (loadError) {
         if (!cancelled) {
           setError(normalizeApiError(loadError, "Could not load conversations."));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingConversations(false);
         }
       }
     }
@@ -1350,7 +1356,11 @@ export function InboxWorkspace({
               </div>
             </button>
           ))}
-          {!visibleConversations.length ? (
+          {isLoadingConversations ? (
+            <div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--surface-strong)] px-4 py-6 text-sm text-[var(--muted)]">
+              Loading conversations...
+            </div>
+          ) : !visibleConversations.length ? (
             <div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--surface-strong)] px-4 py-6 text-sm text-[var(--muted)]">
               {inboxView === "active"
                 ? "No active conversations yet."
@@ -1608,7 +1618,11 @@ export function InboxWorkspace({
               {typingUser} is typing...
             </div>
           ) : null}
-          {!messages.length ? (
+          {isLoadingConversations ? (
+            <div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--surface)] px-4 py-8 text-sm text-[var(--muted)]">
+              Loading messages...
+            </div>
+          ) : !messages.length ? (
             <div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--surface)] px-4 py-8 text-sm text-[var(--muted)]">
               Open a listing and start a conversation.
             </div>

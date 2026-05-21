@@ -3,7 +3,12 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { ListingStatus, MessageType, OfferStatus } from '@prisma/client';
+import {
+  ListingStatus,
+  MessageType,
+  NotificationType,
+  OfferStatus,
+} from '@prisma/client';
 import { MessagingService } from './messaging.service';
 
 describe('MessagingService', () => {
@@ -72,15 +77,26 @@ describe('MessagingService', () => {
     const pushNotifications = {
       notifyInactiveRecipient: jest.fn(),
     };
+    const notifications = {
+      notifyMessage: jest.fn(),
+    };
 
     const service = new MessagingService(
       prisma as never,
       encryption as never,
       presence as never,
       pushNotifications as never,
+      notifications as never,
     );
 
-    return { service, prisma, encryption, presence, pushNotifications };
+    return {
+      service,
+      prisma,
+      encryption,
+      presence,
+      pushNotifications,
+      notifications,
+    };
   }
 
   function buildConversation(overrides: Record<string, unknown> = {}) {
@@ -280,8 +296,82 @@ describe('MessagingService', () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
+  it('persists a notification for message recipients when sending a message', async () => {
+    const { service, prisma, notifications } = createService();
+    const conversation = buildConversation();
+    const message = {
+      id: 'message-1',
+      conversationId: 'conversation-1',
+      senderId: 'buyer-1',
+      sender: {
+        id: 'buyer-1',
+        displayName: 'Buyer',
+        role: 'USER',
+        avatarUrl: null,
+      },
+      type: MessageType.TEXT,
+      offerAmount: null,
+      offerCurrency: null,
+      offerStatus: null,
+      encryptedBody: 'encrypted',
+      encryptedPayload: null,
+      encryptionIv: 'iv',
+      encryptionAuthTag: 'tag',
+      legacyBody: null,
+      listingId: 'listing-1',
+      listing: conversation.listing,
+      readReceipts: [],
+      createdAt: new Date('2026-05-15T00:00:00.000Z'),
+      updatedAt: new Date('2026-05-15T00:00:00.000Z'),
+    };
+
+    prisma.conversationParticipant.findUnique.mockResolvedValue({
+      conversationId: 'conversation-1',
+      userId: 'buyer-1',
+    });
+    prisma.conversation.findUnique.mockResolvedValue(conversation);
+    prisma.userBlock.findMany.mockResolvedValue([]);
+    prisma.message.create.mockResolvedValue(message);
+    prisma.conversation.update.mockResolvedValue({});
+    prisma.conversationParticipant.updateMany.mockResolvedValue({});
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'buyer-1',
+      displayName: 'Buyer',
+    });
+    prisma.conversationParticipant.findMany.mockResolvedValue([
+      {
+        conversationId: 'conversation-1',
+        userId: 'seller-1',
+        mutedAt: null,
+      },
+    ]);
+
+    await service.sendMessage('buyer-1', 'conversation-1', {
+      type: MessageType.TEXT,
+      body: 'Still available?',
+    });
+
+    expect(notifications.notifyMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientIds: ['seller-1'],
+        actorId: 'buyer-1',
+        conversationId: 'conversation-1',
+        messageId: 'message-1',
+        listingId: 'listing-1',
+        messageType: MessageType.TEXT,
+        notificationType: NotificationType.MESSAGE,
+        senderName: 'Buyer',
+        preview: 'Decrypted body',
+        metadata: {
+          listingTitle: 'Toyota Camry',
+        },
+      }),
+    );
+  });
+
   it('allows only the seller to accept a pending offer and emits a system update', async () => {
-    const { service, prisma, pushNotifications } = createService();
+    const { service, prisma, encryption, pushNotifications, notifications } =
+      createService();
     const conversation = buildConversation();
     const offerMessage = {
       id: 'message-1',
@@ -328,7 +418,11 @@ describe('MessagingService', () => {
       offerCurrency: null,
       offerStatus: null,
       encryptedBody: 'encrypted',
-      encryptedPayload: null,
+      encryptedPayload: JSON.stringify({
+        kind: 'offer_status',
+        offerMessageId: 'message-1',
+        status: OfferStatus.ACCEPTED,
+      }),
       encryptionIv: 'iv',
       encryptionAuthTag: 'tag',
       legacyBody: null,
@@ -340,6 +434,13 @@ describe('MessagingService', () => {
     };
 
     prisma.message.findUnique.mockResolvedValue(offerMessage);
+    encryption.decrypt.mockImplementation(({ encryptedPayload }) => ({
+      body: 'Decrypted body',
+      payload:
+        typeof encryptedPayload === 'string' && encryptedPayload
+          ? JSON.parse(encryptedPayload)
+          : null,
+    }));
     prisma.conversationParticipant.findUnique.mockResolvedValue({
       conversationId: 'conversation-1',
       userId: 'seller-1',
@@ -373,6 +474,16 @@ describe('MessagingService', () => {
     expect(result.offerMessage.offerStatus).toBe('ACCEPTED');
     expect(result.systemMessage.type).toBe('SYSTEM');
     expect(pushNotifications.notifyInactiveRecipient).toHaveBeenCalled();
+    expect(notifications.notifyMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientIds: ['buyer-1'],
+        actorId: 'seller-1',
+        conversationId: 'conversation-1',
+        messageId: 'message-2',
+        notificationType: NotificationType.OFFER,
+        senderName: 'Seller',
+      }),
+    );
   });
 
   it('updates archive and mute preferences for a participant', async () => {
@@ -524,7 +635,11 @@ describe('MessagingService', () => {
     prisma.conversation.update.mockResolvedValue({});
     prisma.conversationParticipant.updateMany.mockResolvedValue({});
 
-    const result = await service.deleteMessage('buyer-1', 'message-1', 'everyone');
+    const result = await service.deleteMessage(
+      'buyer-1',
+      'message-1',
+      'everyone',
+    );
 
     expect(prisma.message.update).toHaveBeenCalledWith({
       where: { id: 'message-1' },

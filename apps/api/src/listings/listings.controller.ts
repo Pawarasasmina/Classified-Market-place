@@ -16,6 +16,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { UploadListingImageDto } from '../media/dto/upload-listing-image.dto';
 import { MAX_LISTING_IMAGE_BYTES } from '../media/media.constants';
 import { MediaService } from '../media/media.service';
 import type { UploadedImageFile } from '../media/media.service';
@@ -81,10 +82,11 @@ export class ListingsController {
     }),
   )
   uploadImage(
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: { id: string; role?: string },
+    @Body() dto: UploadListingImageDto,
     @UploadedFile() file?: UploadedImageFile,
   ) {
-    return this.mediaService.uploadListingImage(user.id, file);
+    return this.mediaService.uploadListingImage(user, file, dto.listingId);
   }
 
   @Patch(':id')
@@ -109,7 +111,11 @@ export class ListingsController {
   @Patch('admin/:id/moderate')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'admin')
-  moderate(@Param('id') id: string, @Body() dto: ModerateListingDto) {
-    return this.listingsService.moderate(id, dto);
+  moderate(
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+    @Body() dto: ModerateListingDto,
+  ) {
+    return this.listingsService.moderate(user, id, dto);
   }
 }

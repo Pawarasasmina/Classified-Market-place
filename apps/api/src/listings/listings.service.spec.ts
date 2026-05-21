@@ -30,6 +30,9 @@ describe('ListingsService normal-user posting', () => {
     getOwnedListingImageAsset: jest.Mock;
     attachImagesToListing: jest.Mock;
   };
+  let notifications: {
+    notifyListingStatusChanged: jest.Mock;
+  };
 
   const category = {
     id: 'category-1',
@@ -86,8 +89,15 @@ describe('ListingsService normal-user posting', () => {
       getOwnedListingImageAsset: jest.fn(),
       attachImagesToListing: jest.fn(),
     };
+    notifications = {
+      notifyListingStatusChanged: jest.fn(),
+    };
 
-    service = new ListingsService(prisma as never, mediaService as never);
+    service = new ListingsService(
+      prisma as never,
+      mediaService as never,
+      notifications as never,
+    );
   });
 
   it('lets regular users create listings without a seller role and forces moderation', async () => {
@@ -182,6 +192,104 @@ describe('ListingsService normal-user posting', () => {
       'listing-1',
       ['asset-1', 'asset-2'],
     );
+  });
+
+  it('connects owned media assets to listing images', async () => {
+    mediaService.getOwnedListingImageAsset.mockResolvedValue({
+      id: 'asset-owned',
+      url: 'http://127.0.0.1:3001/uploads/listing-images/owned.jpg',
+      uploadedById: 'user-1',
+      listingId: null,
+      type: 'IMAGE',
+      mimeType: 'image/jpeg',
+      byteSize: 100,
+    });
+
+    await service.create(
+      { id: 'user-1', role: 'USER' },
+      {
+        categorySlug: 'electronics',
+        title: 'Clean phone',
+        description: 'Barely used phone with box',
+        price: 350,
+        location: 'Dubai Marina',
+        images: [{ assetId: 'asset-owned', altText: 'Front' }],
+      },
+    );
+
+    const createCall = prisma.listing.create.mock.calls[0][0];
+
+    expect(mediaService.getOwnedListingImageAsset).toHaveBeenCalledWith(
+      'user-1',
+      'asset-owned',
+    );
+    expect(createCall.data.images.create).toMatchObject([
+      {
+        url: 'http://127.0.0.1:3001/uploads/listing-images/owned.jpg',
+        altText: 'Front',
+        sortOrder: 0,
+        isPrimary: true,
+        mediaAsset: { connect: { id: 'asset-owned' } },
+      },
+    ]);
+    expect(mediaService.attachImagesToListing).toHaveBeenCalledWith(
+      'listing-1',
+      ['asset-owned'],
+    );
+  });
+
+  it('rejects attaching media assets not uploaded by the current user', async () => {
+    mediaService.getOwnedListingImageAsset.mockRejectedValue(
+      new ForbiddenException('You can only use images you uploaded'),
+    );
+
+    await expect(
+      service.create(
+        { id: 'user-1', role: 'USER' },
+        {
+          categorySlug: 'electronics',
+          title: 'Clean phone',
+          description: 'Barely used phone with box',
+          price: 350,
+          location: 'Dubai Marina',
+          images: [{ assetId: 'asset-other-user' }],
+        },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.listing.create).not.toHaveBeenCalled();
+  });
+
+  it('keeps exactly one primary image when multiple inputs are marked primary', async () => {
+    await service.create(
+      { id: 'user-1', role: 'USER' },
+      {
+        categorySlug: 'electronics',
+        title: 'Clean phone',
+        description: 'Barely used phone with box',
+        price: 350,
+        location: 'Dubai Marina',
+        images: [
+          {
+            url: 'data:image/jpeg;base64,first',
+            isPrimary: true,
+          },
+          {
+            url: 'data:image/jpeg;base64,second',
+            isPrimary: true,
+          },
+        ],
+      },
+    );
+
+    const createCall = prisma.listing.create.mock.calls[0][0];
+    const imageCreates = createCall.data.images.create;
+
+    expect(imageCreates).toMatchObject([
+      { isPrimary: true, sortOrder: 0 },
+      { isPrimary: false, sortOrder: 1 },
+    ]);
+    expect(imageCreates.filter((image) => image.isPrimary)).toHaveLength(1);
   });
 
   it('rejects listings with too many images', async () => {
@@ -393,5 +501,55 @@ describe('ListingsService normal-user posting', () => {
         mediaAsset: { connect: { id: 'asset-existing' } },
       },
     ]);
+  });
+
+  it('preserves existing listing images when update omits images', async () => {
+    prisma.listing.findUnique.mockResolvedValue({
+      ...listing,
+      status: ListingStatus.ACTIVE,
+      images: [
+        {
+          url: 'http://127.0.0.1:3001/uploads/listing-images/existing.jpg',
+          mediaAssetId: 'asset-existing',
+        },
+      ],
+    });
+
+    await service.update({ id: 'user-1', role: 'USER' }, 'listing-1', {
+      title: 'Updated title',
+    });
+
+    const updateCall = prisma.listing.update.mock.calls[0][0];
+
+    expect(updateCall.data.images).toBeUndefined();
+    expect(mediaService.attachImagesToListing).not.toHaveBeenCalled();
+  });
+
+  it('notifies the seller when admin moderation changes listing status', async () => {
+    prisma.listing.findUnique.mockResolvedValue({
+      ...listing,
+      title: 'Clean phone',
+      status: ListingStatus.PENDING,
+      sellerId: 'seller-1',
+    });
+    prisma.listing.update.mockResolvedValue({
+      ...listing,
+      id: 'listing-1',
+      title: 'Clean phone',
+      status: ListingStatus.ACTIVE,
+      sellerId: 'seller-1',
+    });
+
+    await service.moderate({ id: 'admin-1' }, 'listing-1', {
+      status: ListingStatus.ACTIVE,
+    });
+
+    expect(notifications.notifyListingStatusChanged).toHaveBeenCalledWith({
+      userId: 'seller-1',
+      actorId: 'admin-1',
+      listingId: 'listing-1',
+      listingTitle: 'Clean phone',
+      status: ListingStatus.ACTIVE,
+    });
   });
 });

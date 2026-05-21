@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { MAX_LISTING_IMAGES } from '../media/media.constants';
 import { MediaService } from '../media/media.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { ListingImageInputDto } from './dto/listing-image-input.dto';
@@ -149,9 +151,12 @@ function withoutListHeavyAttributes<
 
 @Injectable()
 export class ListingsService implements OnModuleInit {
+  private readonly logger = new Logger(ListingsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly mediaService?: MediaService,
+    private readonly notifications?: NotificationsService,
   ) {}
 
   async onModuleInit() {
@@ -544,7 +549,7 @@ export class ListingsService implements OnModuleInit {
     });
   }
 
-  async moderate(id: string, dto: ModerateListingDto) {
+  async moderate(user: { id: string }, id: string, dto: ModerateListingDto) {
     const listing = await this.prisma.listing.findUnique({
       where: { id },
     });
@@ -553,13 +558,31 @@ export class ListingsService implements OnModuleInit {
       throw new NotFoundException('Listing not found');
     }
 
-    return this.prisma.listing.update({
+    const updatedListing = await this.prisma.listing.update({
       where: { id },
       data: {
         status: dto.status,
       },
       include: listingInclude,
     });
+
+    if (listing.status !== updatedListing.status) {
+      try {
+        await this.notifications?.notifyListingStatusChanged({
+          userId: updatedListing.sellerId,
+          actorId: user.id,
+          listingId: updatedListing.id,
+          listingTitle: updatedListing.title,
+          status: updatedListing.status,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Could not persist listing moderation notification for ${id}`,
+        );
+      }
+    }
+
+    return updatedListing;
   }
 
   private async prepareListingImages(
@@ -664,6 +687,10 @@ export class ListingsService implements OnModuleInit {
     listingId: string,
     images: PreparedListingImage[] | undefined,
   ) {
+    if (images === undefined) {
+      return;
+    }
+
     const assetIds =
       images?.flatMap((image) =>
         image.mediaAssetId ? [image.mediaAssetId] : [],

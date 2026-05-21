@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { createListingReportAction } from "@/app/(main)/actions";
 import { ListingCard } from "@/components/marketplace/listing-card";
+import { getSessionContext } from "@/lib/auth-dal";
 import { getListingMedia } from "@/lib/listing-media";
 import {
   fetchListing,
@@ -11,6 +13,8 @@ import {
 type ListingDetailPageProps = {
   params: Promise<{ listingId: string }>;
   searchParams: Promise<{
+    message?: string;
+    report?: string;
     view?: string;
   }>;
 };
@@ -30,7 +34,10 @@ export default async function ListingDetailPage(props: ListingDetailPageProps) {
     props.searchParams,
   ]);
   const customerPreview = searchParams.view === "customer";
-  const listing = await fetchListing(listingId);
+  const [listing, session] = await Promise.all([
+    fetchListing(listingId),
+    getSessionContext(),
+  ]);
 
   if (!listing) {
     notFound();
@@ -50,6 +57,14 @@ export default async function ListingDetailPage(props: ListingDetailPageProps) {
   const gallery = listing.imageUrls.length
     ? listing.imageUrls
     : [media.src];
+  const reportState = searchParams.report;
+  const reportMessage =
+    reportState === "submitted"
+      ? "Report submitted for admin review."
+      : reportState === "error"
+        ? (searchParams.message ?? "Could not submit this report.")
+        : null;
+  const isOwner = session?.user.id === listing.sellerId;
 
   return (
     <div className="page grid gap-8">
@@ -199,6 +214,66 @@ export default async function ListingDetailPage(props: ListingDetailPageProps) {
               <p>Review the photos, seller verification, and listing details before meeting.</p>
               <p>Use in-app messages to keep the conversation attached to this listing.</p>
             </div>
+          </div>
+
+          <div className="panel p-5">
+            <p className="text-sm font-black uppercase tracking-wide text-[var(--brand-strong)]">
+              Listing safety
+            </p>
+            <h2 className="mt-2 text-lg font-black">Report this listing</h2>
+            {reportMessage ? (
+              <p
+                className={`mt-3 rounded-md border px-3 py-2 text-sm ${
+                  reportState === "submitted"
+                    ? "border-green-200 bg-green-50 text-green-800"
+                    : "border-red-200 bg-red-50 text-red-700"
+                }`}
+              >
+                {reportMessage}
+              </p>
+            ) : null}
+            {!session ? (
+              <div className="mt-4 grid gap-3 text-sm text-[var(--muted)]">
+                <p>Sign in to report suspicious, unsafe, or misleading listings.</p>
+                <Link
+                  href={`/login?next=${encodeURIComponent(`/listings/${listing.id}`)}`}
+                  className="action-secondary px-4 py-3 text-center text-sm font-bold"
+                >
+                  Sign in to report
+                </Link>
+              </div>
+            ) : isOwner ? (
+              <p className="mt-4 text-sm text-[var(--muted)]">
+                You cannot report your own listing. Use My Listings to edit or
+                remove it.
+              </p>
+            ) : (
+              <form action={createListingReportAction} className="mt-4 grid gap-3">
+                <input type="hidden" name="listingId" value={listing.id} />
+                <label className="grid gap-2 text-sm font-bold">
+                  Reason
+                  <select name="reason" className="surface-input">
+                    <option value="Misleading listing">Misleading listing</option>
+                    <option value="Suspicious seller">Suspicious seller</option>
+                    <option value="Prohibited item">Prohibited item</option>
+                    <option value="Duplicate listing">Duplicate listing</option>
+                    <option value="Other safety concern">Other safety concern</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-bold">
+                  Details
+                  <textarea
+                    name="details"
+                    rows={4}
+                    className="surface-input"
+                    placeholder="Add context for the moderation team"
+                  />
+                </label>
+                <button className="action-secondary px-4 py-3 text-sm font-black">
+                  Submit report
+                </button>
+              </form>
+            )}
           </div>
         </aside>
       </section>

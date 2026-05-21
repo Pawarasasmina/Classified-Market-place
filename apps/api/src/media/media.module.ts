@@ -1,16 +1,15 @@
 import { Module } from '@nestjs/common';
-import { IMAGE_STORAGE_ADAPTER } from './image-storage.adapter';
+import { imageStorageAdapterProvider } from './image-storage.provider';
 import { LocalImageStorageAdapter } from './local-image-storage.adapter';
+import { MediaController } from './media.controller';
 import { MediaService } from './media.service';
 
 @Module({
+  controllers: [MediaController],
   providers: [
     MediaService,
     LocalImageStorageAdapter,
-    {
-      provide: IMAGE_STORAGE_ADAPTER,
-      useExisting: LocalImageStorageAdapter,
-    },
+    imageStorageAdapterProvider,
   ],
   exports: [MediaService],
 })

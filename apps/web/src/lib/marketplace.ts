@@ -63,7 +63,15 @@ export type ApiListingStatus =
   | "DELETED"
   | "EXPIRED"
   | "SOLD"
+  | "REMOVED"
   | "DRAFT";
+
+export type ApiReportStatus =
+  | "OPEN"
+  | "REVIEWED"
+  | "RESOLVED"
+  | "DISMISSED"
+  | "ACTIONED";
 
 export type ApiBoostPlacement = "FEATURED" | "SEARCH_TOP" | "CATEGORY_TOP";
 
@@ -75,6 +83,8 @@ export type ApiTransactionStatus =
   | "FAILED"
   | "CANCELLED"
   | "REFUNDED";
+
+export type ApiTransactionType = "BOOST_PURCHASE" | "LISTING_FEE" | "REFUND";
 
 export type ApiBoost = {
   id: string;
@@ -90,6 +100,45 @@ export type ApiBoost = {
     provider?: string | null;
     providerRef?: string | null;
   } | null;
+};
+
+export type ApiTransaction = {
+  id: string;
+  userId: string;
+  listingId: string | null;
+  type: ApiTransactionType;
+  status: ApiTransactionStatus;
+  amount: number | string;
+  currency: string;
+  provider: string | null;
+  providerRef: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  user?: Pick<ApiUser, "id" | "displayName" | "email" | "role">;
+  listing?: Pick<ApiListing, "id" | "title" | "status" | "sellerId"> | null;
+  boosts?: Array<{
+    id: string;
+    placement: ApiBoostPlacement;
+    status: ApiBoostStatus;
+    startsAt: string;
+    endsAt: string;
+    listingId: string;
+  }>;
+};
+
+export type ApiListingReport = {
+  id: string;
+  listingId: string;
+  reporterId: string;
+  reason: string;
+  details: string | null;
+  adminNotes?: string | null;
+  status: ApiReportStatus;
+  createdAt: string;
+  updatedAt: string;
+  listing?: Pick<ApiListing, "id" | "title" | "status" | "sellerId"> | null;
+  reporter?: Pick<ApiUser, "id" | "displayName" | "email" | "role"> | null;
 };
 
 export type ApiListingImage = {
@@ -158,7 +207,14 @@ export type MarketplaceListing = {
   priceValue: number;
   location: string;
   condition: string;
-  status: "Pending" | "Active" | "Rejected" | "Deleted" | "Expired" | "Sold" | "Draft";
+  status:
+    | "Pending"
+    | "Active"
+    | "Rejected"
+    | "Deleted"
+    | "Expired"
+    | "Sold"
+    | "Draft";
   postedLabel: string;
   description: string;
   featureBullets: string[];
@@ -178,6 +234,45 @@ export type MarketplaceListing = {
   boostPlacements: ApiBoostPlacement[];
   boostLabel?: string;
   boostEndsLabel?: string;
+};
+
+export type MarketplaceTransaction = {
+  id: string;
+  userId: string;
+  listingId: string | null;
+  type: ApiTransactionType;
+  typeLabel: string;
+  status: ApiTransactionStatus;
+  statusLabel: string;
+  amountValue: number;
+  amountLabel: string;
+  provider: string | null;
+  providerRef: string | null;
+  createdAt: string;
+  createdLabel: string;
+  listingTitle: string | null;
+  listingStatus: string | null;
+  userDisplayName: string | null;
+  userEmail: string | null;
+  boosts: ApiTransaction["boosts"];
+};
+
+export type MarketplaceListingReport = {
+  id: string;
+  listingId: string;
+  reporterId: string;
+  reason: string;
+  details: string | null;
+  adminNotes: string | null;
+  status: ApiReportStatus;
+  statusLabel: string;
+  createdAt: string;
+  createdLabel: string;
+  updatedAt: string;
+  listingTitle: string | null;
+  listingStatus: MarketplaceListing["status"] | null;
+  reporterDisplayName: string | null;
+  reporterEmail: string | null;
 };
 
 export type MarketplaceSeller = {
@@ -212,11 +307,39 @@ const categoryPresets: Record<
     countLabel: "Motors inventory",
     palette: ["#cb5f34", "#f0b994", "#6f584a"],
     schema: [
-      { key: "make", label: "Make", type: "select", options: ["Toyota", "Honda", "BMW", "Nissan"], required: true },
-      { key: "model", label: "Model", type: "text", required: true, placeholder: "Camry" },
-      { key: "year", label: "Year", type: "number", required: true, placeholder: "2022" },
-      { key: "mileage", label: "Mileage (km)", type: "number", placeholder: "45000" },
-      { key: "transmission", label: "Transmission", type: "select", options: ["Automatic", "Manual"] },
+      {
+        key: "make",
+        label: "Make",
+        type: "select",
+        options: ["Toyota", "Honda", "BMW", "Nissan"],
+        required: true,
+      },
+      {
+        key: "model",
+        label: "Model",
+        type: "text",
+        required: true,
+        placeholder: "Camry",
+      },
+      {
+        key: "year",
+        label: "Year",
+        type: "number",
+        required: true,
+        placeholder: "2022",
+      },
+      {
+        key: "mileage",
+        label: "Mileage (km)",
+        type: "number",
+        placeholder: "45000",
+      },
+      {
+        key: "transmission",
+        label: "Transmission",
+        type: "select",
+        options: ["Automatic", "Manual"],
+      },
     ],
   },
   property: {
@@ -225,10 +348,26 @@ const categoryPresets: Record<
     countLabel: "Property inventory",
     palette: ["#23725e", "#9fd8c0", "#f2e0c7"],
     schema: [
-      { key: "propertyType", label: "Property type", type: "select", options: ["Apartment", "Villa", "Office", "Land"], required: true },
+      {
+        key: "propertyType",
+        label: "Property type",
+        type: "select",
+        options: ["Apartment", "Villa", "Office", "Land"],
+        required: true,
+      },
       { key: "bedrooms", label: "Bedrooms", type: "number", placeholder: "2" },
-      { key: "bathrooms", label: "Bathrooms", type: "number", placeholder: "2" },
-      { key: "area", label: "Area (sqft)", type: "number", placeholder: "1200" },
+      {
+        key: "bathrooms",
+        label: "Bathrooms",
+        type: "number",
+        placeholder: "2",
+      },
+      {
+        key: "area",
+        label: "Area (sqft)",
+        type: "number",
+        placeholder: "1200",
+      },
       { key: "furnished", label: "Furnished", type: "toggle" },
     ],
   },
@@ -238,9 +377,20 @@ const categoryPresets: Record<
     countLabel: "Electronics inventory",
     palette: ["#375785", "#acc9ea", "#dee8f4"],
     schema: [
-      { key: "brand", label: "Brand", type: "text", required: true, placeholder: "Apple" },
+      {
+        key: "brand",
+        label: "Brand",
+        type: "text",
+        required: true,
+        placeholder: "Apple",
+      },
       { key: "storage", label: "Storage", type: "text", placeholder: "256GB" },
-      { key: "condition", label: "Condition", type: "select", options: ["New", "Like new", "Used"] },
+      {
+        key: "condition",
+        label: "Condition",
+        type: "select",
+        options: ["New", "Like new", "Used"],
+      },
       { key: "warranty", label: "Warranty available", type: "toggle" },
     ],
   },
@@ -250,9 +400,24 @@ const categoryPresets: Record<
     countLabel: "Jobs inventory",
     palette: ["#f1b65d", "#ffebbf", "#6f604a"],
     schema: [
-      { key: "jobType", label: "Job type", type: "select", options: ["Full-time", "Part-time", "Contract"] },
-      { key: "experience", label: "Experience level", type: "select", options: ["Entry", "Mid", "Senior"] },
-      { key: "salary", label: "Monthly salary", type: "number", placeholder: "3500" },
+      {
+        key: "jobType",
+        label: "Job type",
+        type: "select",
+        options: ["Full-time", "Part-time", "Contract"],
+      },
+      {
+        key: "experience",
+        label: "Experience level",
+        type: "select",
+        options: ["Entry", "Mid", "Senior"],
+      },
+      {
+        key: "salary",
+        label: "Monthly salary",
+        type: "number",
+        placeholder: "3500",
+      },
     ],
   },
   services: {
@@ -261,9 +426,20 @@ const categoryPresets: Record<
     countLabel: "Services inventory",
     palette: ["#6d53c1", "#d5ccff", "#eef0ff"],
     schema: [
-      { key: "serviceType", label: "Service type", type: "text", required: true, placeholder: "AC repair" },
+      {
+        key: "serviceType",
+        label: "Service type",
+        type: "text",
+        required: true,
+        placeholder: "AC repair",
+      },
       { key: "onsite", label: "On-site service", type: "toggle" },
-      { key: "availability", label: "Availability", type: "select", options: ["Today", "Weekdays", "Weekends"] },
+      {
+        key: "availability",
+        label: "Availability",
+        type: "select",
+        options: ["Today", "Weekdays", "Weekends"],
+      },
     ],
   },
 };
@@ -277,7 +453,9 @@ function humanizeLabel(value: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function toAttributeFieldType(value: string | null | undefined): AttributeFieldType {
+function toAttributeFieldType(
+  value: string | null | undefined,
+): AttributeFieldType {
   if (value === "number" || value === "select" || value === "toggle") {
     return value;
   }
@@ -286,7 +464,11 @@ function toAttributeFieldType(value: string | null | undefined): AttributeFieldT
 }
 
 function normalizeAttributeValue(value: unknown) {
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
     return value;
   }
 
@@ -333,7 +515,10 @@ function formatRelativeTime(value: string) {
   return createdAt.toLocaleDateString("en", {
     month: "short",
     day: "numeric",
-    year: createdAt.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
+    year:
+      createdAt.getFullYear() === new Date().getFullYear()
+        ? undefined
+        : "numeric",
   });
 }
 
@@ -389,7 +574,7 @@ function getActiveBoosts(boosts: ApiBoost[] | undefined) {
 }
 
 function normalizeAttributes(
-  attributes: Record<string, unknown> | null | undefined
+  attributes: Record<string, unknown> | null | undefined,
 ): Record<string, string | number | boolean> {
   if (!attributes) {
     return {};
@@ -398,11 +583,16 @@ function normalizeAttributes(
   return Object.fromEntries(
     Object.entries(attributes)
       .map(([key, value]) => [key, normalizeAttributeValue(value)])
-      .filter((entry): entry is [string, string | number | boolean] => entry[1] !== "")
+      .filter(
+        (entry): entry is [string, string | number | boolean] =>
+          entry[1] !== "",
+      ),
   );
 }
 
-function extractListingImageUrls(attributes: Record<string, unknown> | null | undefined) {
+function extractListingImageUrls(
+  attributes: Record<string, unknown> | null | undefined,
+) {
   if (!attributes) {
     return [];
   }
@@ -431,18 +621,20 @@ function extractListingImageUrls(attributes: Record<string, unknown> | null | un
 }
 
 function removeReservedListingAttributes(
-  attributes: Record<string, unknown> | null | undefined
+  attributes: Record<string, unknown> | null | undefined,
 ) {
   if (!attributes) {
     return attributes;
   }
 
   return Object.fromEntries(
-    Object.entries(attributes).filter(([key]) => key !== "__photos")
+    Object.entries(attributes).filter(([key]) => key !== "__photos"),
   );
 }
 
-function buildFeatureBullets(attributes: Record<string, string | number | boolean>) {
+function buildFeatureBullets(
+  attributes: Record<string, string | number | boolean>,
+) {
   return Object.entries(attributes)
     .flatMap(([key, value]) => {
       if (typeof value === "boolean") {
@@ -454,7 +646,9 @@ function buildFeatureBullets(attributes: Record<string, string | number | boolea
     .slice(0, 4);
 }
 
-function humanizeListingStatus(status: ApiListingStatus): MarketplaceListing["status"] {
+function humanizeListingStatus(
+  status: ApiListingStatus,
+): MarketplaceListing["status"] {
   switch (status) {
     case "PENDING":
       return "Pending";
@@ -468,9 +662,23 @@ function humanizeListingStatus(status: ApiListingStatus): MarketplaceListing["st
       return "Expired";
     case "SOLD":
       return "Sold";
+    case "REMOVED":
+      return "Deleted";
     default:
       return "Draft";
   }
+}
+
+export function humanizeReportStatus(status: ApiReportStatus) {
+  return humanizeLabel(status);
+}
+
+export function humanizeTransactionStatus(status: ApiTransactionStatus) {
+  return humanizeLabel(status);
+}
+
+export function humanizeTransactionType(type: ApiTransactionType) {
+  return humanizeLabel(type);
 }
 
 export function mapSessionUser(user: ApiUser): SessionUser {
@@ -492,7 +700,9 @@ export function mapSessionUser(user: ApiUser): SessionUser {
 
 export function mapCategory(category: ApiCategory): MarketplaceCategory {
   const preset = categoryPresets[category.slug];
-  const presetFields = new Map((preset?.schema ?? []).map((field) => [field.key, field]));
+  const presetFields = new Map(
+    (preset?.schema ?? []).map((field) => [field.key, field]),
+  );
   const apiFields = category.schemaDefinition?.fields ?? [];
 
   const schema =
@@ -522,7 +732,7 @@ export function mapCategory(category: ApiCategory): MarketplaceCategory {
     icon: preset?.icon ?? category.name.charAt(0).toUpperCase(),
     countLabel: category._count?.listings
       ? formatCountLabel(category._count.listings)
-      : preset?.countLabel ?? "Live inventory",
+      : (preset?.countLabel ?? "Live inventory"),
     schema,
     parentSlug: category.parent?.slug ?? null,
     children: category.children?.map(mapCategory),
@@ -535,15 +745,23 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
   const imageUrls =
     listing.images?.map((image) => image.url).filter(Boolean) ??
     extractListingImageUrls(listing.attributes);
-  const attributes = normalizeAttributes(removeReservedListingAttributes(listing.attributes));
+  const attributes = normalizeAttributes(
+    removeReservedListingAttributes(listing.attributes),
+  );
   const preset = categoryPresets[listing.category?.slug ?? ""];
   const featureBullets = buildFeatureBullets(attributes);
   const activeBoosts = getActiveBoosts(listing.boosts);
-  const boostPlacements = [...new Set(activeBoosts.map((boost) => boost.placement))];
+  const boostPlacements = [
+    ...new Set(activeBoosts.map((boost) => boost.placement)),
+  ];
   const soonestBoostEnd = activeBoosts
     .map((boost) => boost.endsAt)
-    .sort((first, second) => new Date(first).getTime() - new Date(second).getTime())[0];
-  const boostEndsLabel = soonestBoostEnd ? formatShortDate(soonestBoostEnd) : undefined;
+    .sort(
+      (first, second) => new Date(first).getTime() - new Date(second).getTime(),
+    )[0];
+  const boostEndsLabel = soonestBoostEnd
+    ? formatShortDate(soonestBoostEnd)
+    : undefined;
 
   return {
     id: listing.id,
@@ -551,7 +769,10 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
     title: listing.title,
     categorySlug: listing.category?.slug ?? "",
     subcategory: listing.category?.name ?? "Marketplace listing",
-    priceLabel: formatPrice(Number.isNaN(priceValue) ? 0 : priceValue, listing.currency),
+    priceLabel: formatPrice(
+      Number.isNaN(priceValue) ? 0 : priceValue,
+      listing.currency,
+    ),
     priceValue: Number.isNaN(priceValue) ? 0 : priceValue,
     location: listing.location,
     condition:
@@ -567,8 +788,12 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
         : [humanizeListingStatus(listing.status), listing.location],
     sellerId: listing.sellerId,
     sellerDisplayName: listing.seller?.displayName,
-    sellerVerified: Boolean(listing.seller?.phoneVerified || listing.seller?.emailVerified),
-    sellerJoinedLabel: listing.seller ? formatJoinedLabel(listing.seller.createdAt) : undefined,
+    sellerVerified: Boolean(
+      listing.seller?.phoneVerified || listing.seller?.emailVerified,
+    ),
+    sellerJoinedLabel: listing.seller
+      ? formatJoinedLabel(listing.seller.createdAt)
+      : undefined,
     imageUrl: imageUrls[0],
     imageUrls,
     imagePalette: preset?.palette ?? ["#d95d39", "#f2d3a6", "#1f6b5a"],
@@ -583,6 +808,60 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
         ? boostPlacements.map(humanizeBoostPlacement).join(" + ")
         : undefined,
     boostEndsLabel: boostEndsLabel ? `Ends ${boostEndsLabel}` : undefined,
+  };
+}
+
+export function mapTransaction(
+  transaction: ApiTransaction,
+): MarketplaceTransaction {
+  const amountValue = Number(transaction.amount);
+  const safeAmount = Number.isNaN(amountValue) ? 0 : amountValue;
+
+  return {
+    id: transaction.id,
+    userId: transaction.userId,
+    listingId: transaction.listingId,
+    type: transaction.type,
+    typeLabel: humanizeTransactionType(transaction.type),
+    status: transaction.status,
+    statusLabel: humanizeTransactionStatus(transaction.status),
+    amountValue: safeAmount,
+    amountLabel: formatPrice(safeAmount, transaction.currency),
+    provider: transaction.provider,
+    providerRef: transaction.providerRef,
+    createdAt: transaction.createdAt,
+    createdLabel: formatShortDate(transaction.createdAt) ?? "Recently",
+    listingTitle: transaction.listing?.title ?? null,
+    listingStatus: transaction.listing?.status
+      ? humanizeListingStatus(transaction.listing.status)
+      : null,
+    userDisplayName: transaction.user?.displayName ?? null,
+    userEmail: transaction.user?.email ?? null,
+    boosts: transaction.boosts ?? [],
+  };
+}
+
+export function mapListingReport(
+  report: ApiListingReport,
+): MarketplaceListingReport {
+  return {
+    id: report.id,
+    listingId: report.listingId,
+    reporterId: report.reporterId,
+    reason: report.reason,
+    details: report.details,
+    adminNotes: report.adminNotes ?? null,
+    status: report.status,
+    statusLabel: humanizeReportStatus(report.status),
+    createdAt: report.createdAt,
+    createdLabel: formatShortDate(report.createdAt) ?? "Recently",
+    updatedAt: report.updatedAt,
+    listingTitle: report.listing?.title ?? null,
+    listingStatus: report.listing?.status
+      ? humanizeListingStatus(report.listing.status)
+      : null,
+    reporterDisplayName: report.reporter?.displayName ?? null,
+    reporterEmail: report.reporter?.email ?? null,
   };
 }
 

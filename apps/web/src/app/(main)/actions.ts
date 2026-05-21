@@ -8,6 +8,7 @@ import {
   completeBoostPayment,
   createCategory,
   createListing,
+  createListingReport,
   deleteCategory,
   deleteListing,
   googleLoginUser,
@@ -20,9 +21,14 @@ import {
   updateCategory,
   updateCurrentUser,
   updateListing,
+  updateListingReport,
   verifyPhone,
 } from "@/lib/marketplace-api";
-import { type ApiListingStatus, type FormActionState } from "@/lib/marketplace";
+import {
+  type ApiListingStatus,
+  type ApiReportStatus,
+  type FormActionState,
+} from "@/lib/marketplace";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { getPostAuthPath, getSafeNextPath } from "@/lib/redirects";
 import {
@@ -96,15 +102,24 @@ const verifyPhoneSchema = z.object({
   phone: z
     .string()
     .trim()
-    .regex(/^\+\d{6,15}$/, "Use an international phone format like +971551234567."),
-  otpCode: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit OTP code."),
+    .regex(
+      /^\+\d{6,15}$/,
+      "Use an international phone format like +971551234567.",
+    ),
+  otpCode: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "Enter the 6-digit OTP code."),
 });
 
 const requestPhoneOtpSchema = z.object({
   phone: z
     .string()
     .trim()
-    .regex(/^\+\d{6,15}$/, "Use an international phone format like +971551234567."),
+    .regex(
+      /^\+\d{6,15}$/,
+      "Use an international phone format like +971551234567.",
+    ),
 });
 
 const boostListingSchema = z.object({
@@ -120,11 +135,43 @@ const categorySchema = z.object({
   parentSlug: z.string().trim().optional(),
 });
 
+const listingReportSchema = z.object({
+  listingId: z.string().trim().min(1),
+  reason: z
+    .string()
+    .trim()
+    .min(3, "Reason must be at least 3 characters.")
+    .max(120),
+  details: z.string().trim().max(1000).optional(),
+});
+
+const updateListingReportSchema = z.object({
+  reportId: z.string().trim().min(1),
+  listingId: z.string().trim().optional(),
+  status: z
+    .enum(["OPEN", "REVIEWED", "RESOLVED", "DISMISSED", "ACTIONED"])
+    .optional(),
+  details: z.string().trim().max(1000).optional(),
+  adminNotes: z.string().trim().max(2000).optional(),
+  listingStatus: z
+    .enum([
+      "PENDING",
+      "ACTIVE",
+      "REJECTED",
+      "DELETED",
+      "EXPIRED",
+      "SOLD",
+      "REMOVED",
+      "DRAFT",
+    ])
+    .optional(),
+});
+
 function flattenFieldErrors(error: z.ZodError) {
   return Object.fromEntries(
     Object.entries(error.flatten().fieldErrors)
       .filter((entry): entry is [string, string[]] => Array.isArray(entry[1]))
-      .map(([key, value]) => [key, value[0] ?? "Invalid value."])
+      .map(([key, value]) => [key, value[0] ?? "Invalid value."]),
   );
 }
 
@@ -208,9 +255,14 @@ function cleanOptional(value: string | undefined) {
   return value?.trim() ? value.trim() : undefined;
 }
 
+function withQueryParam(path: string, params: Record<string, string>) {
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}${new URLSearchParams(params).toString()}`;
+}
+
 export async function loginAction(
   _previousState: FormActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<FormActionState> {
   const nextPath = getSafeNextPath(formData.get("next"), "/");
   const parsed = loginSchema.safeParse({
@@ -243,7 +295,7 @@ export async function loginAction(
 
 export async function googleLoginAction(
   _previousState: FormActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<FormActionState> {
   const nextPath = getSafeNextPath(formData.get("next"), "/");
   const parsed = googleLoginSchema.safeParse({
@@ -278,7 +330,7 @@ export async function googleLoginAction(
 
 export async function registerAction(
   _previousState: FormActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<FormActionState> {
   const nextPath = getSafeNextPath(formData.get("next"), "/sell");
   const parsed = registerSchema.safeParse({
@@ -313,7 +365,7 @@ export async function registerAction(
 
 export async function createListingAction(
   _previousState: FormActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<FormActionState> {
   const parsed = listingSchema.safeParse({
     categorySlug: formData.get("categorySlug"),
@@ -352,7 +404,7 @@ export async function createListingAction(
 
 export async function updateListingAction(
   _previousState: FormActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<FormActionState> {
   const parsed = listingSchema.safeParse({
     listingId: formData.get("listingId"),
@@ -422,15 +474,26 @@ export async function boostListingAction(formData: FormData) {
       durationDays: parsed.data.durationDays,
     });
 
-    await completeBoostPayment(accessToken, boost.id, {
+    const completedBoost = await completeBoostPayment(accessToken, boost.id, {
       durationDays: parsed.data.durationDays,
       providerRef: boost.payment?.providerRef,
     });
+    const checkoutParams = new URLSearchParams({
+      status: completedBoost.transaction?.status ?? "SUCCEEDED",
+      listingId: parsed.data.listingId,
+    });
+
+    if (completedBoost.transaction?.id) {
+      checkoutParams.set("transactionId", completedBoost.transaction.id);
+    }
 
     revalidatePath("/");
     revalidatePath("/search");
     revalidatePath("/my-listings");
+    revalidatePath("/transactions");
     revalidatePath(`/listings/${parsed.data.listingId}`);
+
+    redirect(`/boosts/${boost.id}/checkout?${checkoutParams.toString()}`);
   }
 
   redirect("/my-listings");
@@ -449,11 +512,107 @@ export async function moderateListingAction(formData: FormData) {
   redirect("/admin");
 }
 
+export async function createListingReportAction(formData: FormData) {
+  const parsed = listingReportSchema.safeParse({
+    listingId: formData.get("listingId"),
+    reason: formData.get("reason"),
+    details: cleanOptional(String(formData.get("details") ?? "")),
+  });
+  const fallbackListingPath = parsed.success
+    ? `/listings/${parsed.data.listingId}`
+    : "/search";
+
+  if (!parsed.success) {
+    redirect(
+      `${fallbackListingPath}?report=error&message=${encodeURIComponent(
+        "Enter a short reason before submitting a report.",
+      )}`,
+    );
+  }
+
+  const { accessToken } = await requireSessionContext(fallbackListingPath);
+
+  try {
+    await createListingReport(accessToken, parsed.data.listingId, {
+      reason: parsed.data.reason,
+      details: parsed.data.details,
+    });
+  } catch (error) {
+    redirect(
+      `${fallbackListingPath}?report=error&message=${encodeURIComponent(
+        getActionMessage(error, "We could not submit that report."),
+      )}`,
+    );
+  }
+
+  revalidatePath("/reports");
+  redirect(`${fallbackListingPath}?report=submitted`);
+}
+
+export async function updateListingReportAction(formData: FormData) {
+  const parsed = updateListingReportSchema.safeParse({
+    reportId: formData.get("reportId"),
+    listingId: cleanOptional(String(formData.get("listingId") ?? "")),
+    status: cleanOptional(String(formData.get("status") ?? "")),
+    details: cleanOptional(String(formData.get("details") ?? "")),
+    adminNotes: cleanOptional(String(formData.get("adminNotes") ?? "")),
+    listingStatus: cleanOptional(String(formData.get("listingStatus") ?? "")),
+  });
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/listing-reports",
+  );
+
+  if (!parsed.success) {
+    redirect(
+      withQueryParam(returnTo, {
+        updated: "error",
+        message: "Check the report review fields and try again.",
+      }),
+    );
+  }
+
+  const { accessToken } = await requireSessionContext(returnTo);
+  const payload: {
+    status?: ApiReportStatus;
+    details?: string;
+    adminNotes?: string;
+    listingStatus?: ApiListingStatus;
+  } = {
+    status: parsed.data.status,
+    details: parsed.data.details,
+    adminNotes: parsed.data.adminNotes,
+    listingStatus: parsed.data.listingStatus,
+  };
+
+  try {
+    await updateListingReport(accessToken, parsed.data.reportId, payload);
+  } catch (error) {
+    redirect(
+      withQueryParam(returnTo, {
+        updated: "error",
+        message: getActionMessage(error, "We could not update that report."),
+      }),
+    );
+  }
+
+  if (payload.listingStatus && parsed.data.listingId) {
+    revalidatePath(`/listings/${parsed.data.listingId}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/listing-reports");
+  redirect(withQueryParam(returnTo, { updated: "success" }));
+}
+
 export async function createCategoryAction(
   _previousState: FormActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<FormActionState> {
-  const returnTo = getSafeNextPath(formData.get("returnTo"), "/admin/categories");
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/categories",
+  );
   const parsed = categorySchema.safeParse({
     name: formData.get("name"),
     slug: formData.get("slug"),
@@ -489,7 +648,10 @@ export async function createCategoryAction(
 }
 
 export async function updateCategoryAction(formData: FormData) {
-  const returnTo = getSafeNextPath(formData.get("returnTo"), "/admin/categories");
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/categories",
+  );
   const slug = String(formData.get("slug") ?? "");
   const name = cleanOptional(String(formData.get("name") ?? ""));
   const description = cleanOptional(String(formData.get("description") ?? ""));
@@ -514,7 +676,10 @@ export async function updateCategoryAction(formData: FormData) {
 }
 
 export async function deleteCategoryAction(formData: FormData) {
-  const returnTo = getSafeNextPath(formData.get("returnTo"), "/admin/categories");
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/categories",
+  );
   const slug = String(formData.get("slug") ?? "");
   const { accessToken } = await requireSessionContext("/admin");
 
@@ -541,7 +706,7 @@ export async function logoutAction() {
 
 export async function updateProfileAction(
   _previousState: FormActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<FormActionState> {
   const parsed = updateProfileSchema.safeParse({
     displayName: formData.get("displayName"),
@@ -581,7 +746,7 @@ export async function updateProfileAction(
 
 export async function verifyPhoneAction(
   _previousState: FormActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<FormActionState> {
   const nextPath = getSafeNextPath(formData.get("next"), "/sell");
   const parsed = verifyPhoneSchema.safeParse({
@@ -602,7 +767,10 @@ export async function verifyPhoneAction(
     await verifyPhone(accessToken, parsed.data);
   } catch (error) {
     return {
-      message: getActionMessage(error, "We could not verify that phone number."),
+      message: getActionMessage(
+        error,
+        "We could not verify that phone number.",
+      ),
     };
   }
 
@@ -611,7 +779,7 @@ export async function verifyPhoneAction(
 
 export async function requestPhoneOtpAction(
   _previousState: FormActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<FormActionState> {
   const parsed = requestPhoneOtpSchema.safeParse({
     phone: formData.get("phone"),

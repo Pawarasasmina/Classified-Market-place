@@ -4,7 +4,9 @@ import { moderateListingAction } from "@/app/(main)/actions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import {
   fetchAdminCategories,
+  fetchAdminListingReports,
   fetchAdminListings,
+  fetchAdminTransactions,
 } from "@/lib/marketplace-api";
 
 export default async function AdminPage() {
@@ -14,14 +16,24 @@ export default async function AdminPage() {
     redirect("/");
   }
 
-  const [categories, listings] = await Promise.all([
+  const [categories, listings, transactions, listingReports] = await Promise.all([
     fetchAdminCategories(accessToken),
     fetchAdminListings(accessToken, { take: 50 }),
+    fetchAdminTransactions(accessToken, { take: 50 }),
+    fetchAdminListingReports(accessToken, { status: "OPEN", take: 50 }),
   ]);
-  const reviewQueue = listings.filter((listing) => listing.status === "Pending");
-  const activeCount = listings.filter((listing) => listing.status === "Active").length;
-  const rejectedCount = listings.filter((listing) => listing.status === "Rejected").length;
-  const deletedCount = listings.filter((listing) => listing.status === "Deleted").length;
+  const reviewQueue = listings.filter(
+    (listing) => listing.status === "Pending",
+  );
+  const activeCount = listings.filter(
+    (listing) => listing.status === "Active",
+  ).length;
+  const rejectedCount = listings.filter(
+    (listing) => listing.status === "Rejected",
+  ).length;
+  const deletedCount = listings.filter(
+    (listing) => listing.status === "Deleted",
+  ).length;
   const dashboardLinks = [
     {
       href: "/admin/categories",
@@ -46,6 +58,23 @@ export default async function AdminPage() {
       description: "Open buyer, seller, and admin conversations.",
       metric: listings.length,
       metricLabel: "listings",
+    },
+    {
+      href: "/admin/listing-reports",
+      eyebrow: "Reports",
+      title: "Listing Reports",
+      description: "Review submitted listing reports and action unsafe ads.",
+      metric: listingReports.length,
+      metricLabel: "open",
+    },
+    {
+      href: "/admin/transactions",
+      eyebrow: "Payments",
+      title: "Transaction Ledger",
+      description:
+        "Audit payment status, providers, refunds, and linked listings.",
+      metric: transactions.length,
+      metricLabel: "recent",
     },
   ];
 
@@ -85,7 +114,7 @@ export default async function AdminPage() {
         ))}
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {dashboardLinks.map((item) => (
           <Link
             key={item.title}
@@ -117,7 +146,8 @@ export default async function AdminPage() {
           <div>
             <h2 className="text-xl font-semibold">Moderation Queue</h2>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              Pending listings appear first; when the queue is empty, the latest listings are shown.
+              Pending listings appear first; when the queue is empty, the latest
+              listings are shown.
             </p>
           </div>
           <Link
@@ -153,19 +183,25 @@ export default async function AdminPage() {
                   <td>{listing.priceLabel}</td>
                   <td>
                     <div className="flex flex-wrap gap-2">
-                      {(["ACTIVE", "REJECTED", "DELETED"] as const).map((status) => (
-                        <form key={status} action={moderateListingAction}>
-                          <input type="hidden" name="listingId" value={listing.id} />
-                          <input type="hidden" name="status" value={status} />
-                          <button className="admin-table-action">
-                            {status === "ACTIVE"
-                              ? "Approve"
-                              : status === "REJECTED"
-                                ? "Reject"
-                                : "Delete"}
-                          </button>
-                        </form>
-                      ))}
+                      {(["ACTIVE", "REJECTED", "DELETED"] as const).map(
+                        (status) => (
+                          <form key={status} action={moderateListingAction}>
+                            <input
+                              type="hidden"
+                              name="listingId"
+                              value={listing.id}
+                            />
+                            <input type="hidden" name="status" value={status} />
+                            <button className="admin-table-action">
+                              {status === "ACTIVE"
+                                ? "Approve"
+                                : status === "REJECTED"
+                                  ? "Reject"
+                                  : "Delete"}
+                            </button>
+                          </form>
+                        ),
+                      )}
                     </div>
                   </td>
                 </tr>

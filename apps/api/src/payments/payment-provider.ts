@@ -20,7 +20,7 @@ export type PaymentIntent = {
 export type PaymentWebhookEvent = {
   provider: string;
   providerRef: string;
-  status: 'succeeded' | 'failed' | 'cancelled';
+  status: 'succeeded' | 'failed' | 'cancelled' | 'refunded';
   startsAt?: string;
   endsAt?: string;
   durationDays?: number;

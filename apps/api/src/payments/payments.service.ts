@@ -3,10 +3,12 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { BoostStatus, ListingStatus, TransactionStatus } from '@prisma/client';
 import type { Prisma, Transaction } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PAYMENT_PROVIDER } from './payment-provider';
 import type {
@@ -101,10 +103,13 @@ function mergeMetadata(
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(PAYMENT_PROVIDER)
     private readonly paymentProvider: PaymentProvider,
+    private readonly notifications?: NotificationsService,
   ) {}
 
   get providerName() {
@@ -186,11 +191,16 @@ export class PaymentsService {
       };
     }
 
-    await this.markTransactionTerminal(event);
+    const { transaction, changed } = await this.markTransactionTerminal(event);
+
+    if (changed) {
+      await this.notifyTransactionStatusChanged(transaction);
+    }
 
     return {
       received: true,
       status: event.status,
+      transaction,
     };
   }
 
@@ -225,6 +235,13 @@ export class PaymentsService {
       throw new NotFoundException('Boost not found');
     }
 
+    if (transaction.status === TransactionStatus.SUCCEEDED) {
+      return this.prisma.boost.findFirst({
+        where: { transactionId: transaction.id },
+        include: boostInclude,
+      });
+    }
+
     return this.activateBoostPayment(boost, transaction, {
       providerRef: event.providerRef,
       startsAt: event.startsAt,
@@ -234,25 +251,66 @@ export class PaymentsService {
   }
 
   private async markTransactionTerminal(event: PaymentWebhookEvent) {
-    const status =
-      event.status === 'failed'
-        ? TransactionStatus.FAILED
-        : TransactionStatus.CANCELLED;
-
-    await this.prisma.transaction.updateMany({
+    const transaction = await this.prisma.transaction.findFirst({
       where: {
         provider: event.provider,
         providerRef: event.providerRef,
-        status: TransactionStatus.PENDING,
-      },
-      data: {
-        status,
-        metadata: {
-          terminalPaymentStatus: event.status,
-          terminalAt: new Date().toISOString(),
-        },
       },
     });
+
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    const status = this.getTerminalTransactionStatus(event);
+
+    if (transaction.status === status) {
+      return { transaction, changed: false };
+    }
+
+    if (!this.canApplyTerminalStatus(transaction.status, status)) {
+      return { transaction, changed: false };
+    }
+
+    const updatedTransaction = await this.prisma.transaction.update({
+      where: { id: transaction.id },
+      data: {
+        status,
+        metadata: mergeMetadata(transaction.metadata, {
+          terminalPaymentStatus: event.status,
+          terminalAt: new Date().toISOString(),
+        }),
+      },
+    });
+
+    return { transaction: updatedTransaction, changed: true };
+  }
+
+  private getTerminalTransactionStatus(event: PaymentWebhookEvent) {
+    switch (event.status) {
+      case 'failed':
+        return TransactionStatus.FAILED;
+      case 'cancelled':
+        return TransactionStatus.CANCELLED;
+      case 'refunded':
+        return TransactionStatus.REFUNDED;
+      default:
+        return TransactionStatus.CANCELLED;
+    }
+  }
+
+  private canApplyTerminalStatus(
+    currentStatus: TransactionStatus,
+    nextStatus: TransactionStatus,
+  ) {
+    if (nextStatus === TransactionStatus.REFUNDED) {
+      return (
+        currentStatus === TransactionStatus.PENDING ||
+        currentStatus === TransactionStatus.SUCCEEDED
+      );
+    }
+
+    return currentStatus === TransactionStatus.PENDING;
   }
 
   private async activateBoostPayment(
@@ -261,7 +319,12 @@ export class PaymentsService {
       status: BoostStatus;
       startsAt: Date;
       endsAt: Date;
-      listing: { status: ListingStatus };
+      listing: {
+        id: string;
+        title: string;
+        status: ListingStatus;
+        sellerId: string;
+      };
     },
     transaction: Transaction,
     input: CompleteBoostPaymentInput,
@@ -310,7 +373,7 @@ export class PaymentsService {
       throw new BadRequestException('Boost end time must be in the future');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updatedBoost = await this.prisma.$transaction(async (tx) => {
       await tx.transaction.update({
         where: { id: transaction.id },
         data: {
@@ -334,5 +397,58 @@ export class PaymentsService {
         include: boostInclude,
       });
     });
+
+    try {
+      await this.notifications?.notifyBoostActivated({
+        userId: transaction.userId,
+        listingId: boost.listing.id,
+        listingTitle: boost.listing.title,
+        transactionId: transaction.id,
+        startsAt,
+        endsAt,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not persist boost activation notification for ${boost.id}`,
+      );
+    }
+
+    await this.notifyTransactionStatusChanged({
+      ...transaction,
+      status: TransactionStatus.SUCCEEDED,
+    });
+
+    return updatedBoost;
+  }
+
+  private async notifyTransactionStatusChanged(
+    transaction: Pick<
+      Transaction,
+      | 'id'
+      | 'userId'
+      | 'listingId'
+      | 'status'
+      | 'amount'
+      | 'currency'
+      | 'provider'
+      | 'providerRef'
+    >,
+  ) {
+    try {
+      await this.notifications?.notifyTransactionStatusChanged({
+        userId: transaction.userId,
+        transactionId: transaction.id,
+        listingId: transaction.listingId,
+        status: transaction.status,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        provider: transaction.provider,
+        providerRef: transaction.providerRef,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not persist transaction notification for ${transaction.id}`,
+      );
+    }
   }
 }

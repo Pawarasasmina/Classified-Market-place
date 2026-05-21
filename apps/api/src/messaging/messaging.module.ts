@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { MessagingController } from './messaging.controller';
 import { MessagingEncryptionService } from './messaging-encryption.service';
@@ -9,7 +10,7 @@ import { MessagingService } from './messaging.service';
 import { PushNotificationsService } from './push-notifications.service';
 
 @Module({
-  imports: [AuthModule, PrismaModule],
+  imports: [AuthModule, PrismaModule, NotificationsModule],
   controllers: [MessagingController],
   providers: [
     MessagingService,

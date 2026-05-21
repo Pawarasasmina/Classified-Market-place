@@ -38,6 +38,7 @@ enum ReportStatus {
   REVIEWED
   RESOLVED
   DISMISSED
+  ACTIONED
 }
 
 enum BoostPlacement {
@@ -379,6 +380,7 @@ model ListingReport {
   reporterId String
   reason     String
   details    String?
+  adminNotes String?
   status     ReportStatus @default(OPEN)
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
