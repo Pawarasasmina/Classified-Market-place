@@ -11,7 +11,19 @@ import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../src/common/guards/roles.guard';
 import { ListingsController } from '../src/listings/listings.controller';
 import { ListingsService } from '../src/listings/listings.service';
+import { MediaService } from '../src/media/media.service';
+import { NotificationsService } from '../src/notifications/notifications.service';
 import { PrismaService } from '../src/prisma/prisma.service';
+
+type ListingCreateArgs = {
+  data: {
+    attributes?: unknown;
+    categoryId: string;
+    sellerId: string;
+    status: ListingStatus;
+    [key: string]: unknown;
+  };
+};
 
 describe('Listings normal-user posting (e2e)', () => {
   let app: INestApplication<App>;
@@ -21,7 +33,7 @@ describe('Listings normal-user posting (e2e)', () => {
     };
     listing: {
       count: jest.Mock;
-      create: jest.Mock;
+      create: jest.Mock<unknown, [ListingCreateArgs]>;
       findMany: jest.Mock;
       findUnique: jest.Mock;
       update: jest.Mock;
@@ -46,16 +58,18 @@ describe('Listings normal-user posting (e2e)', () => {
       },
       listing: {
         count: jest.fn().mockResolvedValue(1),
-        create: jest.fn().mockImplementation(({ data }) => ({
-          id: 'listing-1',
-          ...data,
-          category: { id: data.categoryId, slug: 'electronics' },
-          seller: regularUser,
-          images: [],
-          attributes: data.attributes ?? null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        })),
+        create: jest
+          .fn<unknown, [ListingCreateArgs]>()
+          .mockImplementation(({ data }: ListingCreateArgs) => ({
+            id: 'listing-1',
+            ...data,
+            category: { id: data.categoryId, slug: 'electronics' },
+            seller: regularUser,
+            images: [],
+            attributes: data.attributes ?? null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          })),
         findMany: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
@@ -70,12 +84,26 @@ describe('Listings normal-user posting (e2e)', () => {
           provide: PrismaService,
           useValue: prisma,
         },
+        {
+          provide: MediaService,
+          useValue: {
+            attachImagesToListing: jest.fn(),
+          },
+        },
+        {
+          provide: NotificationsService,
+          useValue: {
+            notifyListingStatusChanged: jest.fn(),
+          },
+        },
       ],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({
         canActivate: (context: ExecutionContext) => {
-          const requestContext = context.switchToHttp().getRequest();
+          const requestContext = context
+            .switchToHttp()
+            .getRequest<{ user?: typeof regularUser }>();
           requestContext.user = regularUser;
           return true;
         },
@@ -96,7 +124,7 @@ describe('Listings normal-user posting (e2e)', () => {
   });
 
   afterEach(async () => {
-    await app.close();
+    await app?.close();
   });
 
   it('accepts a normal logged-in user listing and keeps it pending for moderation', async () => {
@@ -113,19 +141,19 @@ describe('Listings normal-user posting (e2e)', () => {
       })
       .expect(201);
 
-    expect(response.body).toMatchObject({
+    const responseBody = response.body as unknown as {
+      id: string;
+      sellerId: string;
+      status: ListingStatus;
+    };
+    expect(responseBody).toMatchObject({
       id: 'listing-1',
       sellerId: regularUser.id,
       status: ListingStatus.PENDING,
     });
-    expect(prisma.listing.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          sellerId: regularUser.id,
-          status: ListingStatus.PENDING,
-        }),
-      }),
-    );
+    const createCall = prisma.listing.create.mock.calls[0]?.[0];
+    expect(createCall?.data.sellerId).toBe(regularUser.id);
+    expect(createCall?.data.status).toBe(ListingStatus.PENDING);
   });
 
   it('returns validation errors before posting incomplete normal-user listings', async () => {
@@ -140,7 +168,8 @@ describe('Listings normal-user posting (e2e)', () => {
       })
       .expect(400);
 
-    expect(response.body.message).toEqual(
+    const responseBody = response.body as unknown as { message: string[] };
+    expect(responseBody.message).toEqual(
       expect.arrayContaining([
         'title should not be empty',
         'price must not be less than 0',

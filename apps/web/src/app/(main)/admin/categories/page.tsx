@@ -1,16 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CategoryManagement } from "@/components/marketplace/category-management";
+import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminCategories } from "@/lib/marketplace-api";
 
 export default async function AdminCategoriesPage() {
   const { accessToken, user } = await requireSessionContext("/admin/categories");
 
-  if (user.role.toUpperCase() !== "ADMIN") {
+  if (!hasAdminPermission(user.role, "CATEGORIES_READ")) {
     redirect("/");
   }
 
+  const canEditCategories = hasAdminPermission(user.role, "CATEGORIES_WRITE");
   const categories = await fetchAdminCategories(accessToken);
 
   return (
@@ -33,7 +35,10 @@ export default async function AdminCategoriesPage() {
         </Link>
       </div>
 
-      <CategoryManagement categories={categories} />
+      <CategoryManagement
+        categories={categories}
+        canEdit={canEditCategories}
+      />
     </div>
   );
 }

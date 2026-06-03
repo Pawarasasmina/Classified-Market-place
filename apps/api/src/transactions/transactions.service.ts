@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { QueryTransactionsDto } from './dto/query-transactions.dto';
+import { hasAdminPermission } from '../common/admin-permissions';
 import { PrismaService } from '../prisma/prisma.service';
 
 type ActingUser = {
@@ -42,7 +43,7 @@ const transactionInclude = {
 } satisfies Prisma.TransactionInclude;
 
 function isAdminRole(role: string) {
-  return role.toUpperCase() === 'ADMIN';
+  return hasAdminPermission(role, 'TRANSACTIONS_READ');
 }
 
 @Injectable()

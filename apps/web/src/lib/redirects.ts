@@ -1,3 +1,5 @@
+import { hasAnyAdminPermission } from "@/lib/admin-permissions";
+
 export function getSafeNextPath(
   input: FormDataEntryValue | string | null | undefined,
   fallback = "/"
@@ -23,7 +25,7 @@ export function getPostAuthPath(
   nextPath: string
 ) {
   if (
-    user?.role?.toUpperCase() === "ADMIN" &&
+    hasAnyAdminPermission(user?.role) &&
     !nextPath.startsWith("/admin") &&
     !nextPath.startsWith("/?view=customer")
   ) {

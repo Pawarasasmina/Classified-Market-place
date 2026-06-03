@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { json, static as serveStatic, urlencoded } from 'express';
 import { join } from 'node:path';
 import { AppModule } from './app.module';
+import { PrismaExceptionFilter } from './prisma/prisma-exception.filter';
 import { PrismaService } from './prisma/prisma.service';
 
 async function bootstrap() {
@@ -24,6 +25,7 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
+  app.useGlobalFilters(new PrismaExceptionFilter());
   const prismaService = app.get(PrismaService);
   await prismaService.enableShutdownHooks(app);
   const port = Number(process.env.PORT || 3001);

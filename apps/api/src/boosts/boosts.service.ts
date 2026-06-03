@@ -2,7 +2,9 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import {
   BoostPlacement,
@@ -13,27 +15,122 @@ import {
   TransactionType,
 } from '@prisma/client';
 import { PaymentsService } from '../payments/payments.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteBoostPaymentDto } from './dto/complete-boost-payment.dto';
+import { CreateBoostPackageDto } from './dto/create-boost-package.dto';
 import { CreateBoostDto } from './dto/create-boost.dto';
 import { QueryBoostsDto } from './dto/query-boosts.dto';
+import { UpdateBoostPackageDto } from './dto/update-boost-package.dto';
 
 type ActingUser = {
   id: string;
   role: string;
 };
 
+type ResolvedBoostPackage = {
+  id?: string;
+  name: string;
+  placement: BoostPlacement;
+  price: Prisma.Decimal;
+  currency: string;
+  durationDays: number;
+};
+
+type BoostableListing = {
+  id: string;
+  title: string;
+  status: ListingStatus;
+  sellerId: string;
+  categoryId: string;
+  category: {
+    id: string;
+    parentId: string | null;
+  };
+};
+
 const defaultBoostDurationDays = 7;
 const defaultBoostPrice = new Prisma.Decimal(25);
 const defaultBoostCurrency = 'AED';
+const defaultBoostPlacement = BoostPlacement.HIGHLIGHTED_LISTING;
 const mutableBoostStatuses = [BoostStatus.SCHEDULED, BoostStatus.ACTIVE];
+const activeBoostStatuses = [BoostStatus.ACTIVE];
+
+const defaultBoostPackages = [
+  {
+    slug: 'top-listing-7-days',
+    name: 'Top listing',
+    description: 'Prioritized placement at the top of customer results.',
+    placement: BoostPlacement.TOP_LISTING,
+    price: new Prisma.Decimal(35),
+    currency: defaultBoostCurrency,
+    durationDays: 7,
+    sortOrder: 10,
+  },
+  {
+    slug: 'highlighted-listing-7-days',
+    name: 'Highlighted listing',
+    description: 'Highlighted badge and boosted ordering across lists.',
+    placement: BoostPlacement.HIGHLIGHTED_LISTING,
+    price: defaultBoostPrice,
+    currency: defaultBoostCurrency,
+    durationDays: 7,
+    sortOrder: 20,
+  },
+  {
+    slug: 'category-priority-7-days',
+    name: 'Category priority',
+    description: 'Priority placement inside category results.',
+    placement: BoostPlacement.CATEGORY_PRIORITY,
+    price: new Prisma.Decimal(30),
+    currency: defaultBoostCurrency,
+    durationDays: 7,
+    sortOrder: 30,
+  },
+  {
+    slug: 'homepage-promotion-7-days',
+    name: 'Homepage promotion',
+    description: 'Promoted placement on the customer-facing homepage.',
+    placement: BoostPlacement.HOMEPAGE_PROMOTION,
+    price: new Prisma.Decimal(45),
+    currency: defaultBoostCurrency,
+    durationDays: 7,
+    sortOrder: 40,
+  },
+  {
+    slug: 'time-based-boost-3-days',
+    name: 'Time-based boost',
+    description: 'Short campaign boost for a fixed promotion window.',
+    placement: BoostPlacement.TIME_BASED_BOOST,
+    price: new Prisma.Decimal(15),
+    currency: defaultBoostCurrency,
+    durationDays: 3,
+    sortOrder: 50,
+  },
+] satisfies Prisma.BoostPackageCreateInput[];
 
 const listingSelect = {
   id: true,
   title: true,
   status: true,
   sellerId: true,
+  categoryId: true,
+  category: {
+    select: {
+      id: true,
+      parentId: true,
+    },
+  },
 } satisfies Prisma.ListingSelect;
+
+const boostPackageInclude = {
+  categories: {
+    include: {
+      category: true,
+    },
+    orderBy: { createdAt: 'asc' as const },
+  },
+} satisfies Prisma.BoostPackageInclude;
 
 const boostInclude = {
   listing: {
@@ -64,6 +161,29 @@ const boostInclude = {
       createdAt: true,
     },
   },
+  package: {
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      placement: true,
+      price: true,
+      currency: true,
+      durationDays: true,
+      categories: {
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              parentId: true,
+            },
+          },
+        },
+      },
+    },
+  },
 } satisfies Prisma.BoostInclude;
 
 function isAdminRole(role: string) {
@@ -90,12 +210,64 @@ function parseDateInput(value: string | undefined, fallback: Date) {
   return date;
 }
 
+function slugify(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function normalizeCurrency(value: string | undefined) {
+  return (value ?? defaultBoostCurrency).trim().toUpperCase();
+}
+
+function buildBoostPackageMetadata(boostPackage: ResolvedBoostPackage) {
+  return {
+    ...(boostPackage.id ? { boostPackageId: boostPackage.id } : {}),
+    boostPackageName: boostPackage.name,
+    placement: boostPackage.placement,
+    durationDays: boostPackage.durationDays,
+  } satisfies Prisma.InputJsonObject;
+}
+
+function getListingCategoryScope(listing: BoostableListing) {
+  return [
+    listing.categoryId,
+    ...(listing.category.parentId ? [listing.category.parentId] : []),
+  ];
+}
+
+function buildPackageAvailabilityWhere(listing: BoostableListing) {
+  const categoryIds = getListingCategoryScope(listing);
+
+  return {
+    OR: [
+      { categories: { none: {} } },
+      {
+        categories: {
+          some: {
+            categoryId: { in: categoryIds },
+          },
+        },
+      },
+    ],
+  } satisfies Prisma.BoostPackageWhereInput;
+}
+
 @Injectable()
-export class BoostsService {
+export class BoostsService implements OnModuleInit {
+  private readonly logger = new Logger(BoostsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
+    private readonly notifications?: NotificationsService,
   ) {}
+
+  async onModuleInit() {
+    await this.seedDefaultPackages();
+  }
 
   async createForListing(
     user: ActingUser,
@@ -120,10 +292,13 @@ export class BoostsService {
     }
 
     const now = new Date();
-    const placement = createBoostDto.placement ?? BoostPlacement.FEATURED;
+    const boostPackage = await this.resolveBoostPackage(
+      listing,
+      createBoostDto,
+    );
+    const placement = boostPackage.placement;
     const startsAt = parseDateInput(createBoostDto.startsAt, now);
-    const durationDays =
-      createBoostDto.durationDays ?? defaultBoostDurationDays;
+    const durationDays = boostPackage.durationDays;
     const endsAt = parseDateInput(
       createBoostDto.endsAt,
       addDays(startsAt, durationDays),
@@ -158,6 +333,17 @@ export class BoostsService {
       );
     }
 
+    if (createBoostDto.paymentMethod === 'WALLET') {
+      return this.createWalletBoost({
+        user,
+        listingId,
+        listingTitle: listing.title,
+        boostPackage,
+        startsAt,
+        endsAt,
+      });
+    }
+
     const boost = await this.prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.create({
         data: {
@@ -165,11 +351,11 @@ export class BoostsService {
           listingId,
           type: TransactionType.BOOST_PURCHASE,
           status: TransactionStatus.PENDING,
-          amount: defaultBoostPrice,
-          currency: defaultBoostCurrency,
+          amount: boostPackage.price,
+          currency: boostPackage.currency,
           provider: 'dev',
           metadata: {
-            placement,
+            ...buildBoostPackageMetadata(boostPackage),
             requestedStartsAt: startsAt.toISOString(),
             requestedEndsAt: endsAt.toISOString(),
           },
@@ -182,6 +368,7 @@ export class BoostsService {
           listingId,
           purchaserId: user.id,
           transactionId: transaction.id,
+          packageId: boostPackage.id,
           placement,
           status: BoostStatus.SCHEDULED,
           startsAt,
@@ -200,16 +387,18 @@ export class BoostsService {
       boostId: boost.id,
       userId: user.id,
       listingId,
+      listingTitle: listing.title,
+      type: TransactionType.BOOST_PURCHASE,
       amount: new Prisma.Decimal(boost.transaction.amount),
       currency: boost.transaction.currency,
       metadata: {
-        placement,
+        ...buildBoostPackageMetadata(boostPackage),
         requestedStartsAt: startsAt.toISOString(),
         requestedEndsAt: endsAt.toISOString(),
       },
     });
     const paymentMetadata = {
-      placement,
+      ...buildBoostPackageMetadata(boostPackage),
       requestedStartsAt: startsAt.toISOString(),
       requestedEndsAt: endsAt.toISOString(),
       checkoutUrl: paymentIntent.checkoutUrl,
@@ -295,6 +484,130 @@ export class BoostsService {
     });
   }
 
+  async listActiveBoostedListings(query: QueryBoostsDto) {
+    await this.refreshExpiredBoosts();
+
+    const now = new Date();
+
+    return this.prisma.boost.findMany({
+      where: {
+        ...this.buildBoostWhere(query),
+        status: { in: activeBoostStatuses },
+        startsAt: { lte: now },
+        endsAt: { gt: now },
+      },
+      orderBy: [{ endsAt: 'asc' }, { createdAt: 'desc' }],
+      include: boostInclude,
+    });
+  }
+
+  expireEndedBoosts() {
+    return this.refreshExpiredBoosts();
+  }
+
+  listPackages(includeInactive = false) {
+    return this.prisma.boostPackage.findMany({
+      where: includeInactive ? undefined : { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { price: 'asc' }, { name: 'asc' }],
+      include: boostPackageInclude,
+    });
+  }
+
+  async listPackagesForListing(listingId: string) {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+      select: listingSelect,
+    });
+
+    if (!listing || listing.status === ListingStatus.DELETED) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    return this.prisma.boostPackage.findMany({
+      where: {
+        isActive: true,
+        ...buildPackageAvailabilityWhere(listing),
+      },
+      orderBy: [{ sortOrder: 'asc' }, { price: 'asc' }, { name: 'asc' }],
+      include: boostPackageInclude,
+    });
+  }
+
+  async createPackage(dto: CreateBoostPackageDto) {
+    const slug = slugify(dto.slug ?? dto.name);
+
+    if (!slug) {
+      throw new BadRequestException('Boost package slug is required');
+    }
+
+    return this.prisma.boostPackage.create({
+      data: {
+        slug,
+        name: dto.name.trim(),
+        description: dto.description,
+        placement: dto.placement,
+        price: new Prisma.Decimal(dto.price),
+        currency: normalizeCurrency(dto.currency),
+        durationDays: dto.durationDays,
+        isActive: dto.isActive ?? true,
+        sortOrder: dto.sortOrder ?? 0,
+        categories: this.buildCategoryLinks(dto.categoryIds),
+      },
+      include: boostPackageInclude,
+    });
+  }
+
+  async updatePackage(id: string, dto: UpdateBoostPackageDto) {
+    const boostPackage = await this.prisma.boostPackage.findUnique({
+      where: { id },
+    });
+
+    if (!boostPackage) {
+      throw new NotFoundException('Boost package not found');
+    }
+
+    return this.prisma.boostPackage.update({
+      where: { id },
+      data: {
+        slug: dto.slug ? slugify(dto.slug) : undefined,
+        name: dto.name?.trim(),
+        description: dto.description,
+        placement: dto.placement,
+        price:
+          typeof dto.price === 'number'
+            ? new Prisma.Decimal(dto.price)
+            : undefined,
+        currency: dto.currency ? normalizeCurrency(dto.currency) : undefined,
+        durationDays: dto.durationDays,
+        isActive: dto.isActive,
+        sortOrder: dto.sortOrder,
+        categories: dto.categoryIds
+          ? {
+              deleteMany: {},
+              ...this.buildCategoryLinks(dto.categoryIds),
+            }
+          : undefined,
+      },
+      include: boostPackageInclude,
+    });
+  }
+
+  async removePackage(id: string) {
+    const boostPackage = await this.prisma.boostPackage.findUnique({
+      where: { id },
+    });
+
+    if (!boostPackage) {
+      throw new NotFoundException('Boost package not found');
+    }
+
+    return this.prisma.boostPackage.update({
+      where: { id },
+      data: { isActive: false },
+      include: boostPackageInclude,
+    });
+  }
+
   private buildBoostWhere(query: QueryBoostsDto): Prisma.BoostWhereInput {
     return {
       ...(query.status ? { status: query.status } : {}),
@@ -315,5 +628,242 @@ export class BoostsService {
         status: BoostStatus.EXPIRED,
       },
     });
+  }
+
+  private async createWalletBoost(input: {
+    user: ActingUser;
+    listingId: string;
+    listingTitle: string;
+    boostPackage: ResolvedBoostPackage;
+    startsAt: Date;
+    endsAt: Date;
+  }) {
+    const { user, listingId, listingTitle, boostPackage, startsAt, endsAt } =
+      input;
+    const now = new Date();
+
+    const boost = await this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.walletAccount.upsert({
+        where: { userId: user.id },
+        update: {},
+        create: {
+          userId: user.id,
+          currency: boostPackage.currency,
+        },
+      });
+
+      if (wallet.currency !== boostPackage.currency) {
+        throw new BadRequestException(
+          'Wallet currency does not match boost package currency',
+        );
+      }
+
+      if (new Prisma.Decimal(wallet.balance).lt(boostPackage.price)) {
+        throw new BadRequestException('Insufficient wallet balance');
+      }
+
+      const nextBalance = new Prisma.Decimal(wallet.balance).minus(
+        boostPackage.price,
+      );
+
+      const transaction = await tx.transaction.create({
+        data: {
+          userId: user.id,
+          listingId,
+          type: TransactionType.BOOST_PURCHASE,
+          status: TransactionStatus.SUCCEEDED,
+          amount: boostPackage.price,
+          currency: boostPackage.currency,
+          provider: 'wallet',
+          providerRef: `wallet:${user.id}:${now.getTime()}:${Math.random()
+            .toString(36)
+            .slice(2, 10)}`,
+          metadata: {
+            ...buildBoostPackageMetadata(boostPackage),
+            paidAt: now.toISOString(),
+            walletPaidAt: now.toISOString(),
+            activatedStartsAt: startsAt.toISOString(),
+            activatedEndsAt: endsAt.toISOString(),
+          },
+        },
+        select: { id: true },
+      });
+
+      const createdBoost = await tx.boost.create({
+        data: {
+          listingId,
+          purchaserId: user.id,
+          transactionId: transaction.id,
+          packageId: boostPackage.id,
+          placement: boostPackage.placement,
+          status: BoostStatus.ACTIVE,
+          startsAt,
+          endsAt,
+        },
+        include: boostInclude,
+      });
+
+      await tx.walletAccount.update({
+        where: { id: wallet.id },
+        data: {
+          balance: nextBalance,
+        },
+      });
+
+      await tx.walletLedger.create({
+        data: {
+          walletId: wallet.id,
+          transactionId: transaction.id,
+          type: 'BOOST_PURCHASE',
+          amount: boostPackage.price.mul(-1),
+          currency: boostPackage.currency,
+          balanceAfter: nextBalance,
+          metadata: {
+            boostId: createdBoost.id,
+            listingId,
+            ...buildBoostPackageMetadata(boostPackage),
+          },
+        },
+      });
+
+      return createdBoost;
+    });
+
+    try {
+      await this.notifications?.notifyBoostActivated({
+        userId: user.id,
+        boostId: boost.id,
+        listingId,
+        listingTitle,
+        transactionId: boost.transactionId,
+        placement: boostPackage.placement,
+        boostPackageId: boostPackage.id,
+        boostPackageName: boostPackage.name,
+        amount: boostPackage.price,
+        currency: boostPackage.currency,
+        provider: 'wallet',
+        providerRef: boost.transaction?.providerRef,
+        startsAt,
+        endsAt,
+        metadata: {
+          paymentMethod: 'WALLET',
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not persist wallet boost activation notification for ${boost.id}`,
+      );
+    }
+
+    return {
+      ...boost,
+      payment: {
+        provider: 'wallet',
+        providerRef: boost.transaction?.providerRef ?? undefined,
+      },
+    };
+  }
+
+  private async seedDefaultPackages() {
+    for (const boostPackage of defaultBoostPackages) {
+      await this.prisma.boostPackage.upsert({
+        where: { slug: boostPackage.slug },
+        update: {
+          name: boostPackage.name,
+          description: boostPackage.description,
+          placement: boostPackage.placement,
+          price: boostPackage.price,
+          currency: boostPackage.currency,
+          durationDays: boostPackage.durationDays,
+          sortOrder: boostPackage.sortOrder,
+          isActive: true,
+        },
+        create: {
+          ...boostPackage,
+          isActive: true,
+        },
+      });
+    }
+  }
+
+  private async resolveBoostPackage(
+    listing: BoostableListing,
+    createBoostDto: CreateBoostDto,
+  ): Promise<ResolvedBoostPackage> {
+    if (createBoostDto.packageId) {
+      if (createBoostDto.durationDays || createBoostDto.endsAt) {
+        throw new BadRequestException(
+          'Boost package duration cannot be overridden',
+        );
+      }
+
+      const boostPackage = await this.prisma.boostPackage.findFirst({
+        where: {
+          id: createBoostDto.packageId,
+          isActive: true,
+          ...buildPackageAvailabilityWhere(listing),
+        },
+      });
+
+      if (!boostPackage) {
+        throw new NotFoundException('Boost package not found');
+      }
+
+      return {
+        id: boostPackage.id,
+        name: boostPackage.name,
+        placement: boostPackage.placement,
+        price: new Prisma.Decimal(boostPackage.price),
+        currency: boostPackage.currency,
+        durationDays: boostPackage.durationDays,
+      };
+    }
+
+    const placement = createBoostDto.placement ?? defaultBoostPlacement;
+    const requestedDurationDays = createBoostDto.durationDays;
+    const boostPackage = await this.prisma.boostPackage.findFirst({
+      where: {
+        placement,
+        isActive: true,
+        ...buildPackageAvailabilityWhere(listing),
+        ...(requestedDurationDays
+          ? { durationDays: requestedDurationDays }
+          : {}),
+      },
+      orderBy: [{ sortOrder: 'asc' }, { price: 'asc' }],
+    });
+
+    if (boostPackage) {
+      return {
+        id: boostPackage.id,
+        name: boostPackage.name,
+        placement: boostPackage.placement,
+        price: new Prisma.Decimal(boostPackage.price),
+        currency: boostPackage.currency,
+        durationDays: boostPackage.durationDays,
+      };
+    }
+
+    return {
+      name: 'Legacy boost',
+      placement,
+      price: defaultBoostPrice,
+      currency: defaultBoostCurrency,
+      durationDays: requestedDurationDays ?? defaultBoostDurationDays,
+    };
+  }
+
+  private buildCategoryLinks(categoryIds: string[] | undefined) {
+    const uniqueCategoryIds = [...new Set(categoryIds ?? [])];
+
+    if (!uniqueCategoryIds.length) {
+      return undefined;
+    }
+
+    return {
+      create: uniqueCategoryIds.map((categoryId) => ({
+        category: { connect: { id: categoryId } },
+      })),
+    };
   }
 }

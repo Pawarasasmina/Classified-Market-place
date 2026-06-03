@@ -752,12 +752,21 @@ html[data-color-profile="dark"] .text-\[var\(--foreground\)\] {
   --nav-text: rgba(248, 248, 255, 0.68);
   --nav-line: transparent;
   --nav-hover-bg: rgba(112, 103, 255, 0.16);
+  overflow-x: hidden;
   min-height: 100vh;
   background:
     radial-gradient(circle at 16% 10%, rgba(112, 103, 255, 0.18), transparent 24rem),
     radial-gradient(circle at 84% 24%, rgba(196, 139, 67, 0.14), transparent 25rem),
     linear-gradient(180deg, rgba(44, 52, 120, 0.38) 0, rgba(8, 13, 29, 0) 28rem),
     var(--background);
+}
+
+.marketplace-header nav {
+  scrollbar-width: none;
+}
+
+.marketplace-header nav::-webkit-scrollbar {
+  display: none;
 }
 
 .admin-shell a,
@@ -850,6 +859,40 @@ html[data-color-profile="dark"] .text-\[var\(--foreground\)\] {
   letter-spacing: 0.28em;
 }
 
+.admin-dashboard,
+.admin-dashboard > *,
+.admin-shell .page > *,
+.admin-shell .panel,
+.admin-dashboard-card,
+.admin-stat-card {
+  min-width: 0;
+}
+
+.admin-shell .panel,
+.admin-dashboard-card,
+.admin-stat-card,
+.admin-table-wrap {
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+.admin-dashboard-card span,
+.admin-stat-card span,
+.admin-status-badge,
+.admin-table-action {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.admin-dashboard-card > .flex {
+  flex-wrap: wrap;
+}
+
+.admin-dashboard-card > .flex > span {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .admin-dashboard-card,
 .admin-stat-card {
   border: 1px solid var(--panel-line);
@@ -870,6 +913,7 @@ html[data-color-profile="dark"] .text-\[var\(--foreground\)\] {
 
 .admin-table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--panel-line);
   border-radius: 1.35rem;
   background: linear-gradient(145deg, rgba(24, 31, 72, 0.96), rgba(16, 22, 44, 0.98));

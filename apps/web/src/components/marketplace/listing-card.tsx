@@ -12,6 +12,10 @@ export function ListingCard({
 }) {
   const listingHref = `/listings/${listing.id}${customerView ? "?view=customer" : ""}`;
   const media = getListingMedia(listing);
+  const sellerRatingLabel =
+    listing.sellerRatingCount && listing.sellerAverageRating != null
+      ? `${listing.sellerAverageRating.toFixed(1)} / 5 (${listing.sellerRatingCount} ratings, ${listing.sellerReviewCount ?? 0} reviews)`
+      : `No seller ratings yet (${listing.sellerReviewCount ?? 0} reviews)`;
 
   return (
     <article className="listing-card group">
@@ -28,7 +32,7 @@ export function ListingCard({
         <div className="absolute left-3 top-3 flex flex-wrap gap-2">
           {listing.isBoosted ? (
             <span className="listing-featured-badge">
-              Featured
+              {listing.boostLabel ?? "Boosted"}
             </span>
           ) : null}
           <span className="listing-chip uppercase tracking-[0.18em] text-white">
@@ -72,12 +76,23 @@ export function ListingCard({
           ))}
         </div>
 
+        <div className="grid grid-cols-3 gap-2 text-xs font-bold text-[var(--muted)]">
+          <span>{listing.viewCount}</span>
+          <span>{listing.chatCount.toLocaleString()} inquiries</span>
+          <span>{listing.saveCount.toLocaleString()} saves</span>
+        </div>
+
         <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-3">
-          <p className="min-w-0 truncate text-sm text-[var(--muted)]">
-            {listing.sellerDisplayName
-              ? `${listing.sellerDisplayName}${listing.sellerVerified ? " / verified" : ""}`
-              : "Marketplace seller"}
-          </p>
+          <div className="min-w-0 text-sm">
+            <span className="block truncate text-[var(--muted)]">
+              {listing.sellerDisplayName
+                ? `${listing.sellerDisplayName}${listing.sellerVerified ? " / verified" : ""}`
+                : "Marketplace seller"}
+            </span>
+            <span className="mt-1 block truncate text-xs font-bold text-[var(--accent-strong)]">
+              Seller rating: {sellerRatingLabel}
+            </span>
+          </div>
           <Link
             href={listingHref}
             className="listing-details-button shrink-0"

@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 import { BoostStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  getPrismaErrorMessage,
+  isPrismaConnectionError,
+} from '../prisma/prisma-errors';
 
 const defaultSweepIntervalMs = 60_000;
 const expirableBoostStatuses = [BoostStatus.SCHEDULED, BoostStatus.ACTIVE];
@@ -28,15 +32,13 @@ export class BoostExpirationService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
-    await this.expireEndedBoosts();
+    await this.expireEndedBoosts().catch((error: unknown) => {
+      this.logSweepFailure(error);
+    });
 
     this.timer = setInterval(() => {
       void this.expireEndedBoosts().catch((error: unknown) => {
-        this.logger.warn(
-          error instanceof Error
-            ? error.message
-            : 'Could not expire ended boosts',
-        );
+        this.logSweepFailure(error);
       });
     }, getSweepIntervalMs());
     this.timer.unref?.();
@@ -58,5 +60,20 @@ export class BoostExpirationService implements OnModuleInit, OnModuleDestroy {
         status: BoostStatus.EXPIRED,
       },
     });
+  }
+
+  private logSweepFailure(error: unknown) {
+    if (isPrismaConnectionError(error)) {
+      this.logger.warn(
+        `Skipping boost expiration sweep because the database is unavailable: ${getPrismaErrorMessage(
+          error,
+        )}`,
+      );
+      return;
+    }
+
+    this.logger.warn(
+      error instanceof Error ? error.message : 'Could not expire ended boosts',
+    );
   }
 }

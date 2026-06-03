@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ListingStatus } from '@prisma/client';
+import { ListingStatus, SellerPriorityTier } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 function sanitizeUser(user: {
@@ -13,6 +15,7 @@ function sanitizeUser(user: {
   bio: string | null;
   location: string | null;
   role: string;
+  sellerPriorityTier: SellerPriorityTier;
   phone: string | null;
   phoneVerified: boolean;
   emailVerified: boolean;
@@ -27,7 +30,10 @@ function sanitizeUser(user: {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications?: NotificationsService,
+  ) {}
 
   async getCurrentUser(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -86,6 +92,56 @@ export class UsersService {
     });
 
     return users.map((user) => sanitizeUser(user));
+  }
+
+  async listForAdmin() {
+    const users = await this.prisma.user.findMany({
+      orderBy: [{ role: 'asc' }, { displayName: 'asc' }],
+      take: 200,
+    });
+
+    return users.map((user) => sanitizeUser(user));
+  }
+
+  async adminUpdateUser(
+    userId: string,
+    dto: AdminUpdateUserDto,
+    actorId?: string | null,
+  ) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!existingUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        displayName: dto.name,
+        phone: dto.phone,
+        avatarUrl: dto.avatarUrl,
+        role: dto.role?.toUpperCase(),
+        emailVerified: dto.isEmailVerified,
+        phoneVerified: dto.isPhoneVerified,
+        sellerPriorityTier: dto.sellerPriorityTier,
+      },
+    });
+
+    if (
+      dto.sellerPriorityTier !== undefined &&
+      existingUser.sellerPriorityTier !== user.sellerPriorityTier
+    ) {
+      await this.notifications?.notifySellerAccountDecision({
+        userId,
+        actorId,
+        previousTier: existingUser.sellerPriorityTier,
+        nextTier: user.sellerPriorityTier,
+      });
+    }
+
+    return sanitizeUser(user);
   }
 
   async updateCurrentUser(userId: string, updateUserDto: UpdateUserDto) {

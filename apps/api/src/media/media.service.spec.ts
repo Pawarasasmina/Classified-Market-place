@@ -44,7 +44,7 @@ describe('MediaService', () => {
         provider: 'local',
       }),
     };
-    service = new MediaService(prisma as never, storage as never);
+    service = new MediaService(prisma as never, storage);
   });
 
   it('stores a valid listing image as an owned media asset', async () => {

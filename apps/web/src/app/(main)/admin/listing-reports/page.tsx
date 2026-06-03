@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { updateListingReportAction } from "@/app/(main)/actions";
+import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminListingReports } from "@/lib/marketplace-api";
 import {
@@ -62,10 +63,11 @@ export default async function AdminListingReportsPage(
     "/admin/listing-reports",
   );
 
-  if (user.role.toUpperCase() !== "ADMIN") {
+  if (!hasAdminPermission(user.role, "REPORTS_READ")) {
     redirect("/");
   }
 
+  const canUpdateReports = hasAdminPermission(user.role, "REPORTS_WRITE");
   const status = reportStatuses.includes(searchParams.status as ApiReportStatus)
     ? searchParams.status
     : undefined;
@@ -229,52 +231,54 @@ export default async function AdminListingReportsPage(
                 </div>
               </div>
 
-              <form
-                action={updateListingReportAction}
-                className="grid gap-3 border-t border-[var(--line)] pt-4 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end"
-              >
-                <input type="hidden" name="reportId" value={report.id} />
-                <input type="hidden" name="listingId" value={report.listingId} />
-                <input type="hidden" name="returnTo" value={returnTo} />
-                <label className="grid gap-2 text-sm font-bold">
-                  Report status
-                  <select
-                    name="status"
-                    defaultValue={report.status}
-                    className="surface-input"
-                  >
-                    {reportStatuses.map((item) => (
-                      <option key={item} value={item}>
-                        {humanizeReportStatus(item)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="grid gap-2 text-sm font-bold">
-                  Listing action
-                  <select name="listingStatus" className="surface-input">
-                    <option value="">No listing change</option>
-                    {listingStatuses.map((item) => (
-                      <option key={item} value={item}>
-                        {humanizeLabel(item)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="grid gap-2 text-sm font-bold">
-                  Admin notes
-                  <textarea
-                    name="adminNotes"
-                    rows={3}
-                    defaultValue={report.adminNotes ?? ""}
-                    className="surface-input"
-                    placeholder="Internal moderation notes"
-                  />
-                </label>
-                <button className="action-primary px-4 py-3 text-sm font-black">
-                  Save review
-                </button>
-              </form>
+              {canUpdateReports ? (
+                <form
+                  action={updateListingReportAction}
+                  className="grid gap-3 border-t border-[var(--line)] pt-4 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end"
+                >
+                  <input type="hidden" name="reportId" value={report.id} />
+                  <input type="hidden" name="listingId" value={report.listingId} />
+                  <input type="hidden" name="returnTo" value={returnTo} />
+                  <label className="grid gap-2 text-sm font-bold">
+                    Report status
+                    <select
+                      name="status"
+                      defaultValue={report.status}
+                      className="surface-input"
+                    >
+                      {reportStatuses.map((item) => (
+                        <option key={item} value={item}>
+                          {humanizeReportStatus(item)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-2 text-sm font-bold">
+                    Listing action
+                    <select name="listingStatus" className="surface-input">
+                      <option value="">No listing change</option>
+                      {listingStatuses.map((item) => (
+                        <option key={item} value={item}>
+                          {humanizeLabel(item)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-2 text-sm font-bold">
+                    Admin notes
+                    <textarea
+                      name="adminNotes"
+                      rows={3}
+                      defaultValue={report.adminNotes ?? ""}
+                      className="surface-input"
+                      placeholder="Internal moderation notes"
+                    />
+                  </label>
+                  <button className="action-primary px-4 py-3 text-sm font-black">
+                    Save review
+                  </button>
+                </form>
+              ) : null}
             </article>
           ))
         ) : (

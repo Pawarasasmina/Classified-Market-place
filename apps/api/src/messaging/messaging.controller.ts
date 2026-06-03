@@ -11,6 +11,9 @@ import {
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { rolesForPermission } from '../common/admin-permissions';
+import { Roles } from '../common/decorators/roles.decorator';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { BlockConversationCounterpartDto } from './dto/block-conversation-counterpart.dto';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { ReportEntityDto } from './dto/report-entity.dto';
@@ -29,7 +32,10 @@ export class MessagingController {
     @CurrentUser() user: { id: string },
     @Query('archived') archived?: string,
   ) {
-    return this.messagingService.findConversations(user.id, archived === 'true');
+    return this.messagingService.findConversations(
+      user.id,
+      archived === 'true',
+    );
   }
 
   @Post('conversations')
@@ -97,7 +103,11 @@ export class MessagingController {
     @Param('conversationId') conversationId: string,
     @Body() dto: ReportEntityDto,
   ) {
-    return this.messagingService.reportConversation(user.id, conversationId, dto);
+    return this.messagingService.reportConversation(
+      user.id,
+      conversationId,
+      dto,
+    );
   }
 
   @Post('messages/:messageId/report')
@@ -119,6 +129,8 @@ export class MessagingController {
   }
 
   @Get('admin/reports')
+  @UseGuards(RolesGuard)
+  @Roles(...rolesForPermission('SUPPORT_READ'))
   listOpenReports(@CurrentUser() user: { id: string; role: string }) {
     return this.messagingService.listOpenReports(user);
   }

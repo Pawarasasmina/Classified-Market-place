@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { rolesForPermission } from '../common/admin-permissions';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { QueryTransactionsDto } from './dto/query-transactions.dto';
@@ -29,7 +30,7 @@ export class TransactionsController {
 
   @Get('admin/transactions')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'admin')
+  @Roles(...rolesForPermission('TRANSACTIONS_READ'))
   listForAdmin(@Query() query: QueryTransactionsDto) {
     return this.transactionsService.listForAdmin(query);
   }

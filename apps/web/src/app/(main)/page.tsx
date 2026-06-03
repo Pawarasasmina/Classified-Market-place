@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CategoryIcon } from "@/components/marketplace/category-icon";
 import { ListingCard } from "@/components/marketplace/listing-card";
+import { hasAnyAdminPermission } from "@/lib/admin-permissions";
 import { getSessionUser } from "@/lib/auth-dal";
 import { fetchCategories, fetchListings } from "@/lib/marketplace-api";
 
@@ -25,7 +26,7 @@ export default async function HomePage(props: HomePageProps) {
   const customerPreview = searchParams.view === "customer";
   const user = await getSessionUser();
 
-  if (user?.role.toUpperCase() === "ADMIN" && !customerPreview) {
+  if (hasAnyAdminPermission(user?.role) && !customerPreview) {
     redirect("/admin");
   }
 

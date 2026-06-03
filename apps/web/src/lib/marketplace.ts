@@ -47,14 +47,20 @@ export type ApiUser = {
   bio: string | null;
   location: string | null;
   role: string;
+  sellerPriorityTier?: ApiSellerPriorityTier;
   phone: string | null;
   phoneVerified: boolean;
   emailVerified: boolean;
   reputationScore: number;
+  averageRating?: number | null;
+  ratingCount?: number;
+  reviewCount?: number;
   createdAt: string;
   updatedAt: string;
   listings?: ApiListing[];
 };
+
+export type ApiSellerPriorityTier = "NONE" | "AUTHORIZED" | "VERIFIED" | "VIP";
 
 export type ApiListingStatus =
   | "PENDING"
@@ -66,6 +72,8 @@ export type ApiListingStatus =
   | "REMOVED"
   | "DRAFT";
 
+export type ApiListingPaymentMode = "FREE" | "PAID";
+
 export type ApiReportStatus =
   | "OPEN"
   | "REVIEWED"
@@ -73,9 +81,86 @@ export type ApiReportStatus =
   | "DISMISSED"
   | "ACTIONED";
 
-export type ApiBoostPlacement = "FEATURED" | "SEARCH_TOP" | "CATEGORY_TOP";
+export type ApiBoostPlacement =
+  | "TOP_LISTING"
+  | "HIGHLIGHTED_LISTING"
+  | "CATEGORY_PRIORITY"
+  | "HOMEPAGE_PROMOTION"
+  | "TIME_BASED_BOOST"
+  | "FEATURED"
+  | "SEARCH_TOP"
+  | "CATEGORY_TOP";
 
 export type ApiBoostStatus = "SCHEDULED" | "ACTIVE" | "EXPIRED" | "CANCELLED";
+
+export type ApiListingPriorityRuleTarget =
+  | "BOOSTED_LISTING"
+  | "BOOST_PACKAGE"
+  | "PAID_LISTING"
+  | "CATEGORY_PRIORITY"
+  | "SELLER_RATING"
+  | "MANUAL_ADMIN_PRIORITY"
+  | "AUTHORIZED_SELLER"
+  | "VERIFIED_SELLER"
+  | "VIP_SELLER";
+
+export type ApiListingPriorityRule = {
+  id: string;
+  name: string;
+  target: ApiListingPriorityRuleTarget;
+  boostPackageId?: string | null;
+  boostPackage?: Pick<ApiBoostPackage, "id" | "slug" | "name"> | null;
+  categoryId?: string | null;
+  category?: Pick<ApiCategory, "id" | "slug" | "name" | "parentId"> | null;
+  weight: number;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApiSellerRatingSummary = {
+  sellerId: string;
+  averageRating: number | null;
+  ratingCount: number;
+  reviewCount: number;
+  reputationScore: number;
+};
+
+export type ApiSellerReviewStatus =
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "HIDDEN";
+
+export type ApiSellerRating = {
+  id: string;
+  sellerId: string;
+  raterId: string;
+  listingId: string;
+  stars: number;
+  review: string | null;
+  reviewStatus?: ApiSellerReviewStatus;
+  reviewModerationNote?: string | null;
+  reviewModeratedAt?: string | null;
+  reviewModeratedById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  listing?: {
+    id: string;
+    title: string;
+  };
+  rater?: {
+    id: string;
+    displayName: string;
+    avatarUrl?: string | null;
+  };
+  seller?: {
+    id: string;
+    displayName: string;
+    avatarUrl?: string | null;
+  };
+};
 
 export type ApiTransactionStatus =
   | "PENDING"
@@ -84,14 +169,21 @@ export type ApiTransactionStatus =
   | "CANCELLED"
   | "REFUNDED";
 
-export type ApiTransactionType = "BOOST_PURCHASE" | "LISTING_FEE" | "REFUND";
+export type ApiTransactionType =
+  | "BOOST_PURCHASE"
+  | "LISTING_FEE"
+  | "WALLET_TOP_UP"
+  | "ADMIN_ADJUSTMENT"
+  | "REFUND";
 
 export type ApiBoost = {
   id: string;
+  listingId?: string;
   placement: ApiBoostPlacement;
   status: ApiBoostStatus;
   startsAt: string;
   endsAt: string;
+  listing?: Pick<ApiListing, "id" | "title" | "status" | "sellerId"> | null;
   transaction?: {
     id: string;
     status: ApiTransactionStatus;
@@ -100,6 +192,40 @@ export type ApiBoost = {
     provider?: string | null;
     providerRef?: string | null;
   } | null;
+};
+
+export type ApiBoostPackage = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  placement: ApiBoostPlacement;
+  price: number | string;
+  currency: string;
+  durationDays: number;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  categories?: Array<{
+    categoryId: string;
+    category: ApiCategory;
+  }>;
+};
+
+export type ApiWalletAccount = {
+  id: string;
+  userId: string;
+  balance: number | string;
+  currency: string;
+  ledger?: Array<{
+    id: string;
+    type: string;
+    amount: number | string;
+    currency: string;
+    balanceAfter: number | string;
+    createdAt: string;
+  }>;
 };
 
 export type ApiTransaction = {
@@ -141,12 +267,780 @@ export type ApiListingReport = {
   reporter?: Pick<ApiUser, "id" | "displayName" | "email" | "role"> | null;
 };
 
+export type ApiAuditLog = {
+  id: string;
+  actorId: string | null;
+  action: string;
+  entityType: string | null;
+  entityId: string | null;
+  method: string;
+  path: string;
+  statusCode: number | null;
+  success: boolean;
+  ipAddress: string | null;
+  userAgent: string | null;
+  requestBody?: Record<string, unknown> | null;
+  requestParams?: Record<string, unknown> | null;
+  requestQuery?: Record<string, unknown> | null;
+  responseSummary?: Record<string, unknown> | null;
+  errorMessage: string | null;
+  durationMs: number | null;
+  createdAt: string;
+  actor?: Pick<ApiUser, "id" | "displayName" | "email" | "role"> | null;
+};
+
+export type ApiAdminMonitoringReport = {
+  generatedAt: string;
+  range: {
+    from: string;
+    to: string;
+    days: number;
+  };
+  overview: {
+    totalUsers: number;
+    newUsers: number;
+    newUsersDelta: number;
+    totalListings: number;
+    newListings: number;
+    newListingsDelta: number;
+    activeListings: number;
+    totalRevenue: number;
+    totalRevenueDelta: number;
+    openReports: number;
+    activeBoosts: number;
+  };
+  moderation: {
+    listingStatuses: Record<ApiListingStatus, number>;
+    listingReports: Record<ApiReportStatus, number>;
+    conversationReports: Record<ApiReportStatus, number>;
+    messageReports: Record<ApiReportStatus, number>;
+    totalReports: Record<ApiReportStatus, number>;
+    sellerReviews: Record<ApiSellerReviewStatus, number>;
+  };
+  commerce: {
+    revenue: number;
+    revenueDelta: number;
+    transactionStatuses: Record<ApiTransactionStatus, number>;
+    revenueByType: Record<ApiTransactionType, number>;
+  };
+  engagement: {
+    listingViews: number;
+    listingViewsDelta: number;
+    savedListings: number;
+    conversations: number;
+    messages: number;
+    inquiryConversionRate: number;
+  };
+  boosts: {
+    statuses: Record<ApiBoostStatus, number>;
+    active: number;
+    expiringWithin24Hours: number;
+  };
+  alerts: Array<{
+    key: string;
+    severity: "none" | "low" | "medium" | "high";
+    label: string;
+    value: number;
+    message: string;
+  }>;
+  recentReports: Array<{
+    id: string;
+    type: "LISTING" | "CONVERSATION" | "MESSAGE";
+    targetId: string;
+    targetTitle: string | null;
+    status: ApiReportStatus;
+    reason: string;
+    details: string | null;
+    reporter: Pick<ApiUser, "id" | "displayName" | "email" | "role"> | null;
+    createdAt: string;
+  }>;
+  topListings: Array<{
+    id: string;
+    title: string;
+    status: ApiListingStatus;
+    sellerId: string;
+    sellerName: string | null;
+    categoryName: string | null;
+    price: number;
+    currency: string;
+    viewCount: number;
+    saveCount: number;
+    inquiryCount: number;
+    reportCount: number;
+    lifetimeViewCount: number;
+  }>;
+};
+
+export type ApiAdminSellerReport = {
+  generatedAt: string;
+  range: {
+    from: string;
+    to: string;
+    days: number;
+  };
+  overview: {
+    totalSellers: number;
+    activeSellers: number;
+    inactiveSellers: number;
+    newSellers: number;
+    newSellersDelta: number;
+    verifiedSellers: number;
+    unverifiedSellers: number;
+    tieredSellers: number;
+  };
+  tiers: Record<ApiSellerPriorityTier, number>;
+  sellers: Array<{
+    id: string;
+    displayName: string;
+    email: string;
+    phone: string | null;
+    emailVerified: boolean;
+    phoneVerified: boolean;
+    sellerPriorityTier: ApiSellerPriorityTier;
+    reputationScore: number;
+    createdAt: string;
+    totalListings: number;
+    activeListings: number;
+    newListings: number;
+    paidListings: number;
+    listingStatuses: Record<ApiListingStatus, number>;
+    viewCount: number;
+    saveCount: number;
+    inquiryCount: number;
+    reportCount: number;
+    boostCount: number;
+    revenue: number;
+    averageRating: number | null;
+    ratingCount: number;
+    reviewCount: number;
+    inquiryConversionRate: number;
+  }>;
+};
+
+export type ApiTopSellersReport = {
+  generatedAt: string;
+  range: {
+    from: string;
+    to: string;
+    days: number;
+  };
+  overview: {
+    rankedSellers: number;
+    activeTopSellers: number;
+    totalRevenue: number;
+    totalViews: number;
+    totalInquiries: number;
+    averagePerformanceScore: number;
+    topSeller: ApiTopSellerReportRow | null;
+  };
+  leaders: {
+    revenue: ApiTopSellerReportRow | null;
+    engagement: ApiTopSellerReportRow | null;
+    conversion: ApiTopSellerReportRow | null;
+    rating: ApiTopSellerReportRow | null;
+  };
+  sellers: ApiTopSellerReportRow[];
+};
+
+export type ApiTopSellerReportRow = {
+  id: string;
+  rank: number;
+  displayName: string;
+  email: string;
+  phone: string | null;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+  sellerPriorityTier: ApiSellerPriorityTier;
+  reputationScore: number;
+  createdAt: string;
+  totalListings: number;
+  activeListings: number;
+  newListings: number;
+  paidListings: number;
+  soldListings: number;
+  listingStatuses: Record<ApiListingStatus, number>;
+  viewCount: number;
+  saveCount: number;
+  inquiryCount: number;
+  reportCount: number;
+  boostCount: number;
+  revenue: number;
+  boostRevenue: number;
+  listingFeeRevenue: number;
+  averageRating: number | null;
+  ratingCount: number;
+  reviewCount: number;
+  inquiryConversionRate: number;
+  performanceScore: number;
+};
+
+export type ApiPendingSellerApprovalsReport = {
+  generatedAt: string;
+  range: {
+    from: string;
+    to: string;
+    days: number;
+  };
+  overview: {
+    pendingApprovals: number;
+    verifiedPending: number;
+    needsContactVerification: number;
+    activePending: number;
+    highSignalApprovals: number;
+  };
+  approvals: Array<{
+    id: string;
+    displayName: string;
+    email: string;
+    phone: string | null;
+    emailVerified: boolean;
+    phoneVerified: boolean;
+    verifiedContact: boolean;
+    reputationScore: number;
+    createdAt: string;
+    firstListingAt: string | null;
+    latestListingAt: string | null;
+    totalListings: number;
+    activeListings: number;
+    pendingListings: number;
+    newListings: number;
+    listingStatuses: Record<ApiListingStatus, number>;
+    viewCount: number;
+    saveCount: number;
+    inquiryCount: number;
+    reportCount: number;
+    boostCount: number;
+    revenue: number;
+    averageRating: number | null;
+    ratingCount: number;
+    reviewCount: number;
+    inquiryConversionRate: number;
+    latestListing: {
+      id: string;
+      title: string;
+      status: ApiListingStatus;
+      createdAt: string;
+      categoryName: string | null;
+    } | null;
+  }>;
+};
+
+export type ApiActiveListingsReport = {
+  generatedAt: string;
+  range: {
+    from: string;
+    to: string;
+    days: number;
+  };
+  overview: {
+    activeListings: number;
+    boostedListings: number;
+    paidListings: number;
+    manuallyPromotedListings: number;
+    pinnedListings: number;
+    categoriesRepresented: number;
+    sellersRepresented: number;
+    noRecentViews: number;
+    reportedListings: number;
+  };
+  engagement: {
+    views: number;
+    saves: number;
+    inquiries: number;
+    reports: number;
+    boosts: number;
+    inquiryConversionRate: number;
+    averageViewsPerListing: number;
+  };
+  categories: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    activeListings: number;
+  }>;
+  listings: Array<{
+    id: string;
+    title: string;
+    price: number;
+    currency: string;
+    location: string;
+    createdAt: string;
+    updatedAt: string;
+    category: Pick<ApiCategory, "id" | "name" | "slug">;
+    seller: Pick<
+      ApiUser,
+      | "id"
+      | "displayName"
+      | "email"
+      | "phoneVerified"
+      | "emailVerified"
+      | "sellerPriorityTier"
+      | "reputationScore"
+    >;
+    sellerId: string;
+    listingPaymentMode: ApiListingPaymentMode;
+    paidPriorityEnabled: boolean;
+    adminPriorityPromoted: boolean;
+    adminPriorityPinned: boolean;
+    adminPriorityScore: number | null;
+    activeBoostCount: number;
+    activeBoostPlacements: ApiBoostPlacement[];
+    nextBoostEndsAt: string | null;
+    viewCount: number;
+    saveCount: number;
+    inquiryCount: number;
+    reportCount: number;
+    boostCount: number;
+    lifetimeViewCount: number;
+    lifetimeSaveCount: number;
+    lifetimeInquiryCount: number;
+    lifetimeReportCount: number;
+    inquiryConversionRate: number;
+  }>;
+};
+
+export type ApiPaidListingsReport = {
+  generatedAt: string;
+  range: {
+    from: string;
+    to: string;
+    days: number;
+  };
+  overview: {
+    paidListings: number;
+    activePaidListings: number;
+    pendingPaidListings: number;
+    paidPriorityListings: number;
+    paidFeeListings: number;
+    boostedPaidListings: number;
+    reportedPaidListings: number;
+    categoriesRepresented: number;
+    sellersRepresented: number;
+  };
+  commerce: {
+    revenue: number;
+    pendingRevenue: number;
+    refundedRevenue: number;
+    successfulPayments: number;
+    pendingPayments: number;
+    failedPayments: number;
+    refundedPayments: number;
+    cancelledPayments: number;
+    paymentConversionRate: number;
+  };
+  engagement: {
+    views: number;
+    saves: number;
+    inquiries: number;
+    reports: number;
+    boosts: number;
+    inquiryConversionRate: number;
+    averageViewsPerListing: number;
+  };
+  paymentStatuses: Record<ApiTransactionStatus, number>;
+  categories: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    paidListings: number;
+  }>;
+  listings: Array<{
+    id: string;
+    title: string;
+    status: ApiListingStatus;
+    price: number;
+    currency: string;
+    location: string;
+    createdAt: string;
+    updatedAt: string;
+    category: Pick<ApiCategory, "id" | "name" | "slug">;
+    seller: Pick<
+      ApiUser,
+      | "id"
+      | "displayName"
+      | "email"
+      | "phoneVerified"
+      | "emailVerified"
+      | "sellerPriorityTier"
+      | "reputationScore"
+    >;
+    sellerId: string;
+    listingPaymentMode: ApiListingPaymentMode;
+    paidPriorityEnabled: boolean;
+    adminPriorityPromoted: boolean;
+    adminPriorityPinned: boolean;
+    adminPriorityScore: number | null;
+    paymentStatus: ApiTransactionStatus | null;
+    paymentRevenue: number;
+    pendingAmount: number;
+    refundedAmount: number;
+    latestPaymentAt: string | null;
+    paymentTransactionCount: number;
+    transactions: Array<{
+      id: string;
+      status: ApiTransactionStatus;
+      amount: number;
+      currency: string;
+      provider: string | null;
+      providerRef: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+    activeBoostCount: number;
+    activeBoostPlacements: ApiBoostPlacement[];
+    nextBoostEndsAt: string | null;
+    viewCount: number;
+    saveCount: number;
+    inquiryCount: number;
+    reportCount: number;
+    boostCount: number;
+    lifetimeViewCount: number;
+    lifetimeSaveCount: number;
+    lifetimeInquiryCount: number;
+    lifetimeReportCount: number;
+    inquiryConversionRate: number;
+  }>;
+};
+
+export type ApiWalletPaymentsReport = {
+  generatedAt: string;
+  range: {
+    from: string;
+    to: string;
+    days: number;
+  };
+  overview: {
+    totalWallets: number;
+    fundedWallets: number;
+    emptyWallets: number;
+    totalBalance: number;
+    averageBalance: number;
+    activeWallets: number;
+  };
+  movement: {
+    credits: number;
+    debits: number;
+    creditAmount: number;
+    debitAmount: number;
+    netMovement: number;
+    byType: Array<{
+      type: string;
+      count: number;
+      amount: number;
+    }>;
+  };
+  topUps: {
+    requested: number;
+    succeeded: number;
+    pending: number;
+    failed: number;
+    cancelled: number;
+    refunded: number;
+    revenue: number;
+    pendingAmount: number;
+    conversionRate: number;
+    statuses: Record<ApiTransactionStatus, number>;
+  };
+  walletPayments: {
+    total: number;
+    succeeded: number;
+    pending: number;
+    failed: number;
+    cancelled: number;
+    refunded: number;
+    spend: number;
+    conversionRate: number;
+    statuses: Record<ApiTransactionStatus, number>;
+  };
+  wallets: Array<{
+    id: string;
+    userId: string;
+    user: Pick<
+      ApiUser,
+      | "id"
+      | "displayName"
+      | "email"
+      | "phoneVerified"
+      | "emailVerified"
+      | "sellerPriorityTier"
+      | "reputationScore"
+    >;
+    balance: number;
+    currency: string;
+    createdAt: string;
+    updatedAt: string;
+    creditTotal: number;
+    debitTotal: number;
+    netMovement: number;
+    ledgerEntryCount: number;
+    latestLedgerAt: string | null;
+    latestLedgerType: string | null;
+    ledger: Array<{
+      id: string;
+      type: string;
+      amount: number;
+      currency: string;
+      balanceAfter: number;
+      createdAt: string;
+      transaction: {
+        id: string;
+        type: ApiTransactionType;
+        status: ApiTransactionStatus;
+        provider: string | null;
+        providerRef: string | null;
+        listing: Pick<ApiListing, "id" | "title"> | null;
+      } | null;
+    }>;
+  }>;
+};
+
+export type ApiBoostRevenueReport = {
+  generatedAt: string;
+  range: {
+    from: string;
+    to: string;
+    days: number;
+  };
+  overview: {
+    boostPurchases: number;
+    successfulPurchases: number;
+    pendingPurchases: number;
+    failedPurchases: number;
+    activeBoosts: number;
+    expiringBoosts: number;
+    packagesRepresented: number;
+    placementsRepresented: number;
+  };
+  commerce: {
+    revenue: number;
+    pendingRevenue: number;
+    refundedRevenue: number;
+    walletRevenue: number;
+    gatewayRevenue: number;
+    averageOrderValue: number;
+    paymentConversionRate: number;
+    transactionStatuses: Record<ApiTransactionStatus, number>;
+    revenueByProvider: Array<{
+      provider: string;
+      count: number;
+      revenue: number;
+    }>;
+  };
+  boosts: {
+    statuses: Record<ApiBoostStatus, number>;
+    placements: Array<{
+      placement: ApiBoostPlacement;
+      boosts: number;
+      revenue: number;
+      viewCount: number;
+    }>;
+  };
+  packages: Array<{
+    id: string | null;
+    slug: string | null;
+    name: string;
+    placement: ApiBoostPlacement | null;
+    durationDays: number | null;
+    purchases: number;
+    revenue: number;
+    activeBoosts: number;
+    viewCount: number;
+  }>;
+  topListings: Array<{
+    id: string;
+    title: string;
+    status: ApiListingStatus;
+    sellerId: string;
+    categoryName: string | null;
+    boosts: number;
+    revenue: number;
+    viewCount: number;
+  }>;
+  rows: Array<{
+    id: string;
+    placement: ApiBoostPlacement;
+    status: ApiBoostStatus;
+    startsAt: string;
+    endsAt: string;
+    createdAt: string;
+    viewCount: number;
+    package: {
+      id: string;
+      slug: string;
+      name: string;
+      placement: ApiBoostPlacement;
+      price: number;
+      currency: string;
+      durationDays: number;
+    } | null;
+    listing: {
+      id: string;
+      title: string;
+      status: ApiListingStatus;
+      sellerId: string;
+      category: Pick<ApiCategory, "id" | "name" | "slug"> | null;
+    };
+    purchaser: Pick<
+      ApiUser,
+      "id" | "displayName" | "email" | "sellerPriorityTier" | "reputationScore"
+    >;
+    transaction: {
+      id: string;
+      status: ApiTransactionStatus;
+      amount: number;
+      currency: string;
+      provider: string | null;
+      providerRef: string | null;
+      createdAt: string;
+      updatedAt: string;
+    } | null;
+  }>;
+};
+
+export type ApiCategoryIncomeReport = {
+  generatedAt: string;
+  range: {
+    from: string;
+    to: string;
+    days: number;
+  };
+  overview: {
+    categoriesRepresented: number;
+    incomeListings: number;
+    sellersRepresented: number;
+    paidListings: number;
+    boostedListings: number;
+    totalRevenue: number;
+    listingFeeRevenue: number;
+    boostRevenue: number;
+    pendingRevenue: number;
+    refundedRevenue: number;
+    successfulPayments: number;
+    topCategory: ApiCategoryIncomeReportRow | null;
+  };
+  commerce: {
+    transactionStatuses: Record<ApiTransactionStatus, number>;
+    revenueByType: Partial<
+      Record<
+        ApiTransactionType,
+        {
+          count: number;
+          revenue: number;
+        }
+      >
+    >;
+    revenueByProvider: Array<{
+      provider: string;
+      count: number;
+      revenue: number;
+    }>;
+    averageRevenuePerCategory: number;
+    averageOrderValue: number;
+    paymentConversionRate: number;
+  };
+  engagement: {
+    views: number;
+    saves: number;
+    inquiries: number;
+    reports: number;
+    inquiryConversionRate: number;
+    averageRevenuePerInquiry: number;
+  };
+  categories: ApiCategoryIncomeReportRow[];
+  topListings: Array<{
+    id: string;
+    title: string;
+    status: ApiListingStatus;
+    sellerId: string;
+    seller: Pick<
+      ApiUser,
+      "id" | "displayName" | "email" | "sellerPriorityTier" | "reputationScore"
+    >;
+    category: Pick<ApiCategory, "id" | "name" | "slug">;
+    listingPaymentMode: ApiListingPaymentMode;
+    paidPriorityEnabled: boolean;
+    revenue: number;
+    listingFeeRevenue: number;
+    boostRevenue: number;
+    pendingRevenue: number;
+    refundedRevenue: number;
+    transactionCount: number;
+    viewCount: number;
+    saveCount: number;
+    inquiryCount: number;
+    reportCount: number;
+    lifetimeViewCount: number;
+    lifetimeSaveCount: number;
+    lifetimeInquiryCount: number;
+    lifetimeReportCount: number;
+    inquiryConversionRate: number;
+  }>;
+};
+
+export type ApiCategoryIncomeReportRow = {
+  id: string;
+  name: string;
+  slug: string;
+  listingCount: number;
+  paidListings: number;
+  boostedListings: number;
+  activeListings: number;
+  soldListings: number;
+  sellersRepresented: number;
+  transactionCount: number;
+  successfulPayments: number;
+  pendingPayments: number;
+  failedPayments: number;
+  refundedPayments: number;
+  cancelledPayments: number;
+  revenue: number;
+  listingFeeRevenue: number;
+  boostRevenue: number;
+  walletRevenue: number;
+  gatewayRevenue: number;
+  pendingRevenue: number;
+  refundedRevenue: number;
+  revenueShare: number;
+  viewCount: number;
+  saveCount: number;
+  inquiryCount: number;
+  reportCount: number;
+  inquiryConversionRate: number;
+  averageRevenuePerListing: number;
+};
+
 export type ApiListingImage = {
   id: string;
   url: string;
   altText: string | null;
   sortOrder: number;
   isPrimary: boolean;
+};
+
+export type ApiListingPriorityRanking = {
+  score: number;
+  overrideApplied: boolean;
+  factors: Array<{
+    key: string;
+    label: string;
+    score: number;
+    detail?: string;
+  }>;
+};
+
+export type ApiListingAnalytics = {
+  viewCount: number;
+  saveCount: number;
+  inquiryCount: number;
+  messageCount: number;
+  buyerMessageCount: number;
+  conversionRate: number;
+  boostedViewCount: number;
+  boostCount: number;
+  activeBoostCount: number;
+  boostedInquiryCount: number;
+  boostConversionRate: number;
+  savedByViewer: boolean;
 };
 
 export type ApiListing = {
@@ -157,15 +1051,33 @@ export type ApiListing = {
   currency: string;
   location: string;
   status: ApiListingStatus;
+  listingPaymentMode?: ApiListingPaymentMode;
   attributes?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
   sellerId: string;
   categoryId: string;
+  paidPriorityEnabled?: boolean;
+  adminPriorityPromoted?: boolean;
+  adminPriorityPinned?: boolean;
+  adminPriorityScore?: number | null;
+  adminPriorityStartsAt?: string | null;
+  adminPriorityExpiresAt?: string | null;
+  priorityRanking?: ApiListingPriorityRanking;
   category?: ApiCategory;
   seller?: ApiUser;
   images?: ApiListingImage[];
   boosts?: ApiBoost[];
+  analytics?: ApiListingAnalytics;
+};
+
+export type ApiListingQuota = {
+  freeListingAllowance: number;
+  freeListingUsed: number;
+  freeListingRemaining: number;
+  listingFeeAmount: number | string;
+  listingFeeCurrency: string;
+  paidListingFallbackEnabled: boolean;
 };
 
 export type SessionUser = {
@@ -180,6 +1092,7 @@ export type SessionUser = {
   phoneVerified: boolean;
   emailVerified: boolean;
   reputationScore: number;
+  sellerPriorityTier: ApiSellerPriorityTier;
   createdAt: string;
 };
 
@@ -199,6 +1112,8 @@ export type MarketplaceCategory = {
 
 export type MarketplaceListing = {
   id: string;
+  categoryId: string;
+  parentCategoryId?: string | null;
   slug: string;
   title: string;
   categorySlug: string;
@@ -221,19 +1136,41 @@ export type MarketplaceListing = {
   sellerId: string;
   sellerDisplayName?: string;
   sellerVerified?: boolean;
+  sellerPriorityTier: ApiSellerPriorityTier;
   sellerJoinedLabel?: string;
   sellerTotalListings?: number;
+  sellerAverageRating?: number | null;
+  sellerRatingCount?: number;
+  sellerReviewCount?: number;
   imageUrl?: string;
   imageUrls: string[];
   imagePalette: string[];
   attributes: Record<string, string | number | boolean>;
   viewCount: string;
+  viewCountValue: number;
+  saveCount: number;
   chatCount: number;
+  messageCount: number;
+  buyerMessageCount: number;
+  conversionRate: number;
   saved: boolean;
+  boostedViewCount: number;
+  boostCount: number;
+  activeBoostCount: number;
+  boostedInquiryCount: number;
+  boostConversionRate: number;
   isBoosted: boolean;
   boostPlacements: ApiBoostPlacement[];
   boostLabel?: string;
   boostEndsLabel?: string;
+  paidPriorityEnabled: boolean;
+  listingPaymentMode: ApiListingPaymentMode;
+  adminPriorityPromoted: boolean;
+  adminPriorityPinned: boolean;
+  adminPriorityScore?: number | null;
+  adminPriorityStartsAt?: string | null;
+  adminPriorityExpiresAt?: string | null;
+  priorityRanking?: ApiListingPriorityRanking;
 };
 
 export type MarketplaceTransaction = {
@@ -275,6 +1212,33 @@ export type MarketplaceListingReport = {
   reporterEmail: string | null;
 };
 
+export type MarketplaceAuditLog = {
+  id: string;
+  actorId: string | null;
+  actorDisplayName: string | null;
+  actorEmail: string | null;
+  actorRole: string | null;
+  action: string;
+  actionLabel: string;
+  entityType: string | null;
+  entityId: string | null;
+  method: string;
+  path: string;
+  statusCode: number | null;
+  success: boolean;
+  outcomeLabel: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  requestBody?: Record<string, unknown> | null;
+  requestParams?: Record<string, unknown> | null;
+  requestQuery?: Record<string, unknown> | null;
+  responseSummary?: Record<string, unknown> | null;
+  errorMessage: string | null;
+  durationMs: number | null;
+  createdAt: string;
+  createdLabel: string;
+};
+
 export type MarketplaceSeller = {
   id: string;
   name: string;
@@ -284,6 +1248,10 @@ export type MarketplaceSeller = {
   verified: boolean;
   joinedLabel: string;
   totalListings: number;
+  averageRating: number | null;
+  ratingCount: number;
+  reviewCount: number;
+  reputationScore: number;
 };
 
 export type FormActionState = {
@@ -483,6 +1451,10 @@ function formatCountLabel(count: number) {
   return `${count.toLocaleString()} live ${count === 1 ? "ad" : "ads"}`;
 }
 
+function formatMetricCount(count: number, label: string) {
+  return `${count.toLocaleString()} ${label}${count === 1 ? "" : "s"}`;
+}
+
 function formatPrice(value: number, currency: string) {
   try {
     return new Intl.NumberFormat("en", {
@@ -545,8 +1517,18 @@ function formatShortDate(value: string) {
   });
 }
 
-function humanizeBoostPlacement(placement: ApiBoostPlacement) {
+export function humanizeBoostPlacement(placement: ApiBoostPlacement) {
   switch (placement) {
+    case "TOP_LISTING":
+      return "Top listing";
+    case "HIGHLIGHTED_LISTING":
+      return "Highlighted";
+    case "CATEGORY_PRIORITY":
+      return "Category priority";
+    case "HOMEPAGE_PROMOTION":
+      return "Homepage promotion";
+    case "TIME_BASED_BOOST":
+      return "Time-based boost";
     case "SEARCH_TOP":
       return "Search top";
     case "CATEGORY_TOP":
@@ -681,6 +1663,10 @@ export function humanizeTransactionType(type: ApiTransactionType) {
   return humanizeLabel(type);
 }
 
+export function humanizeAuditAction(action: string) {
+  return humanizeLabel(action);
+}
+
 export function mapSessionUser(user: ApiUser): SessionUser {
   return {
     id: user.id,
@@ -694,6 +1680,7 @@ export function mapSessionUser(user: ApiUser): SessionUser {
     phoneVerified: user.phoneVerified,
     emailVerified: user.emailVerified,
     reputationScore: user.reputationScore,
+    sellerPriorityTier: user.sellerPriorityTier ?? "NONE",
     createdAt: user.createdAt,
   };
 }
@@ -762,9 +1749,25 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
   const boostEndsLabel = soonestBoostEnd
     ? formatShortDate(soonestBoostEnd)
     : undefined;
+  const analytics = listing.analytics ?? {
+    viewCount: 0,
+    saveCount: 0,
+    inquiryCount: 0,
+    messageCount: 0,
+    buyerMessageCount: 0,
+    conversionRate: 0,
+    boostedViewCount: 0,
+    boostCount: 0,
+    activeBoostCount: activeBoosts.length,
+    boostedInquiryCount: 0,
+    boostConversionRate: 0,
+    savedByViewer: false,
+  };
 
   return {
     id: listing.id,
+    categoryId: listing.categoryId,
+    parentCategoryId: listing.category?.parentId ?? null,
     slug: listing.id,
     title: listing.title,
     categorySlug: listing.category?.slug ?? "",
@@ -791,16 +1794,32 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
     sellerVerified: Boolean(
       listing.seller?.phoneVerified || listing.seller?.emailVerified,
     ),
+    sellerPriorityTier: listing.seller?.sellerPriorityTier ?? "NONE",
     sellerJoinedLabel: listing.seller
       ? formatJoinedLabel(listing.seller.createdAt)
       : undefined,
+    sellerAverageRating: listing.seller?.averageRating ?? null,
+    sellerRatingCount: listing.seller?.ratingCount ?? 0,
+    sellerReviewCount: listing.seller?.reviewCount ?? 0,
     imageUrl: imageUrls[0],
     imageUrls,
     imagePalette: preset?.palette ?? ["#d95d39", "#f2d3a6", "#1f6b5a"],
     attributes,
-    viewCount: "Fresh listing",
-    chatCount: 0,
-    saved: false,
+    viewCount: analytics.viewCount
+      ? formatMetricCount(analytics.viewCount, "view")
+      : "No views yet",
+    viewCountValue: analytics.viewCount,
+    saveCount: analytics.saveCount,
+    chatCount: analytics.inquiryCount,
+    messageCount: analytics.messageCount,
+    buyerMessageCount: analytics.buyerMessageCount,
+    conversionRate: analytics.conversionRate,
+    saved: analytics.savedByViewer,
+    boostedViewCount: analytics.boostedViewCount,
+    boostCount: analytics.boostCount,
+    activeBoostCount: analytics.activeBoostCount,
+    boostedInquiryCount: analytics.boostedInquiryCount,
+    boostConversionRate: analytics.boostConversionRate,
     isBoosted: activeBoosts.length > 0,
     boostPlacements,
     boostLabel:
@@ -808,6 +1827,14 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
         ? boostPlacements.map(humanizeBoostPlacement).join(" + ")
         : undefined,
     boostEndsLabel: boostEndsLabel ? `Ends ${boostEndsLabel}` : undefined,
+    paidPriorityEnabled: listing.paidPriorityEnabled ?? false,
+    listingPaymentMode: listing.listingPaymentMode ?? "FREE",
+    adminPriorityPromoted: listing.adminPriorityPromoted ?? false,
+    adminPriorityPinned: listing.adminPriorityPinned ?? false,
+    adminPriorityScore: listing.adminPriorityScore ?? null,
+    adminPriorityStartsAt: listing.adminPriorityStartsAt ?? null,
+    adminPriorityExpiresAt: listing.adminPriorityExpiresAt ?? null,
+    priorityRanking: listing.priorityRanking,
   };
 }
 
@@ -865,7 +1892,39 @@ export function mapListingReport(
   };
 }
 
-export function mapSeller(user: ApiUser): MarketplaceSeller {
+export function mapAuditLog(log: ApiAuditLog): MarketplaceAuditLog {
+  return {
+    id: log.id,
+    actorId: log.actorId,
+    actorDisplayName: log.actor?.displayName ?? null,
+    actorEmail: log.actor?.email ?? null,
+    actorRole: log.actor?.role ?? null,
+    action: log.action,
+    actionLabel: humanizeAuditAction(log.action),
+    entityType: log.entityType,
+    entityId: log.entityId,
+    method: log.method,
+    path: log.path,
+    statusCode: log.statusCode,
+    success: log.success,
+    outcomeLabel: log.success ? "Succeeded" : "Failed",
+    ipAddress: log.ipAddress,
+    userAgent: log.userAgent,
+    requestBody: log.requestBody,
+    requestParams: log.requestParams,
+    requestQuery: log.requestQuery,
+    responseSummary: log.responseSummary,
+    errorMessage: log.errorMessage,
+    durationMs: log.durationMs,
+    createdAt: log.createdAt,
+    createdLabel: formatShortDate(log.createdAt) ?? "Recently",
+  };
+}
+
+export function mapSeller(
+  user: ApiUser,
+  ratingSummary?: ApiSellerRatingSummary,
+): MarketplaceSeller {
   return {
     id: user.id,
     name: user.displayName,
@@ -875,5 +1934,9 @@ export function mapSeller(user: ApiUser): MarketplaceSeller {
     verified: user.phoneVerified || user.emailVerified,
     joinedLabel: formatJoinedLabel(user.createdAt),
     totalListings: user.listings?.length ?? 0,
+    averageRating: ratingSummary?.averageRating ?? null,
+    ratingCount: ratingSummary?.ratingCount ?? 0,
+    reviewCount: ratingSummary?.reviewCount ?? 0,
+    reputationScore: ratingSummary?.reputationScore ?? user.reputationScore,
   };
 }

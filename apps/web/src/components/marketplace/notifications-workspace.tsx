@@ -171,7 +171,7 @@ export function NotificationsWorkspace({
         <p className="section-eyebrow">Inbox</p>
         <h1 className="mt-2 text-2xl font-black">Notifications</h1>
         <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-          Track listing moderation, offers, messages, and boost updates.
+          Track listing moderation, ratings, offers, messages, and boost updates.
         </p>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button
@@ -269,7 +269,7 @@ export function NotificationsWorkspace({
           <div className="panel py-12 text-center">
             <h2 className="text-xl font-black">No notifications here</h2>
             <p className="mt-2 text-sm text-[var(--muted)]">
-              New messages, offers, listing reviews, and boosts will appear
+              New messages, seller ratings, listing reviews, and boosts will appear
               here.
             </p>
           </div>

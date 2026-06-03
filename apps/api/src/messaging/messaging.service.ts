@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { hasAdminPermission } from '../common/admin-permissions';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
@@ -101,8 +102,7 @@ type MessageWithDetails = Prisma.MessageGetPayload<{
 }>;
 
 function isStaffRole(role: string) {
-  const normalizedRole = role.toUpperCase();
-  return normalizedRole === 'ADMIN' || normalizedRole === 'SUPPORT';
+  return hasAdminPermission(role, 'SUPPORT_READ');
 }
 
 function asRecord(value: unknown) {

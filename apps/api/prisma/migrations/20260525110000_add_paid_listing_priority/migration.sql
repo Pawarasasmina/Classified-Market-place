@@ -1,0 +1,1 @@
+ALTER TYPE "ListingPriorityRuleTarget" ADD VALUE IF NOT EXISTS 'PAID_LISTING';

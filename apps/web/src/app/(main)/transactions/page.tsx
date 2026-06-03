@@ -24,6 +24,8 @@ const transactionStatuses: ApiTransactionStatus[] = [
 const transactionTypes: ApiTransactionType[] = [
   "BOOST_PURCHASE",
   "LISTING_FEE",
+  "WALLET_TOP_UP",
+  "ADMIN_ADJUSTMENT",
   "REFUND",
 ];
 

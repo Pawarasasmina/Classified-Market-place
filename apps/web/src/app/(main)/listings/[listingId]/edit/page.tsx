@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { ListingForm } from "@/components/marketplace/listing-form";
+import { normalizeRole } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchCategories, fetchMyListing } from "@/lib/marketplace-api";
 
@@ -19,7 +20,7 @@ export default async function EditListingPage(props: EditListingPageProps) {
     notFound();
   }
 
-  if (listing.sellerId !== user.id && user.role.toUpperCase() !== "ADMIN") {
+  if (listing.sellerId !== user.id && normalizeRole(user.role) !== "ADMIN") {
     redirect("/my-listings");
   }
 

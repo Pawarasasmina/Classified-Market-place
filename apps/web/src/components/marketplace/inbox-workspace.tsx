@@ -10,6 +10,7 @@ import {
   type ChatMessage,
   type ChatOfferUpdateResult,
 } from "@/lib/messaging-api";
+import { hasAdminPermission } from "@/lib/admin-permissions";
 
 type InboxWorkspaceProps = {
   accessToken: string;
@@ -42,8 +43,7 @@ const EMPTY_BUCKETS: ChatBuckets = {
 const deleteForEveryoneWindowMs = 15 * 60 * 1000;
 
 function isStaffRole(role: string) {
-  const normalized = role.toUpperCase();
-  return normalized === "ADMIN" || normalized === "SUPPORT";
+  return hasAdminPermission(role, "SUPPORT_READ");
 }
 
 function sortConversations(conversations: ChatConversation[]) {

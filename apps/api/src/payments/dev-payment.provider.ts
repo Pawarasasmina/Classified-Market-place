@@ -36,9 +36,9 @@ export class DevPaymentProvider implements PaymentProvider {
       providerRef,
       checkoutUrl: `${getPublicApiBaseUrl()}/payments/dev/checkout/${providerRef}`,
       metadata: {
-        boostId: input.boostId,
+        boostId: input.boostId ?? null,
         transactionId: input.transactionId,
-        listingId: input.listingId,
+        listingId: input.listingId ?? null,
       },
     };
   }

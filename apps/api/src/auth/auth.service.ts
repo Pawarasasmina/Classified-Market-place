@@ -71,7 +71,10 @@ export class AuthService {
         role: user.role,
       },
       {
-        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN', '15m') as never,
+        expiresIn: this.configService.get<string>(
+          'JWT_EXPIRES_IN',
+          '15m',
+        ) as never,
       },
     );
   }

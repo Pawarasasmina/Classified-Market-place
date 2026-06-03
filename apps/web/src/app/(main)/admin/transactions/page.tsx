@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminTransactions } from "@/lib/marketplace-api";
 import {
@@ -27,6 +28,8 @@ const transactionStatuses: ApiTransactionStatus[] = [
 const transactionTypes: ApiTransactionType[] = [
   "BOOST_PURCHASE",
   "LISTING_FEE",
+  "WALLET_TOP_UP",
+  "ADMIN_ADJUSTMENT",
   "REFUND",
 ];
 
@@ -46,7 +49,7 @@ export default async function AdminTransactionsPage(
     "/admin/transactions",
   );
 
-  if (user.role.toUpperCase() !== "ADMIN") {
+  if (!hasAdminPermission(user.role, "TRANSACTIONS_READ")) {
     redirect("/");
   }
 

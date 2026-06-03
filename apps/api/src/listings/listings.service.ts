@@ -9,19 +9,31 @@ import {
 import {
   BoostPlacement,
   BoostStatus,
+  ListingPaymentMode,
+  ListingPriorityRuleTarget,
   ListingStatus,
   Prisma,
+  SellerPriorityTier,
+  SellerReviewStatus,
+  TransactionStatus,
+  TransactionType,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { MAX_LISTING_IMAGES } from '../media/media.constants';
 import { MediaService } from '../media/media.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CompleteListingPaymentDto } from './dto/complete-listing-payment.dto';
 import { CreateListingDto } from './dto/create-listing.dto';
+import { CreatePriorityRuleDto } from './dto/create-priority-rule.dto';
 import { ListingImageInputDto } from './dto/listing-image-input.dto';
 import { ModerateListingDto } from './dto/moderate-listing.dto';
 import { QueryListingsDto } from './dto/query-listings.dto';
+import { RecordListingViewDto } from './dto/record-listing-view.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
+import { UpdateListingPriorityOverrideDto } from './dto/update-listing-priority-override.dto';
+import { UpdatePriorityRuleDto } from './dto/update-priority-rule.dto';
 import { defaultListings, demoSellers } from './listings.seed';
 
 type BcryptModule = {
@@ -60,6 +72,7 @@ const safeSellerSelect = {
   emailVerified: true,
   phoneVerified: true,
   role: true,
+  sellerPriorityTier: true,
   reputationScore: true,
   createdAt: true,
   updatedAt: true,
@@ -85,11 +98,178 @@ type ListingWithIncludes = Prisma.ListingGetPayload<{
   include: typeof listingInclude;
 }>;
 
-const boostPlacementPriority = [
+const rankedListingInclude = {
+  ...listingInclude,
+  transactions: {
+    where: {
+      type: TransactionType.LISTING_FEE,
+      status: TransactionStatus.SUCCEEDED,
+    },
+    select: { id: true },
+  },
+} satisfies Prisma.ListingInclude;
+
+type RankedListingWithIncludes = Prisma.ListingGetPayload<{
+  include: typeof rankedListingInclude;
+}>;
+
+type PriorityRuleWeights = {
+  general: Map<ListingPriorityRuleTarget, number>;
+  boostPackages: Map<string, number>;
+  categories: Map<string, number>;
+};
+
+type PriorityScoreFactor = {
+  key: string;
+  label: string;
+  score: number;
+  detail?: string;
+};
+
+type ListingPriorityBreakdown = {
+  score: number;
+  factors: PriorityScoreFactor[];
+  overrideApplied: boolean;
+};
+
+type SellerRatingSummary = {
+  averageRating: number | null;
+  ratingCount: number;
+  reviewCount: number;
+};
+
+type ListingWithSeller = {
+  id: string;
+  sellerId: string;
+  seller: object | null;
+};
+
+type ListingEngagementStats = {
+  viewCount: number;
+  saveCount: number;
+  inquiryCount: number;
+  messageCount: number;
+  buyerMessageCount: number;
+  conversionRate: number;
+  boostedViewCount: number;
+  boostCount: number;
+  activeBoostCount: number;
+  boostedInquiryCount: number;
+  boostConversionRate: number;
+  savedByViewer: boolean;
+};
+
+const priorityRuleInclude = {
+  boostPackage: {
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+    },
+  },
+  category: {
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      parentId: true,
+    },
+  },
+} satisfies Prisma.ListingPriorityRuleInclude;
+
+const homepageBoostPlacementPriority = [
+  BoostPlacement.HOMEPAGE_PROMOTION,
+  BoostPlacement.TOP_LISTING,
+  BoostPlacement.HIGHLIGHTED_LISTING,
+  BoostPlacement.TIME_BASED_BOOST,
+  BoostPlacement.CATEGORY_PRIORITY,
   BoostPlacement.SEARCH_TOP,
   BoostPlacement.CATEGORY_TOP,
   BoostPlacement.FEATURED,
 ];
+
+const searchBoostPlacementPriority = [
+  BoostPlacement.TOP_LISTING,
+  BoostPlacement.HIGHLIGHTED_LISTING,
+  BoostPlacement.TIME_BASED_BOOST,
+  BoostPlacement.HOMEPAGE_PROMOTION,
+  BoostPlacement.CATEGORY_PRIORITY,
+  BoostPlacement.SEARCH_TOP,
+  BoostPlacement.CATEGORY_TOP,
+  BoostPlacement.FEATURED,
+];
+
+const categoryBoostPlacementPriority = [
+  BoostPlacement.CATEGORY_PRIORITY,
+  BoostPlacement.TOP_LISTING,
+  BoostPlacement.HIGHLIGHTED_LISTING,
+  BoostPlacement.TIME_BASED_BOOST,
+  BoostPlacement.HOMEPAGE_PROMOTION,
+  BoostPlacement.CATEGORY_TOP,
+  BoostPlacement.SEARCH_TOP,
+  BoostPlacement.FEATURED,
+];
+
+const pinnedListingPriorityScore = 1_000_000_000;
+const listingQuotaSettingKey = 'seller_listing_quota';
+const defaultFreeListingAllowance = 3;
+const defaultListingFeeAmount = 25;
+const defaultListingFeeCurrency = 'AED';
+const freeListingQuotaStatuses = [
+  ListingStatus.PENDING,
+  ListingStatus.ACTIVE,
+] as const;
+
+type ListingQuotaPolicy = {
+  freeListingAllowance: number;
+  listingFeeAmount: Prisma.Decimal;
+  listingFeeCurrency: string;
+};
+
+const defaultPriorityRules = [
+  {
+    name: 'Manual admin priority',
+    target: ListingPriorityRuleTarget.MANUAL_ADMIN_PRIORITY,
+    weight: 2000,
+    sortOrder: 5,
+  },
+  {
+    name: 'Boosted listings',
+    target: ListingPriorityRuleTarget.BOOSTED_LISTING,
+    weight: 1000,
+    sortOrder: 10,
+  },
+  {
+    name: 'Paid listings',
+    target: ListingPriorityRuleTarget.PAID_LISTING,
+    weight: 500,
+    sortOrder: 20,
+  },
+  {
+    name: 'Seller rating multiplier',
+    target: ListingPriorityRuleTarget.SELLER_RATING,
+    weight: 1,
+    sortOrder: 25,
+  },
+  {
+    name: 'VIP sellers',
+    target: ListingPriorityRuleTarget.VIP_SELLER,
+    weight: 300,
+    sortOrder: 30,
+  },
+  {
+    name: 'Verified sellers',
+    target: ListingPriorityRuleTarget.VERIFIED_SELLER,
+    weight: 200,
+    sortOrder: 40,
+  },
+  {
+    name: 'Authorized sellers',
+    target: ListingPriorityRuleTarget.AUTHORIZED_SELLER,
+    weight: 100,
+    sortOrder: 50,
+  },
+] satisfies Prisma.ListingPriorityRuleCreateManyInput[];
 
 function isAdminRole(role: string) {
   return role.toUpperCase() === 'ADMIN';
@@ -112,6 +292,54 @@ function hasModeratedListingChanges(dto: UpdateListingDto) {
   ].some((value) => value !== undefined);
 }
 
+function getListingCategoryScope(listing: RankedListingWithIncludes) {
+  return [
+    ...(listing.categoryId ? [listing.categoryId] : []),
+    ...(listing.category?.parentId ? [listing.category.parentId] : []),
+  ];
+}
+
+function readPositiveInteger(value: unknown, fallback: number) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+
+  return Math.floor(parsed);
+}
+
+function readPositiveDecimal(value: unknown, fallback: number) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return new Prisma.Decimal(fallback);
+  }
+
+  return new Prisma.Decimal(parsed);
+}
+
+function readCurrency(value: unknown, fallback: string) {
+  return typeof value === 'string' && value.trim()
+    ? value.trim().toUpperCase()
+    : fallback;
+}
+
+function readSettingObject(
+  value: Prisma.JsonValue | null | undefined,
+): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value
+    : {};
+}
+
+function isMissingAnalyticsStorageError(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    (error.code === 'P2021' || error.code === 'P2022')
+  );
+}
+
 function buildActiveBoostWhere(
   now: Date,
   placement?: BoostPlacement,
@@ -126,6 +354,135 @@ function buildActiveBoostWhere(
   };
 }
 
+function buildPaidListingTransactionWhere(): Prisma.TransactionListRelationFilter {
+  return {
+    some: {
+      type: TransactionType.LISTING_FEE,
+      status: TransactionStatus.SUCCEEDED,
+    },
+  };
+}
+
+function getBoostPlacementPriority(query: QueryListingsDto) {
+  if (query.boostPlacement) {
+    return [query.boostPlacement];
+  }
+
+  if (query.categorySlug) {
+    return categoryBoostPlacementPriority;
+  }
+
+  if (query.search) {
+    return searchBoostPlacementPriority;
+  }
+
+  return homepageBoostPlacementPriority;
+}
+
+function getPlacementBonus(
+  listing: ListingWithIncludes,
+  placements: BoostPlacement[],
+) {
+  const listingPlacements = new Set(
+    listing.boosts.map((boost) => boost.placement),
+  );
+  const index = placements.findIndex((placement) =>
+    listingPlacements.has(placement),
+  );
+
+  return index === -1 ? 0 : placements.length - index;
+}
+
+function getSellerPriorityTarget(listing: ListingWithIncludes) {
+  if (!listing.seller) {
+    return undefined;
+  }
+
+  const tier = listing.seller.sellerPriorityTier;
+
+  if (tier === SellerPriorityTier.VIP) {
+    return ListingPriorityRuleTarget.VIP_SELLER;
+  }
+
+  if (
+    tier === SellerPriorityTier.VERIFIED ||
+    listing.seller.emailVerified ||
+    listing.seller.phoneVerified
+  ) {
+    return ListingPriorityRuleTarget.VERIFIED_SELLER;
+  }
+
+  if (tier === SellerPriorityTier.AUTHORIZED) {
+    return ListingPriorityRuleTarget.AUTHORIZED_SELLER;
+  }
+
+  return undefined;
+}
+
+function getSellerReputationScore(listing: ListingWithIncludes) {
+  return listing.seller?.reputationScore ?? 0;
+}
+
+function getSellerPriorityLabel(target: ListingPriorityRuleTarget) {
+  if (target === ListingPriorityRuleTarget.VIP_SELLER) {
+    return 'VIP seller';
+  }
+
+  if (target === ListingPriorityRuleTarget.VERIFIED_SELLER) {
+    return 'Verified seller';
+  }
+
+  return 'Authorized seller';
+}
+
+function getAdminPriorityOverrideScore(
+  listing: ListingWithIncludes,
+  now: Date,
+  rules: PriorityRuleWeights,
+) {
+  if (
+    !listing.adminPriorityPromoted &&
+    !listing.adminPriorityPinned &&
+    listing.adminPriorityScore == null
+  ) {
+    return undefined;
+  }
+
+  if (listing.adminPriorityExpiresAt && listing.adminPriorityExpiresAt <= now) {
+    return undefined;
+  }
+
+  if (listing.adminPriorityStartsAt && listing.adminPriorityStartsAt > now) {
+    return undefined;
+  }
+
+  if (listing.adminPriorityPinned) {
+    return pinnedListingPriorityScore + (listing.adminPriorityScore ?? 0);
+  }
+
+  return (
+    listing.adminPriorityScore ??
+    rules.general.get(ListingPriorityRuleTarget.MANUAL_ADMIN_PRIORITY) ??
+    0
+  );
+}
+
+function compareListingsByQuerySort(
+  first: ListingWithIncludes,
+  second: ListingWithIncludes,
+  query: QueryListingsDto,
+) {
+  if (query.sort === 'price_asc' || query.sort === 'price_desc') {
+    const firstPrice = Number(first.price);
+    const secondPrice = Number(second.price);
+    const result = firstPrice - secondPrice;
+
+    return query.sort === 'price_asc' ? result : -result;
+  }
+
+  return second.createdAt.getTime() - first.createdAt.getTime();
+}
+
 function withoutListHeavyAttributes<
   T extends { attributes: Prisma.JsonValue | null },
 >(listing: T) {
@@ -138,15 +495,20 @@ function withoutListHeavyAttributes<
     return listing;
   }
 
-  const { __photos: _photos, ...attributes } = listing.attributes as Record<
-    string,
-    unknown
-  >;
+  const attributes = { ...listing.attributes } as Record<string, unknown>;
+  delete attributes.__photos;
 
   return {
     ...listing,
     attributes,
   };
+}
+
+function withoutRankingTransactions(listing: RankedListingWithIncludes) {
+  const { transactions, ...listingWithoutTransactions } = listing;
+  void transactions;
+
+  return withoutListHeavyAttributes(listingWithoutTransactions);
 }
 
 @Injectable()
@@ -157,9 +519,12 @@ export class ListingsService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly mediaService?: MediaService,
     private readonly notifications?: NotificationsService,
+    private readonly paymentsService?: PaymentsService,
   ) {}
 
   async onModuleInit() {
+    await this.seedMarketplaceSettings();
+    await this.seedDefaultPriorityRules();
     await this.seedDefaults();
   }
 
@@ -219,7 +584,7 @@ export class ListingsService implements OnModuleInit {
           sellerId: seller.id,
           categoryId: category.id,
           images: {
-            create: listing.imageUrls.map((url, index) => ({
+            create: listing.imageUrls.map((url: string, index: number) => ({
               url,
               altText: listing.title,
               sortOrder: index,
@@ -245,34 +610,115 @@ export class ListingsService implements OnModuleInit {
       createListingDto.images,
     );
 
-    const listing = await this.prisma.listing.create({
-      data: {
-        title: createListingDto.title,
-        description: createListingDto.description,
-        price: new Prisma.Decimal(createListingDto.price),
-        currency: createListingDto.currency ?? 'AED',
-        location: createListingDto.location,
-        status: isAdminRole(user.role)
-          ? (createListingDto.status ?? ListingStatus.ACTIVE)
-          : ListingStatus.PENDING,
-        attributes: toJsonValue(createListingDto.attributes),
-        sellerId: user.id,
-        categoryId: category.id,
-        images: images?.length
-          ? { create: images.map((image) => this.toListingImageCreate(image)) }
-          : undefined,
-      },
-      include: listingInclude,
-    });
+    const isAdmin = isAdminRole(user.role);
+    const quotaPolicy = await this.getListingQuotaPolicy();
+    const paymentMode = isAdmin
+      ? (createListingDto.listingPaymentMode ?? ListingPaymentMode.FREE)
+      : await this.resolveListingPaymentMode(
+          user.id,
+          createListingDto.listingPaymentMode,
+          quotaPolicy,
+        );
+    const listingData = {
+      title: createListingDto.title,
+      description: createListingDto.description,
+      price: new Prisma.Decimal(createListingDto.price),
+      currency: createListingDto.currency ?? 'AED',
+      location: createListingDto.location,
+      status: isAdmin
+        ? (createListingDto.status ?? ListingStatus.ACTIVE)
+        : ListingStatus.PENDING,
+      listingPaymentMode: paymentMode,
+      attributes: toJsonValue(createListingDto.attributes),
+      sellerId: user.id,
+      categoryId: category.id,
+      images: images?.length
+        ? { create: images.map((image) => this.toListingImageCreate(image)) }
+        : undefined,
+    };
+
+    const listing =
+      paymentMode === ListingPaymentMode.PAID && !isAdmin
+        ? await this.createPaidListingWithFeeTransaction({
+            user,
+            listingData,
+            policy: quotaPolicy,
+            listingTitle: createListingDto.title,
+          })
+        : await this.prisma.listing.create({
+            data: listingData,
+            include: listingInclude,
+          });
 
     await this.attachPreparedImagesToListing(listing.id, images);
 
-    return listing;
+    return this.attachSellerRatingSummary(listing);
+  }
+
+  async getMyListingQuota(userId: string) {
+    const policy = await this.getListingQuotaPolicy();
+    const used = await this.countUsedFreeListings(userId);
+    const remaining = Math.max(policy.freeListingAllowance - used, 0);
+
+    return {
+      freeListingAllowance: policy.freeListingAllowance,
+      freeListingUsed: used,
+      freeListingRemaining: remaining,
+      listingFeeAmount: policy.listingFeeAmount.toFixed(2),
+      listingFeeCurrency: policy.listingFeeCurrency,
+      paidListingFallbackEnabled: true,
+    };
+  }
+
+  async markListingPaymentSucceeded(
+    user: ActingUser,
+    listingId: string,
+    dto: CompleteListingPaymentDto,
+  ) {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+      select: {
+        id: true,
+        sellerId: true,
+        status: true,
+      },
+    });
+
+    if (!listing || listing.status === ListingStatus.DELETED) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    if (!isAdminRole(user.role) && listing.sellerId !== user.id) {
+      throw new ForbiddenException(
+        'You can only complete payment for your own listing',
+      );
+    }
+
+    const transaction = await this.prisma.transaction.findFirst({
+      where: {
+        listingId,
+        userId: listing.sellerId,
+        type: TransactionType.LISTING_FEE,
+        status: TransactionStatus.PENDING,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!transaction) {
+      throw new BadRequestException(
+        'This listing does not have a pending listing-fee payment',
+      );
+    }
+
+    return this.requirePaymentsService().completeListingFeePaymentForActor(
+      user,
+      transaction.id,
+      dto,
+    );
   }
 
   async findAll(query: QueryListingsDto, includeHidden = false) {
     const now = new Date();
-    const activeBoostWhere = buildActiveBoostWhere(now, query.boostPlacement);
     const take = query.take ?? 25;
     const where: Prisma.ListingWhereInput = {
       ...(includeHidden
@@ -342,27 +788,41 @@ export class ListingsService implements OnModuleInit {
           : { createdAt: 'desc' };
 
     if (includeHidden) {
+      const priorityRules = await this.getActivePriorityRuleWeights();
+      const placements = getBoostPlacementPriority(query);
       const listings = await this.prisma.listing.findMany({
         where,
         orderBy,
         take,
-        include: listingInclude,
+        include: {
+          ...rankedListingInclude,
+          boosts: {
+            where: buildActiveBoostWhere(now).some,
+            orderBy: [{ startsAt: 'desc' as const }],
+          },
+        },
       });
 
-      return listings.map((listing) => withoutListHeavyAttributes(listing));
+      return this.attachSellerRatingSummaries(
+        listings.map((listing) => ({
+          ...withoutRankingTransactions(listing),
+          priorityRanking: this.getListingPriorityBreakdown(
+            listing,
+            priorityRules,
+            placements,
+            now,
+          ),
+        })),
+      );
     }
 
-    const boostedListings: ListingWithIncludes[] = [];
+    const candidateTake = Math.max(take * 5, 50);
+    const priorityRules = await this.getActivePriorityRuleWeights();
+    const boostedListings: RankedListingWithIncludes[] = [];
     const boostedIds = new Set<string>();
-    const placements = query.boostPlacement
-      ? [query.boostPlacement]
-      : boostPlacementPriority;
+    const placements = getBoostPlacementPriority(query);
 
     for (const placement of placements) {
-      if (boostedListings.length >= take) {
-        break;
-      }
-
       const placementBoostWhere = buildActiveBoostWhere(now, placement);
       const placementBoostedListings = await this.prisma.listing.findMany({
         where: {
@@ -371,9 +831,9 @@ export class ListingsService implements OnModuleInit {
           boosts: placementBoostWhere,
         },
         orderBy,
-        take: take - boostedListings.length,
+        take: candidateTake,
         include: {
-          ...listingInclude,
+          ...rankedListingInclude,
           boosts: {
             where: placementBoostWhere.some,
             orderBy: [{ endsAt: 'asc' as const }],
@@ -388,22 +848,149 @@ export class ListingsService implements OnModuleInit {
       boostedListings.push(...placementBoostedListings);
     }
 
-    const normalListings =
-      boostedListings.length >= take
-        ? []
-        : await this.prisma.listing.findMany({
-            where: {
-              ...where,
-              id: { notIn: [...boostedIds] },
+    const paidListings = await this.prisma.listing.findMany({
+      where: {
+        ...where,
+        ...(boostedIds.size ? { id: { notIn: [...boostedIds] } } : {}),
+        AND: [
+          {
+            OR: [
+              { paidPriorityEnabled: true },
+              { transactions: buildPaidListingTransactionWhere() },
+            ],
+          },
+        ],
+      },
+      orderBy,
+      take: candidateTake,
+      include: rankedListingInclude,
+    });
+    const rankedIds = new Set([
+      ...boostedIds,
+      ...paidListings.map((listing) => listing.id),
+    ]);
+    const categoryListings: RankedListingWithIncludes[] = [];
+
+    for (const categoryId of priorityRules.categories.keys()) {
+      const scopedCategoryListings = await this.prisma.listing.findMany({
+        where: {
+          ...where,
+          ...(rankedIds.size ? { id: { notIn: [...rankedIds] } } : {}),
+          AND: [
+            {
+              OR: [{ categoryId }, { category: { parentId: categoryId } }],
             },
-            orderBy,
-            take: take - boostedListings.length,
-            include: listingInclude,
-          });
+          ],
+        },
+        orderBy,
+        take: candidateTake,
+        include: rankedListingInclude,
+      });
 
-    const listings = [...boostedListings, ...normalListings].slice(0, take);
+      for (const listing of scopedCategoryListings) {
+        rankedIds.add(listing.id);
+      }
 
-    return listings.map((listing) => withoutListHeavyAttributes(listing));
+      categoryListings.push(...scopedCategoryListings);
+    }
+
+    const manualPriorityListings = await this.prisma.listing.findMany({
+      where: {
+        ...where,
+        ...(rankedIds.size ? { id: { notIn: [...rankedIds] } } : {}),
+        AND: [
+          {
+            OR: [
+              { adminPriorityPromoted: true },
+              { adminPriorityPinned: true },
+              { adminPriorityScore: { not: null } },
+            ],
+          },
+          {
+            OR: [
+              { adminPriorityStartsAt: null },
+              { adminPriorityStartsAt: { lte: now } },
+            ],
+          },
+          {
+            OR: [
+              { adminPriorityExpiresAt: null },
+              { adminPriorityExpiresAt: { gt: now } },
+            ],
+          },
+        ],
+      },
+      orderBy: [
+        { adminPriorityPromoted: 'desc' },
+        { adminPriorityPinned: 'desc' },
+        { adminPriorityScore: 'desc' },
+        orderBy,
+      ],
+      take: candidateTake,
+      include: rankedListingInclude,
+    });
+
+    for (const listing of manualPriorityListings) {
+      rankedIds.add(listing.id);
+    }
+
+    const reputationListings = await this.prisma.listing.findMany({
+      where: {
+        ...where,
+        ...(rankedIds.size ? { id: { notIn: [...rankedIds] } } : {}),
+      },
+      orderBy: [{ seller: { reputationScore: 'desc' } }, orderBy],
+      take: candidateTake,
+      include: rankedListingInclude,
+    });
+
+    for (const listing of reputationListings) {
+      rankedIds.add(listing.id);
+    }
+
+    const normalListings = await this.prisma.listing.findMany({
+      where: {
+        ...where,
+        id: { notIn: [...rankedIds] },
+      },
+      orderBy,
+      take: candidateTake,
+      include: rankedListingInclude,
+    });
+
+    const listings = [
+      ...boostedListings,
+      ...paidListings,
+      ...categoryListings,
+      ...manualPriorityListings,
+      ...reputationListings,
+      ...normalListings,
+    ]
+      .sort((first, second) => {
+        // Recommended is rank-first; explicit customer sorts use rank only for ties.
+        const scoreDiff =
+          this.getListingPriorityScore(second, priorityRules, placements, now) -
+          this.getListingPriorityScore(first, priorityRules, placements, now);
+
+        if (!query.sort || query.sort === 'recommended') {
+          return scoreDiff || compareListingsByQuerySort(first, second, query);
+        }
+
+        const sortDiff = compareListingsByQuerySort(first, second, query);
+
+        return (
+          sortDiff ||
+          scoreDiff ||
+          (query.sort.startsWith('price_')
+            ? second.createdAt.getTime() - first.createdAt.getTime()
+            : 0)
+        );
+      })
+      .slice(0, take);
+
+    return this.attachSellerRatingSummaries(
+      listings.map((listing) => withoutRankingTransactions(listing)),
+    );
   }
 
   async findOne(id: string) {
@@ -416,7 +1003,61 @@ export class ListingsService implements OnModuleInit {
       throw new NotFoundException('Listing not found');
     }
 
-    return listing;
+    return this.attachSellerRatingSummary(listing);
+  }
+
+  async recordView(id: string, dto: RecordListingViewDto = {}) {
+    const now = new Date();
+    const listing = await this.prisma.listing.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        boosts: {
+          where: {
+            status: BoostStatus.ACTIVE,
+            startsAt: { lte: now },
+            endsAt: { gt: now },
+          },
+          orderBy: [{ startsAt: 'desc' }],
+          take: 1,
+          select: { id: true },
+        },
+      },
+    });
+
+    if (!listing || listing.status !== ListingStatus.ACTIVE) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    const listingViewClient = (this.prisma as PrismaService & {
+      listingView?: { create?: (args: unknown) => Promise<unknown> };
+    }).listingView;
+
+    if (!listingViewClient?.create) {
+      return { recorded: false };
+    }
+
+    try {
+      await listingViewClient.create({
+        data: {
+          listingId: listing.id,
+          boostId: listing.boosts[0]?.id,
+          source: dto.source?.trim() || undefined,
+        },
+      });
+    } catch (error) {
+      if (isMissingAnalyticsStorageError(error)) {
+        this.logger.warn(
+          'Listing analytics tables are missing. Run Prisma migrations.',
+        );
+        return { recorded: false };
+      }
+
+      throw error;
+    }
+
+    return { recorded: true };
   }
 
   async findOneForUser(user: ActingUser, id: string) {
@@ -433,7 +1074,7 @@ export class ListingsService implements OnModuleInit {
       throw new ForbiddenException('You can only view your own draft listings');
     }
 
-    return listing;
+    return this.attachSellerRatingSummary(listing);
   }
 
   async update(
@@ -509,7 +1150,7 @@ export class ListingsService implements OnModuleInit {
 
     await this.attachPreparedImagesToListing(updatedListing.id, images);
 
-    return updatedListing;
+    return this.attachSellerRatingSummary(updatedListing);
   }
 
   async findMine(userId: string) {
@@ -524,7 +1165,125 @@ export class ListingsService implements OnModuleInit {
       include: listingInclude,
     });
 
-    return listings.map((listing) => withoutListHeavyAttributes(listing));
+    return this.attachSellerRatingSummaries(
+      listings.map((listing) => withoutListHeavyAttributes(listing)),
+    );
+  }
+
+  async findSaved(userId: string) {
+    const savedListingClient = (this.prisma as PrismaService & {
+      savedListing?: { findMany?: (args: unknown) => Promise<Array<{ listing: ListingWithIncludes }>> };
+    }).savedListing;
+
+    if (!savedListingClient?.findMany) {
+      return [];
+    }
+
+    let savedRows: Array<{ listing: ListingWithIncludes }>;
+
+    try {
+      savedRows = await savedListingClient.findMany({
+        where: {
+          userId,
+          listing: { status: ListingStatus.ACTIVE },
+        },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          listing: {
+            include: listingInclude,
+          },
+        },
+      });
+    } catch (error) {
+      if (isMissingAnalyticsStorageError(error)) {
+        this.logger.warn(
+          'Saved listing table is missing. Run Prisma migrations.',
+        );
+        return [];
+      }
+
+      throw error;
+    }
+
+    return this.attachSellerRatingSummaries(
+      savedRows.map((row) => withoutListHeavyAttributes(row.listing)),
+      userId,
+    );
+  }
+
+  async saveListing(userId: string, listingId: string) {
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+      include: listingInclude,
+    });
+
+    if (!listing || listing.status !== ListingStatus.ACTIVE) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    if (listing.sellerId === userId) {
+      throw new BadRequestException('You cannot save your own listing');
+    }
+
+    const savedListingClient = (this.prisma as PrismaService & {
+      savedListing?: { upsert?: (args: unknown) => Promise<unknown> };
+    }).savedListing;
+
+    if (!savedListingClient?.upsert) {
+      throw new BadRequestException('Saved listings are not configured');
+    }
+
+    try {
+      await savedListingClient.upsert({
+        where: {
+          userId_listingId: {
+            userId,
+            listingId,
+          },
+        },
+        create: {
+          userId,
+          listingId,
+        },
+        update: {},
+      });
+    } catch (error) {
+      if (isMissingAnalyticsStorageError(error)) {
+        this.logger.warn(
+          'Saved listing table is missing. Run Prisma migrations.',
+        );
+        return this.attachSellerRatingSummary(listing, userId);
+      }
+
+      throw error;
+    }
+
+    return this.attachSellerRatingSummary(listing, userId);
+  }
+
+  async unsaveListing(userId: string, listingId: string) {
+    const savedListingClient = (this.prisma as PrismaService & {
+      savedListing?: { deleteMany?: (args: unknown) => Promise<unknown> };
+    }).savedListing;
+
+    if (!savedListingClient?.deleteMany) {
+      return { saved: false };
+    }
+
+    try {
+      await savedListingClient.deleteMany({
+        where: {
+          userId,
+          listingId,
+        },
+      });
+    } catch (error) {
+      if (!isMissingAnalyticsStorageError(error)) {
+        throw error;
+      }
+    }
+
+    return { saved: false };
   }
 
   async remove(user: ActingUser, id: string) {
@@ -540,13 +1299,15 @@ export class ListingsService implements OnModuleInit {
       throw new ForbiddenException('You can only delete your own listings');
     }
 
-    return this.prisma.listing.update({
+    const deletedListing = await this.prisma.listing.update({
       where: { id },
       data: {
         status: ListingStatus.DELETED,
       },
       include: listingInclude,
     });
+
+    return this.attachSellerRatingSummary(deletedListing);
   }
 
   async moderate(user: { id: string }, id: string, dto: ModerateListingDto) {
@@ -575,14 +1336,722 @@ export class ListingsService implements OnModuleInit {
           listingTitle: updatedListing.title,
           status: updatedListing.status,
         });
-      } catch (error) {
+      } catch {
         this.logger.warn(
           `Could not persist listing moderation notification for ${id}`,
         );
       }
     }
 
-    return updatedListing;
+    return this.attachSellerRatingSummary(updatedListing);
+  }
+
+  async updatePriorityOverride(
+    id: string,
+    dto: UpdateListingPriorityOverrideDto,
+  ) {
+    if (
+      dto.startsAt &&
+      dto.expiresAt &&
+      dto.startsAt.getTime() >= dto.expiresAt.getTime()
+    ) {
+      throw new BadRequestException(
+        'Priority end time must be after the start time',
+      );
+    }
+
+    const listing = await this.prisma.listing.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    const updatedListing = await this.prisma.listing.update({
+      where: { id },
+      data: {
+        paidPriorityEnabled: dto.paid ?? false,
+        adminPriorityPromoted: dto.promoted ?? false,
+        adminPriorityPinned: dto.pinned ?? false,
+        adminPriorityScore: dto.score ?? null,
+        adminPriorityStartsAt: dto.startsAt ?? null,
+        adminPriorityExpiresAt: dto.expiresAt ?? null,
+      },
+      include: listingInclude,
+    });
+
+    return this.attachSellerRatingSummary(updatedListing);
+  }
+
+  async listPriorityRules() {
+    return this.prisma.listingPriorityRule.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      include: priorityRuleInclude,
+    });
+  }
+
+  async createPriorityRule(dto: CreatePriorityRuleDto) {
+    const scope = await this.resolvePriorityRuleScope(
+      dto.target,
+      dto.boostPackageId,
+      dto.categoryId,
+    );
+    const existingRule = await this.prisma.listingPriorityRule.findFirst({
+      where: { target: dto.target, ...scope },
+      select: { id: true },
+    });
+
+    if (existingRule) {
+      return this.prisma.listingPriorityRule.update({
+        where: { id: existingRule.id },
+        data: {
+          name: dto.name,
+          weight: dto.weight,
+          isActive: dto.isActive ?? true,
+          sortOrder: dto.sortOrder ?? 0,
+        },
+        include: priorityRuleInclude,
+      });
+    }
+
+    return this.prisma.listingPriorityRule.create({
+      data: {
+        name: dto.name,
+        target: dto.target,
+        ...scope,
+        weight: dto.weight,
+        isActive: dto.isActive ?? true,
+        sortOrder: dto.sortOrder ?? 0,
+      },
+      include: priorityRuleInclude,
+    });
+  }
+
+  async updatePriorityRule(id: string, dto: UpdatePriorityRuleDto) {
+    const rule = await this.prisma.listingPriorityRule.findUnique({
+      where: { id },
+    });
+
+    if (!rule) {
+      throw new NotFoundException('Priority rule not found');
+    }
+
+    const target = dto.target ?? rule.target;
+    const scope = await this.resolvePriorityRuleScope(
+      target,
+      dto.boostPackageId ??
+        (target === ListingPriorityRuleTarget.BOOST_PACKAGE
+          ? (rule.boostPackageId ?? undefined)
+          : undefined),
+      dto.categoryId ??
+        (target === ListingPriorityRuleTarget.CATEGORY_PRIORITY
+          ? (rule.categoryId ?? undefined)
+          : undefined),
+    );
+    const duplicateRule = await this.prisma.listingPriorityRule.findFirst({
+      where: {
+        target,
+        ...scope,
+        id: { not: id },
+      },
+      select: { id: true },
+    });
+
+    if (duplicateRule) {
+      throw new BadRequestException(
+        'A priority rule already exists for that target and scope',
+      );
+    }
+
+    return this.prisma.listingPriorityRule.update({
+      where: { id },
+      data: {
+        ...dto,
+        target,
+        ...scope,
+      },
+      include: priorityRuleInclude,
+    });
+  }
+
+  async deletePriorityRule(id: string) {
+    const rule = await this.prisma.listingPriorityRule.findUnique({
+      where: { id },
+    });
+
+    if (!rule) {
+      throw new NotFoundException('Priority rule not found');
+    }
+
+    return this.prisma.listingPriorityRule.update({
+      where: { id },
+      data: { isActive: false },
+      include: priorityRuleInclude,
+    });
+  }
+
+  private async createPaidListingWithFeeTransaction({
+    user,
+    listingData,
+    policy,
+    listingTitle,
+  }: {
+    user: ActingUser;
+    listingData: Prisma.ListingCreateArgs['data'];
+    policy: ListingQuotaPolicy;
+    listingTitle: string;
+  }) {
+    const { listing, transaction } = await this.prisma.$transaction(
+      async (tx) => {
+        const createdListing = await tx.listing.create({
+          data: listingData,
+          include: listingInclude,
+        });
+        const createdTransaction = await tx.transaction.create({
+          data: {
+            userId: user.id,
+            listingId: createdListing.id,
+            type: TransactionType.LISTING_FEE,
+            status: TransactionStatus.PENDING,
+            amount: policy.listingFeeAmount,
+            currency: policy.listingFeeCurrency,
+            provider: 'dev',
+            metadata: {
+              reason: 'free_listing_quota_exhausted',
+              freeListingAllowance: policy.freeListingAllowance,
+            },
+          },
+        });
+
+        return {
+          listing: createdListing,
+          transaction: createdTransaction,
+        };
+      },
+    );
+
+    const paymentIntent =
+      await this.requirePaymentsService().createListingFeePaymentIntent({
+        transactionId: transaction.id,
+        userId: user.id,
+        listingId: listing.id,
+        listingTitle,
+        amount: new Prisma.Decimal(transaction.amount),
+        currency: transaction.currency,
+        metadata: {
+          reason: 'free_listing_quota_exhausted',
+          freeListingAllowance: policy.freeListingAllowance,
+        },
+      });
+
+    await this.prisma.transaction.update({
+      where: { id: transaction.id },
+      data: {
+        provider: paymentIntent.provider,
+        providerRef: paymentIntent.providerRef,
+        metadata: {
+          reason: 'free_listing_quota_exhausted',
+          freeListingAllowance: policy.freeListingAllowance,
+          checkoutUrl: paymentIntent.checkoutUrl,
+          paymentProviderMetadata: (paymentIntent.metadata ??
+            {}) as Prisma.InputJsonObject,
+        },
+      },
+    });
+
+    return {
+      ...listing,
+      payment: {
+        ...paymentIntent,
+        transactionId: transaction.id,
+      },
+    };
+  }
+
+  private async resolveListingPaymentMode(
+    sellerId: string,
+    requestedMode: ListingPaymentMode | undefined,
+    policy: ListingQuotaPolicy,
+  ) {
+    if (requestedMode === ListingPaymentMode.PAID) {
+      return ListingPaymentMode.PAID;
+    }
+
+    const usedFreeListings = await this.countUsedFreeListings(sellerId);
+
+    return usedFreeListings < policy.freeListingAllowance
+      ? ListingPaymentMode.FREE
+      : ListingPaymentMode.PAID;
+  }
+
+  private async countUsedFreeListings(sellerId: string) {
+    return this.prisma.listing.count({
+      where: {
+        sellerId,
+        listingPaymentMode: ListingPaymentMode.FREE,
+        status: { in: [...freeListingQuotaStatuses] },
+      },
+    });
+  }
+
+  private async getListingQuotaPolicy(): Promise<ListingQuotaPolicy> {
+    const envAllowance = readPositiveInteger(
+      process.env.FREE_LISTING_ALLOWANCE,
+      defaultFreeListingAllowance,
+    );
+    const envFeeAmount = readPositiveDecimal(
+      process.env.LISTING_FEE_AMOUNT,
+      defaultListingFeeAmount,
+    );
+    const envFeeCurrency = readCurrency(
+      process.env.LISTING_FEE_CURRENCY,
+      defaultListingFeeCurrency,
+    );
+
+    try {
+      const setting = await this.prisma.marketplaceSetting.findUnique({
+        where: { key: listingQuotaSettingKey },
+      });
+      const value = readSettingObject(setting?.value);
+
+      return {
+        freeListingAllowance: readPositiveInteger(
+          value.freeListingAllowance,
+          envAllowance,
+        ),
+        listingFeeAmount:
+          value.listingFeeAmount == null
+            ? envFeeAmount
+            : readPositiveDecimal(value.listingFeeAmount, Number(envFeeAmount)),
+        listingFeeCurrency: readCurrency(
+          value.listingFeeCurrency,
+          envFeeCurrency,
+        ),
+      };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2021'
+      ) {
+        this.logger.warn(
+          'Marketplace settings table is missing. Run Prisma migrations.',
+        );
+
+        return {
+          freeListingAllowance: envAllowance,
+          listingFeeAmount: envFeeAmount,
+          listingFeeCurrency: envFeeCurrency,
+        };
+      }
+
+      throw error;
+    }
+  }
+
+  private async seedMarketplaceSettings() {
+    try {
+      await this.prisma.marketplaceSetting.upsert({
+        where: { key: listingQuotaSettingKey },
+        update: {},
+        create: {
+          key: listingQuotaSettingKey,
+          value: {
+            freeListingAllowance: readPositiveInteger(
+              process.env.FREE_LISTING_ALLOWANCE,
+              defaultFreeListingAllowance,
+            ),
+            listingFeeAmount: Number(
+              readPositiveDecimal(
+                process.env.LISTING_FEE_AMOUNT,
+                defaultListingFeeAmount,
+              ),
+            ),
+            listingFeeCurrency: readCurrency(
+              process.env.LISTING_FEE_CURRENCY,
+              defaultListingFeeCurrency,
+            ),
+          },
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2021'
+      ) {
+        this.logger.warn(
+          'Marketplace settings table is missing. Run Prisma migrations.',
+        );
+        return;
+      }
+
+      throw error;
+    }
+  }
+
+  private requirePaymentsService() {
+    if (!this.paymentsService) {
+      throw new BadRequestException('Listing payments are not configured');
+    }
+
+    return this.paymentsService;
+  }
+
+  private async attachSellerRatingSummary<T extends ListingWithSeller>(
+    listing: T,
+    viewerId?: string,
+  ) {
+    const [listingWithSummary] = await this.attachSellerRatingSummaries([
+      listing,
+    ], viewerId);
+
+    return listingWithSummary;
+  }
+
+  private async attachSellerRatingSummaries<T extends ListingWithSeller>(
+    listings: T[],
+    viewerId?: string,
+  ) {
+    if (!listings.length) {
+      return listings;
+    }
+
+    const [summaries, engagementStats] = await Promise.all([
+      this.getSellerRatingSummaryMap(listings.map((listing) => listing.sellerId)),
+      this.getListingEngagementStatsMap(listings, viewerId),
+    ]);
+
+    return listings.map((listing) => {
+      const summary = summaries.get(listing.sellerId) ?? {
+        averageRating: null,
+        ratingCount: 0,
+        reviewCount: 0,
+      };
+      const analytics =
+        engagementStats.get(listing.id) ??
+        this.getEmptyListingEngagementStats(false);
+
+      return {
+        ...listing,
+        analytics,
+        seller: listing.seller
+          ? {
+              ...listing.seller,
+              ...summary,
+            }
+          : listing.seller,
+      };
+    });
+  }
+
+  private getEmptyListingEngagementStats(
+    savedByViewer: boolean,
+  ): ListingEngagementStats {
+    return {
+      viewCount: 0,
+      saveCount: 0,
+      inquiryCount: 0,
+      messageCount: 0,
+      buyerMessageCount: 0,
+      conversionRate: 0,
+      boostedViewCount: 0,
+      boostCount: 0,
+      activeBoostCount: 0,
+      boostedInquiryCount: 0,
+      boostConversionRate: 0,
+      savedByViewer,
+    };
+  }
+
+  private async getListingEngagementStatsMap<T extends ListingWithSeller>(
+    listings: T[],
+    viewerId?: string,
+  ) {
+    const listingIds = [...new Set(listings.map((listing) => listing.id))];
+    const stats = new Map<string, ListingEngagementStats>();
+    const sellerByListing = new Map(
+      listings.map((listing) => [listing.id, listing.sellerId]),
+    );
+
+    for (const listingId of listingIds) {
+      stats.set(listingId, this.getEmptyListingEngagementStats(false));
+    }
+
+    if (!listingIds.length) {
+      return stats;
+    }
+
+    const prismaWithAnalytics = this.prisma as PrismaService & {
+      listingView?: {
+        groupBy?: (args: unknown) => Promise<
+          Array<{ listingId: string; _count: { _all: number } }>
+        >;
+      };
+      savedListing?: {
+        groupBy?: (args: unknown) => Promise<
+          Array<{ listingId: string; _count: { _all: number } }>
+        >;
+        findMany?: (args: unknown) => Promise<Array<{ listingId: string }>>;
+      };
+      conversation?: {
+        findMany?: (args: unknown) => Promise<
+          Array<{
+            listingId: string | null;
+            createdAt: Date;
+            messages: Array<{ senderId: string }>;
+          }>
+        >;
+      };
+      boost?: {
+        findMany?: (args: unknown) => Promise<
+          Array<{
+            id: string;
+            listingId: string;
+            status: BoostStatus;
+            startsAt: Date;
+            endsAt: Date;
+          }>
+        >;
+      };
+    };
+
+    let viewRows: Array<{ listingId: string; _count: { _all: number } }>;
+    let boostedViewRows: Array<{
+      listingId: string;
+      _count: { _all: number };
+    }>;
+    let saveRows: Array<{ listingId: string; _count: { _all: number } }>;
+    let viewerSavedRows: Array<{ listingId: string }>;
+    let conversations: Array<{
+      listingId: string | null;
+      createdAt: Date;
+      messages: Array<{ senderId: string }>;
+    }>;
+    let boosts: Array<{
+      id: string;
+      listingId: string;
+      status: BoostStatus;
+      startsAt: Date;
+      endsAt: Date;
+    }>;
+
+    try {
+      [
+        viewRows,
+        boostedViewRows,
+        saveRows,
+        viewerSavedRows,
+        conversations,
+        boosts,
+      ] = await Promise.all([
+        prismaWithAnalytics.listingView?.groupBy
+          ? prismaWithAnalytics.listingView.groupBy({
+              by: ['listingId'],
+              where: { listingId: { in: listingIds } },
+              _count: { _all: true },
+            })
+          : Promise.resolve([]),
+        prismaWithAnalytics.listingView?.groupBy
+          ? prismaWithAnalytics.listingView.groupBy({
+              by: ['listingId'],
+              where: {
+                listingId: { in: listingIds },
+                boostId: { not: null },
+              },
+              _count: { _all: true },
+            })
+          : Promise.resolve([]),
+        prismaWithAnalytics.savedListing?.groupBy
+          ? prismaWithAnalytics.savedListing.groupBy({
+              by: ['listingId'],
+              where: { listingId: { in: listingIds } },
+              _count: { _all: true },
+            })
+          : Promise.resolve([]),
+        viewerId && prismaWithAnalytics.savedListing?.findMany
+          ? prismaWithAnalytics.savedListing.findMany({
+              where: {
+                userId: viewerId,
+                listingId: { in: listingIds },
+              },
+              select: { listingId: true },
+            })
+          : Promise.resolve([]),
+        prismaWithAnalytics.conversation?.findMany
+          ? prismaWithAnalytics.conversation.findMany({
+              where: { listingId: { in: listingIds } },
+              select: {
+                listingId: true,
+                createdAt: true,
+                messages: {
+                  where: { deletedAt: null },
+                  select: { senderId: true },
+                },
+              },
+            })
+          : Promise.resolve([]),
+        prismaWithAnalytics.boost?.findMany
+          ? prismaWithAnalytics.boost.findMany({
+              where: { listingId: { in: listingIds } },
+              select: {
+                id: true,
+                listingId: true,
+                status: true,
+                startsAt: true,
+                endsAt: true,
+              },
+            })
+          : Promise.resolve([]),
+      ]);
+    } catch (error) {
+      if (isMissingAnalyticsStorageError(error)) {
+        this.logger.warn(
+          'Listing analytics tables are missing. Returning zero analytics.',
+        );
+        return stats;
+      }
+
+      throw error;
+    }
+
+    for (const row of viewRows) {
+      const listingStats = stats.get(row.listingId);
+      if (listingStats) {
+        listingStats.viewCount = row._count._all;
+      }
+    }
+
+    for (const row of boostedViewRows) {
+      const listingStats = stats.get(row.listingId);
+      if (listingStats) {
+        listingStats.boostedViewCount = row._count._all;
+      }
+    }
+
+    for (const row of saveRows) {
+      const listingStats = stats.get(row.listingId);
+      if (listingStats) {
+        listingStats.saveCount = row._count._all;
+      }
+    }
+
+    for (const row of viewerSavedRows) {
+      const listingStats = stats.get(row.listingId);
+      if (listingStats) {
+        listingStats.savedByViewer = true;
+      }
+    }
+
+    const boostsByListing = new Map<string, typeof boosts>();
+
+    for (const boost of boosts) {
+      const listingBoosts = boostsByListing.get(boost.listingId) ?? [];
+      listingBoosts.push(boost);
+      boostsByListing.set(boost.listingId, listingBoosts);
+
+      const listingStats = stats.get(boost.listingId);
+      if (listingStats) {
+        listingStats.boostCount += 1;
+        if (boost.status === BoostStatus.ACTIVE) {
+          listingStats.activeBoostCount += 1;
+        }
+      }
+    }
+
+    for (const conversation of conversations) {
+      if (!conversation.listingId) {
+        continue;
+      }
+
+      const listingStats = stats.get(conversation.listingId);
+      if (!listingStats) {
+        continue;
+      }
+
+      const sellerId = sellerByListing.get(conversation.listingId);
+      const listingBoosts = boostsByListing.get(conversation.listingId) ?? [];
+      const startedDuringBoost = listingBoosts.some(
+        (boost) =>
+          boost.startsAt <= conversation.createdAt &&
+          boost.endsAt >= conversation.createdAt,
+      );
+
+      listingStats.inquiryCount += 1;
+      listingStats.messageCount += conversation.messages.length;
+      listingStats.buyerMessageCount += conversation.messages.filter(
+        (message) => message.senderId !== sellerId,
+      ).length;
+
+      if (startedDuringBoost) {
+        listingStats.boostedInquiryCount += 1;
+      }
+    }
+
+    for (const listingStats of stats.values()) {
+      listingStats.conversionRate = this.toPercent(
+        listingStats.inquiryCount,
+        listingStats.viewCount,
+      );
+      listingStats.boostConversionRate = this.toPercent(
+        listingStats.boostedInquiryCount,
+        listingStats.boostedViewCount,
+      );
+    }
+
+    return stats;
+  }
+
+  private toPercent(numerator: number, denominator: number) {
+    if (!denominator) {
+      return 0;
+    }
+
+    return Number(((numerator / denominator) * 100).toFixed(1));
+  }
+
+  private async getSellerRatingSummaryMap(sellerIds: string[]) {
+    const uniqueSellerIds = [...new Set(sellerIds)].filter(Boolean);
+    const summaries = new Map<string, SellerRatingSummary>();
+
+    if (!uniqueSellerIds.length || !this.prisma.sellerRating?.groupBy) {
+      return summaries;
+    }
+
+    const [aggregateRows, reviewRows] = await Promise.all([
+      this.prisma.sellerRating.groupBy({
+        by: ['sellerId'],
+        where: { sellerId: { in: uniqueSellerIds } },
+        _avg: { stars: true },
+        _count: { _all: true },
+      }),
+      this.prisma.sellerRating.groupBy({
+        by: ['sellerId'],
+        where: {
+          sellerId: { in: uniqueSellerIds },
+          review: { not: null },
+          reviewStatus: SellerReviewStatus.APPROVED,
+        },
+        _count: { _all: true },
+      }),
+    ]);
+    const approvedReviewCounts = new Map(
+      reviewRows.map((row) => [row.sellerId, row._count._all]),
+    );
+
+    for (const row of aggregateRows) {
+      summaries.set(row.sellerId, {
+        averageRating: this.roundRating(row._avg.stars),
+        ratingCount: row._count._all,
+        reviewCount: approvedReviewCounts.get(row.sellerId) ?? 0,
+      });
+    }
+
+    return summaries;
+  }
+
+  private roundRating(average: number | null) {
+    return average == null ? null : Number(average.toFixed(1));
   }
 
   private async prepareListingImages(
@@ -705,5 +2174,322 @@ export class ListingsService implements OnModuleInit {
     }
 
     return this.mediaService;
+  }
+
+  private async seedDefaultPriorityRules() {
+    if (!this.prisma.listingPriorityRule) {
+      return;
+    }
+
+    try {
+      for (const rule of defaultPriorityRules) {
+        const existingRule = await this.prisma.listingPriorityRule.findFirst({
+          where: {
+            target: rule.target,
+            boostPackageId: null,
+            categoryId: null,
+          },
+        });
+
+        if (!existingRule) {
+          await this.prisma.listingPriorityRule.create({ data: rule });
+        }
+      }
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2021'
+      ) {
+        this.logger.warn(
+          'Listing priority rules table is missing. Run Prisma migrations.',
+        );
+        return;
+      }
+
+      throw error;
+    }
+  }
+
+  private async getActivePriorityRuleWeights(): Promise<PriorityRuleWeights> {
+    if (!this.prisma.listingPriorityRule) {
+      return {
+        general: new Map(
+          defaultPriorityRules.map((rule) => [rule.target, rule.weight]),
+        ),
+        boostPackages: new Map<string, number>(),
+        categories: new Map<string, number>(),
+      };
+    }
+
+    try {
+      const rules = await this.prisma.listingPriorityRule.findMany({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: 'asc' }],
+      });
+
+      return {
+        general: new Map(
+          rules
+            .filter(
+              (rule) =>
+                rule.target !== ListingPriorityRuleTarget.BOOST_PACKAGE &&
+                rule.target !== ListingPriorityRuleTarget.CATEGORY_PRIORITY,
+            )
+            .map((rule) => [rule.target, rule.weight]),
+        ),
+        boostPackages: new Map(
+          rules.flatMap((rule) =>
+            rule.target === ListingPriorityRuleTarget.BOOST_PACKAGE &&
+            rule.boostPackageId
+              ? ([[rule.boostPackageId, rule.weight]] as const)
+              : [],
+          ),
+        ),
+        categories: new Map(
+          rules.flatMap((rule) =>
+            rule.target === ListingPriorityRuleTarget.CATEGORY_PRIORITY &&
+            rule.categoryId
+              ? ([[rule.categoryId, rule.weight]] as const)
+              : [],
+          ),
+        ),
+      };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2021'
+      ) {
+        return {
+          general: new Map(
+            defaultPriorityRules.map((rule) => [rule.target, rule.weight]),
+          ),
+          boostPackages: new Map<string, number>(),
+          categories: new Map<string, number>(),
+        };
+      }
+
+      throw error;
+    }
+  }
+
+  private getListingPriorityScore(
+    listing: RankedListingWithIncludes,
+    rules: PriorityRuleWeights,
+    placements: BoostPlacement[],
+    now: Date,
+  ) {
+    return this.getListingPriorityBreakdown(listing, rules, placements, now)
+      .score;
+  }
+
+  private getListingPriorityBreakdown(
+    listing: RankedListingWithIncludes,
+    rules: PriorityRuleWeights,
+    placements: BoostPlacement[],
+    now: Date,
+  ): ListingPriorityBreakdown {
+    const adminOverrideScore = getAdminPriorityOverrideScore(
+      listing,
+      now,
+      rules,
+    );
+
+    if (adminOverrideScore !== undefined) {
+      const factor = listing.adminPriorityPinned
+        ? {
+            key: 'admin_pin',
+            label: 'Pinned admin override',
+            score: adminOverrideScore,
+            detail: 'Absolute priority override',
+          }
+        : listing.adminPriorityScore != null
+          ? {
+              key: 'admin_score',
+              label: 'Admin custom score',
+              score: adminOverrideScore,
+            }
+          : {
+              key: 'manual_admin_priority',
+              label: 'Manual admin priority',
+              score: adminOverrideScore,
+            };
+
+      return {
+        score: adminOverrideScore,
+        factors: [factor],
+        overrideApplied: true,
+      };
+    }
+
+    const factors: PriorityScoreFactor[] = [];
+    const packageWeights = listing.boosts.flatMap((boost) => {
+      if (!boost.packageId) {
+        return [];
+      }
+
+      const weight = rules.boostPackages.get(boost.packageId);
+      return weight === undefined ? [] : [weight];
+    });
+    const activeBoostWeight = listing.boosts.length
+      ? (rules.general.get(ListingPriorityRuleTarget.BOOSTED_LISTING) ?? 0)
+      : 0;
+    if (activeBoostWeight) {
+      factors.push({
+        key: 'boosted_listing',
+        label: 'Boosted listing',
+        score: activeBoostWeight,
+      });
+    }
+    const packageWeight = packageWeights.length
+      ? Math.max(...packageWeights)
+      : 0;
+    if (packageWeight) {
+      factors.push({
+        key: 'boost_package',
+        label: 'Boost package rule',
+        score: packageWeight,
+      });
+    }
+    const sellerTarget = getSellerPriorityTarget(listing);
+    const sellerWeight = sellerTarget
+      ? (rules.general.get(sellerTarget) ?? 0)
+      : 0;
+    if (sellerTarget && sellerWeight) {
+      factors.push({
+        key: 'seller_tier',
+        label: getSellerPriorityLabel(sellerTarget),
+        score: sellerWeight,
+      });
+    }
+    const paidListingWeight =
+      listing.paidPriorityEnabled || listing.transactions.length
+        ? (rules.general.get(ListingPriorityRuleTarget.PAID_LISTING) ?? 0)
+        : 0;
+    if (paidListingWeight) {
+      factors.push({
+        key: 'paid_listing',
+        label: 'Paid listing',
+        score: paidListingWeight,
+      });
+    }
+    const categoryWeight = Math.max(
+      0,
+      ...getListingCategoryScope(listing).map(
+        (categoryId) => rules.categories.get(categoryId) ?? 0,
+      ),
+    );
+    if (categoryWeight) {
+      factors.push({
+        key: 'category',
+        label: 'Category rule',
+        score: categoryWeight,
+        detail: listing.category?.name,
+      });
+    }
+    const reputationScore = getSellerReputationScore(listing);
+    const sellerRatingMultiplier =
+      rules.general.get(ListingPriorityRuleTarget.SELLER_RATING) ?? 1;
+    const sellerRatingScore = reputationScore * sellerRatingMultiplier;
+    if (sellerRatingScore) {
+      factors.push({
+        key: 'seller_rating',
+        label: 'Seller rating',
+        score: sellerRatingScore,
+        detail: `${reputationScore} x ${sellerRatingMultiplier}`,
+      });
+    }
+    const placementBonus = getPlacementBonus(listing, placements);
+    if (placementBonus) {
+      factors.push({
+        key: 'boost_placement',
+        label: 'Boost placement',
+        score: placementBonus,
+      });
+    }
+
+    const score =
+      activeBoostWeight +
+      packageWeight +
+      paidListingWeight +
+      sellerWeight +
+      categoryWeight +
+      sellerRatingScore +
+      placementBonus;
+
+    return {
+      score,
+      factors:
+        factors.length > 0
+          ? factors
+          : [{ key: 'none', label: 'No active priority factors', score: 0 }],
+      overrideApplied: false,
+    };
+  }
+
+  private async resolvePriorityRuleScope(
+    target: ListingPriorityRuleTarget,
+    boostPackageId: string | undefined,
+    categoryId: string | undefined,
+  ) {
+    const normalizedPackageId = boostPackageId?.trim() || null;
+    const normalizedCategoryId = categoryId?.trim() || null;
+
+    if (target === ListingPriorityRuleTarget.BOOST_PACKAGE) {
+      if (normalizedCategoryId) {
+        throw new BadRequestException(
+          'Boost package rules cannot select a category',
+        );
+      }
+
+      if (!normalizedPackageId) {
+        throw new BadRequestException(
+          'Boost package rules must select a boost package',
+        );
+      }
+
+      const boostPackage = await this.prisma.boostPackage.findUnique({
+        where: { id: normalizedPackageId },
+        select: { id: true },
+      });
+
+      if (!boostPackage) {
+        throw new NotFoundException('Boost package not found');
+      }
+
+      return { boostPackageId: normalizedPackageId, categoryId: null };
+    }
+
+    if (target === ListingPriorityRuleTarget.CATEGORY_PRIORITY) {
+      if (normalizedPackageId) {
+        throw new BadRequestException(
+          'Category priority rules cannot select a boost package',
+        );
+      }
+
+      if (!normalizedCategoryId) {
+        throw new BadRequestException(
+          'Category priority rules must select a category',
+        );
+      }
+
+      const category = await this.prisma.category.findUnique({
+        where: { id: normalizedCategoryId },
+        select: { id: true },
+      });
+
+      if (!category) {
+        throw new NotFoundException('Category not found');
+      }
+
+      return { boostPackageId: null, categoryId: normalizedCategoryId };
+    }
+
+    if (normalizedPackageId || normalizedCategoryId) {
+      throw new BadRequestException(
+        'Only scoped priority rules may select a package or category',
+      );
+    }
+
+    return { boostPackageId: null, categoryId: null };
   }
 }

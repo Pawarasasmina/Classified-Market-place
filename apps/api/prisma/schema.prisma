@@ -42,6 +42,11 @@ enum ReportStatus {
 }
 
 enum BoostPlacement {
+  TOP_LISTING
+  HIGHLIGHTED_LISTING
+  CATEGORY_PRIORITY
+  HOMEPAGE_PROMOTION
+  TIME_BASED_BOOST
   FEATURED
   SEARCH_TOP
   CATEGORY_TOP
@@ -57,6 +62,8 @@ enum BoostStatus {
 enum TransactionType {
   BOOST_PURCHASE
   LISTING_FEE
+  WALLET_TOP_UP
+  ADMIN_ADJUSTMENT
   REFUND
 }
 
@@ -66,6 +73,11 @@ enum TransactionStatus {
   FAILED
   REFUNDED
   CANCELLED
+}
+
+enum ListingPaymentMode {
+  FREE
+  PAID
 }
 
 enum MediaAssetType {
@@ -82,6 +94,33 @@ enum NotificationType {
   BOOST
   TRANSACTION
   REPORT
+  RATING
+}
+
+enum SellerPriorityTier {
+  NONE
+  AUTHORIZED
+  VERIFIED
+  VIP
+}
+
+enum SellerReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  HIDDEN
+}
+
+enum ListingPriorityRuleTarget {
+  BOOSTED_LISTING
+  BOOST_PACKAGE
+  PAID_LISTING
+  CATEGORY_PRIORITY
+  SELLER_RATING
+  MANUAL_ADMIN_PRIORITY
+  AUTHORIZED_SELLER
+  VERIFIED_SELLER
+  VIP_SELLER
 }
 
 model User {
@@ -97,6 +136,7 @@ model User {
   emailVerified            Boolean                   @default(false) @map("isEmailVerified")
   phoneVerified            Boolean                   @default(false) @map("isPhoneVerified")
   role                     String                    @default("USER")
+  sellerPriorityTier       SellerPriorityTier        @default(NONE)
   reputationScore          Int                       @default(0)
   createdAt                DateTime                  @default(now())
   updatedAt                DateTime                  @updatedAt
@@ -113,57 +153,115 @@ model User {
   readReceipts             MessageReadReceipt[]
   boostsPurchased          Boost[]
   transactions             Transaction[]
+  walletAccount            WalletAccount?
   listingReports           ListingReport[]
   mediaAssets              MediaAsset[]              @relation("UploadedMediaAssets")
   notifications            Notification[]            @relation("RecipientNotifications")
   notificationsCreated     Notification[]            @relation("ActorNotifications")
+  sellerRatingsReceived    SellerRating[]            @relation("SellerRatingsReceived")
+  sellerRatingsGiven       SellerRating[]            @relation("SellerRatingsGiven")
+  savedListings            SavedListing[]
+  listingViews             ListingView[]
+  auditLogs                AuditLog[]                 @relation("ActorAuditLogs")
 }
 
 model Category {
-  id               String     @id @default(uuid())
+  id               String                 @id @default(uuid())
   name             String
-  slug             String     @unique
+  slug             String                 @unique
   description      String?
   schemaDefinition Json?
-  isActive         Boolean    @default(true)
+  isActive         Boolean                @default(true)
   parentId         String?
-  sortOrder        Int        @default(0)
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-  parent           Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children         Category[] @relation("CategoryTree")
+  sortOrder        Int                    @default(0)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  parent           Category?              @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children         Category[]             @relation("CategoryTree")
   listings         Listing[]
+  boostPackages    BoostPackageCategory[]
+  priorityRules    ListingPriorityRule[]
 
   @@index([parentId])
 }
 
 model Listing {
-  id             String          @id @default(uuid())
-  title          String
-  description    String
-  price          Decimal         @db.Decimal(12, 2)
-  currency       String          @default("AED")
-  location       String
-  status         ListingStatus   @default(DRAFT)
-  attributes     Json?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  sellerId       String
-  categoryId     String
-  seller         User            @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  category       Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  images         ListingImage[]
-  conversations  Conversation[]
-  sharedMessages Message[]       @relation("SharedListingMessages")
-  boosts         Boost[]
-  transactions   Transaction[]
-  reports        ListingReport[]
-  mediaAssets    MediaAsset[]
-  notifications  Notification[]
+  id                     String          @id @default(uuid())
+  title                  String
+  description            String
+  price                  Decimal         @db.Decimal(12, 2)
+  currency               String          @default("AED")
+  location               String
+  status                 ListingStatus   @default(DRAFT)
+  listingPaymentMode     ListingPaymentMode @default(FREE)
+  attributes             Json?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  sellerId               String
+  categoryId             String
+  paidPriorityEnabled    Boolean         @default(false)
+  adminPriorityPromoted  Boolean         @default(false)
+  adminPriorityPinned    Boolean         @default(false)
+  adminPriorityScore     Int?
+  adminPriorityStartsAt  DateTime?
+  adminPriorityExpiresAt DateTime?
+  seller                 User            @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  category               Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  images                 ListingImage[]
+  conversations          Conversation[]
+  sharedMessages         Message[]       @relation("SharedListingMessages")
+  boosts                 Boost[]
+  transactions           Transaction[]
+  reports                ListingReport[]
+  mediaAssets            MediaAsset[]
+  notifications          Notification[]
+  sellerRatings          SellerRating[]
+  savedBy                SavedListing[]
+  views                  ListingView[]
 
   @@index([sellerId])
+  @@index([sellerId, listingPaymentMode, status])
   @@index([categoryId])
   @@index([status])
+  @@index([status, paidPriorityEnabled])
+  @@index([status, adminPriorityPromoted, adminPriorityStartsAt, adminPriorityExpiresAt])
+  @@index([status, adminPriorityPinned, adminPriorityStartsAt, adminPriorityExpiresAt])
+  @@index([status, adminPriorityScore, adminPriorityStartsAt, adminPriorityExpiresAt])
+}
+
+model MarketplaceSetting {
+  key       String   @id
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SavedListing {
+  userId    String
+  listingId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([userId, listingId])
+  @@index([listingId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model ListingView {
+  id        String   @id @default(uuid())
+  listingId String
+  viewerId  String?
+  boostId   String?
+  source    String?
+  viewedAt  DateTime @default(now())
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  viewer    User?    @relation(fields: [viewerId], references: [id], onDelete: SetNull)
+  boost     Boost?   @relation(fields: [boostId], references: [id], onDelete: SetNull)
+
+  @@index([listingId, viewedAt])
+  @@index([viewerId, viewedAt])
+  @@index([boostId, viewedAt])
 }
 
 model ListingImage {
@@ -333,7 +431,8 @@ model Boost {
   listingId     String
   purchaserId   String
   transactionId String?
-  placement     BoostPlacement @default(FEATURED)
+  packageId     String?
+  placement     BoostPlacement @default(HIGHLIGHTED_LISTING)
   status        BoostStatus    @default(SCHEDULED)
   startsAt      DateTime
   endsAt        DateTime
@@ -342,11 +441,46 @@ model Boost {
   listing       Listing        @relation(fields: [listingId], references: [id], onDelete: Cascade)
   purchaser     User           @relation(fields: [purchaserId], references: [id], onDelete: Cascade)
   transaction   Transaction?   @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  package       BoostPackage?  @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  views         ListingView[]
 
   @@index([listingId, status])
+  @@index([packageId])
   @@index([purchaserId, createdAt])
   @@index([status, startsAt, endsAt])
   @@index([transactionId])
+}
+
+model BoostPackage {
+  id            String                 @id @default(uuid())
+  slug          String                 @unique
+  name          String
+  description   String?
+  placement     BoostPlacement
+  price         Decimal                @db.Decimal(12, 2)
+  currency      String                 @default("AED")
+  durationDays  Int
+  isActive      Boolean                @default(true)
+  sortOrder     Int                    @default(0)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  boosts        Boost[]
+  categories    BoostPackageCategory[]
+  priorityRules ListingPriorityRule[]
+
+  @@index([isActive, sortOrder])
+  @@index([placement, isActive])
+}
+
+model BoostPackageCategory {
+  boostPackageId String
+  categoryId     String
+  createdAt      DateTime     @default(now())
+  boostPackage   BoostPackage @relation(fields: [boostPackageId], references: [id], onDelete: Cascade)
+  category       Category     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([boostPackageId, categoryId])
+  @@index([categoryId])
 }
 
 model Transaction {
@@ -365,12 +499,64 @@ model Transaction {
   user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   listing       Listing?          @relation(fields: [listingId], references: [id], onDelete: SetNull)
   boosts        Boost[]
+  walletLedgers WalletLedger[]
   notifications Notification[]
 
   @@unique([provider, providerRef])
   @@index([userId, createdAt])
   @@index([listingId])
   @@index([status, createdAt])
+  @@index([type, createdAt])
+}
+
+model ListingPriorityRule {
+  id             String                    @id @default(uuid())
+  name           String
+  target         ListingPriorityRuleTarget
+  boostPackageId String?
+  boostPackage   BoostPackage?             @relation(fields: [boostPackageId], references: [id], onDelete: Cascade)
+  categoryId     String?
+  category       Category?                 @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  weight         Int                       @default(0)
+  isActive       Boolean                   @default(true)
+  sortOrder      Int                       @default(0)
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@index([target, isActive])
+  @@index([boostPackageId])
+  @@index([categoryId])
+}
+
+model WalletAccount {
+  id        String         @id @default(uuid())
+  userId    String         @unique
+  balance   Decimal        @default(0) @db.Decimal(12, 2)
+  currency  String         @default("AED")
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledger    WalletLedger[]
+
+  @@index([currency])
+}
+
+model WalletLedger {
+  id            String        @id @default(uuid())
+  walletId      String
+  transactionId String?
+  type          String
+  amount        Decimal       @db.Decimal(12, 2)
+  currency      String        @default("AED")
+  balanceAfter  Decimal       @db.Decimal(12, 2)
+  metadata      Json?
+  createdAt     DateTime      @default(now())
+  wallet        WalletAccount @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  transaction   Transaction?  @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([walletId, createdAt])
+  @@index([transactionId])
   @@index([type, createdAt])
 }
 
@@ -390,6 +576,28 @@ model ListingReport {
   @@index([listingId, createdAt])
   @@index([reporterId, createdAt])
   @@index([status, createdAt])
+}
+
+model SellerRating {
+  id                   String             @id @default(uuid())
+  sellerId             String
+  raterId              String
+  listingId            String
+  stars                Int
+  review               String?            @db.Text
+  reviewStatus         SellerReviewStatus @default(PENDING)
+  reviewModerationNote String?            @db.Text
+  reviewModeratedAt    DateTime?
+  reviewModeratedById  String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  seller               User               @relation("SellerRatingsReceived", fields: [sellerId], references: [id], onDelete: Cascade)
+  rater                User               @relation("SellerRatingsGiven", fields: [raterId], references: [id], onDelete: Cascade)
+  listing              Listing            @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([raterId, listingId])
+  @@index([sellerId, createdAt])
+  @@index([listingId, createdAt])
 }
 
 model MediaAsset {
@@ -448,6 +656,33 @@ model Notification {
   @@index([messageId, createdAt])
   @@index([transactionId, createdAt])
   @@index([type, createdAt])
+}
+
+model AuditLog {
+  id              String   @id @default(uuid())
+  actorId         String?
+  action          String
+  entityType      String?
+  entityId        String?
+  method          String
+  path            String
+  statusCode      Int?
+  success         Boolean  @default(true)
+  ipAddress       String?
+  userAgent       String?
+  requestBody     Json?
+  requestParams   Json?
+  requestQuery    Json?
+  responseSummary Json?
+  errorMessage    String?
+  durationMs      Int?
+  createdAt       DateTime @default(now())
+  actor           User?    @relation("ActorAuditLogs", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@index([success, createdAt])
 }
 
 model PhoneOtpChallenge {

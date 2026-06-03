@@ -45,8 +45,8 @@ export class QueryListingsDto {
   maxPrice?: number;
 
   @IsOptional()
-  @IsIn(['newest', 'price_asc', 'price_desc'])
-  sort?: 'newest' | 'price_asc' | 'price_desc';
+  @IsIn(['recommended', 'newest', 'price_asc', 'price_desc'])
+  sort?: 'recommended' | 'newest' | 'price_asc' | 'price_desc';
 
   @IsOptional()
   @IsEnum(BoostPlacement)

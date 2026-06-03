@@ -3,30 +3,53 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { assignableUserRoles } from "@/lib/admin-permissions";
 import {
   boostListing,
   completeBoostPayment,
+  completeListingPayment,
+  completeWalletTopUp,
   createCategory,
+  createBoostPackage,
   createListing,
+  createWalletTopUp,
   createListingReport,
+  createPriorityRule,
   deleteCategory,
+  deleteBoostPackage,
   deleteListing,
+  deletePriorityRule,
+  deleteSellerReview,
+  deleteSellerRating,
   googleLoginUser,
   loginUser,
   logoutSession,
   MarketplaceApiError,
   moderateListing,
+  moderateSellerReview,
   registerUser,
   requestPhoneOtp,
+  saveListing,
+  sendAdminReportEmail,
+  unsaveListing,
+  updateAdminUser,
+  updateBoostPackage,
   updateCategory,
   updateCurrentUser,
   updateListing,
+  updateListingPriorityOverride,
   updateListingReport,
+  updatePriorityRule,
+  upsertSellerRating,
   verifyPhone,
+  type AdminReportEmailType,
 } from "@/lib/marketplace-api";
 import {
+  type ApiListingPriorityRuleTarget,
   type ApiListingStatus,
   type ApiReportStatus,
+  type ApiSellerPriorityTier,
+  type ApiSellerReviewStatus,
   type FormActionState,
 } from "@/lib/marketplace";
 import { requireSessionContext } from "@/lib/auth-dal";
@@ -124,8 +147,100 @@ const requestPhoneOtpSchema = z.object({
 
 const boostListingSchema = z.object({
   listingId: z.string().trim().min(1),
-  placement: z.enum(["FEATURED", "SEARCH_TOP", "CATEGORY_TOP"]),
-  durationDays: z.coerce.number().int().min(1).max(30).default(7),
+  packageId: z.string().trim().optional(),
+  paymentMethod: z.enum(["GATEWAY", "WALLET"]).default("GATEWAY"),
+  placement: z
+    .enum([
+      "TOP_LISTING",
+      "HIGHLIGHTED_LISTING",
+      "CATEGORY_PRIORITY",
+      "HOMEPAGE_PROMOTION",
+      "TIME_BASED_BOOST",
+    ])
+    .optional(),
+  durationDays: z.coerce.number().int().min(1).max(30).optional(),
+});
+
+const completeListingPaymentSchema = z.object({
+  listingId: z.string().trim().min(1),
+  providerRef: z.string().trim().optional(),
+  returnTo: z.string().trim().startsWith("/").optional(),
+});
+
+const walletTopUpSchema = z.object({
+  amount: z.coerce.number().min(1).max(50000),
+  currency: z.string().trim().length(3).default("AED"),
+});
+
+const boostPackageSchema = z.object({
+  packageId: z.string().trim().optional(),
+  name: z.string().trim().min(2, "Package name is required."),
+  slug: z.string().trim().optional(),
+  description: z.string().trim().optional(),
+  placement: z.enum([
+    "TOP_LISTING",
+    "HIGHLIGHTED_LISTING",
+    "CATEGORY_PRIORITY",
+    "HOMEPAGE_PROMOTION",
+    "TIME_BASED_BOOST",
+  ]),
+  price: z.coerce.number().min(0, "Price must be 0 or more."),
+  currency: z.string().trim().length(3).default("AED"),
+  durationDays: z.coerce.number().int().min(1).max(90),
+  sortOrder: z.coerce.number().int().min(0).default(0),
+  isActive: z.boolean().optional(),
+  priorityWeight: z.coerce.number().int().min(0).max(10000).default(0),
+  priorityEnabled: z.boolean().optional(),
+  categoryIds: z.array(z.string()).optional(),
+});
+
+const priorityRuleSchema = z
+  .object({
+    ruleId: z.string().trim().optional(),
+    name: z.string().trim().min(2, "Rule name is required."),
+    target: z.enum([
+      "BOOSTED_LISTING",
+      "BOOST_PACKAGE",
+      "PAID_LISTING",
+      "CATEGORY_PRIORITY",
+      "SELLER_RATING",
+      "MANUAL_ADMIN_PRIORITY",
+      "AUTHORIZED_SELLER",
+      "VERIFIED_SELLER",
+      "VIP_SELLER",
+    ]),
+    boostPackageId: z.string().trim().optional(),
+    categoryId: z.string().trim().optional(),
+    weight: z.coerce.number().int().min(0).max(10000),
+    sortOrder: z.coerce.number().int().min(0).max(10000).default(0),
+    isActive: z.boolean().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.target === "BOOST_PACKAGE" && !value.boostPackageId) {
+      context.addIssue({
+        code: "custom",
+        path: ["boostPackageId"],
+        message: "Choose a boost package.",
+      });
+    }
+
+    if (value.target === "CATEGORY_PRIORITY" && !value.categoryId) {
+      context.addIssue({
+        code: "custom",
+        path: ["categoryId"],
+        message: "Choose a category.",
+      });
+    }
+  });
+
+const adminUserSchema = z.object({
+  userId: z.string().trim().min(1),
+  name: z.string().trim().min(2),
+  phone: z.string().trim().optional(),
+  role: z.enum(assignableUserRoles),
+  isEmailVerified: z.boolean().optional(),
+  isPhoneVerified: z.boolean().optional(),
+  sellerPriorityTier: z.enum(["NONE", "AUTHORIZED", "VERIFIED", "VIP"]),
 });
 
 const categorySchema = z.object({
@@ -143,6 +258,27 @@ const listingReportSchema = z.object({
     .min(3, "Reason must be at least 3 characters.")
     .max(120),
   details: z.string().trim().max(1000).optional(),
+});
+
+const sellerRatingSchema = z.object({
+  listingId: z.string().trim().min(1),
+  stars: z.coerce.number().int().min(1).max(5),
+  review: z
+    .string()
+    .trim()
+    .max(1000, "Review must be 1,000 characters or less.")
+    .optional(),
+  returnTo: z.string().trim().startsWith("/").default("/search"),
+});
+
+const listingPriorityOverrideSchema = z.object({
+  listingId: z.string().trim().min(1),
+  paid: z.boolean(),
+  promoted: z.boolean(),
+  pinned: z.boolean(),
+  score: z.number().int().min(0).max(1000000).nullable(),
+  startsAt: z.string().datetime().nullable(),
+  expiresAt: z.string().datetime().nullable(),
 });
 
 const updateListingReportSchema = z.object({
@@ -165,6 +301,58 @@ const updateListingReportSchema = z.object({
       "DRAFT",
     ])
     .optional(),
+});
+
+const reportEmailDateFilterSchema = z
+  .string()
+  .trim()
+  .refine((value) => !Number.isNaN(new Date(value).getTime()), {
+    message: "Enter a valid report date.",
+  })
+  .optional();
+
+const adminReportEmailSchema = z.object({
+  reportType: z.enum([
+    "monitoring",
+    "active-listings",
+    "paid-listings",
+    "category-income",
+    "boost-revenue",
+    "wallet-payments",
+    "sellers",
+    "top-sellers",
+    "approvals",
+    "seller-approvals",
+  ]),
+  recipient: z.string().trim().email("Enter a valid recipient email address."),
+  subject: z.string().trim().max(140).optional(),
+  message: z.string().trim().max(1000).optional(),
+  days: z.coerce.number().int().min(1).max(365).optional(),
+  from: reportEmailDateFilterSchema,
+  to: reportEmailDateFilterSchema,
+  take: z.coerce.number().int().min(1).max(200).optional(),
+  topTake: z.coerce.number().int().min(1).max(20).optional(),
+  returnTo: z.string().trim().startsWith("/").default("/admin/reports"),
+});
+
+const moderateSellerReviewSchema = z.object({
+  ratingId: z.string().trim().min(1),
+  sellerId: z.string().trim().optional(),
+  listingId: z.string().trim().optional(),
+  status: z.enum(["PENDING", "APPROVED", "REJECTED", "HIDDEN"]),
+  note: z.string().trim().max(2000).optional(),
+});
+
+const deleteSellerReviewSchema = z.object({
+  ratingId: z.string().trim().min(1),
+  sellerId: z.string().trim().optional(),
+  listingId: z.string().trim().optional(),
+});
+
+const toggleSavedListingSchema = z.object({
+  listingId: z.string().trim().min(1),
+  intent: z.enum(["save", "unsave"]),
+  returnTo: z.string().trim().startsWith("/").default("/saved"),
 });
 
 function flattenFieldErrors(error: z.ZodError) {
@@ -384,22 +572,40 @@ export async function createListingAction(
   }
 
   const { accessToken } = await requireSessionContext("/sell");
+  let redirectPath = "/my-listings";
 
   try {
-    await createListing(accessToken, {
+    const result = await createListing(accessToken, {
       ...parsed.data,
       attributes: parseAttributes(formData),
       images: parseImages(formData, parsed.data.title),
     });
+
+    revalidatePath("/");
+    revalidatePath("/my-listings");
+
+    if (result.payment) {
+      const checkoutParams = new URLSearchParams({
+        status: "PENDING",
+      });
+
+      if (result.payment.transactionId) {
+        checkoutParams.set("transactionId", result.payment.transactionId);
+      }
+
+      if (result.payment.providerRef) {
+        checkoutParams.set("providerRef", result.payment.providerRef);
+      }
+
+      redirectPath = `/listings/${result.listing.id}/checkout?${checkoutParams.toString()}`;
+    }
   } catch (error) {
     return {
       message: getActionMessage(error, "We could not create that listing."),
     };
   }
 
-  revalidatePath("/");
-  revalidatePath("/my-listings");
-  redirect("/my-listings");
+  redirect(redirectPath);
 }
 
 export async function updateListingAction(
@@ -462,22 +668,42 @@ export async function deleteListingAction(formData: FormData) {
 export async function boostListingAction(formData: FormData) {
   const parsed = boostListingSchema.safeParse({
     listingId: formData.get("listingId"),
+    packageId: cleanOptional(String(formData.get("packageId") ?? "")),
+    paymentMethod: formData.get("paymentMethod") || "GATEWAY",
     placement: formData.get("placement"),
-    durationDays: formData.get("durationDays") || 7,
+    durationDays: formData.get("durationDays") || undefined,
   });
 
   const { accessToken } = await requireSessionContext("/my-listings");
 
   if (parsed.success) {
+    const payload = parsed.data.packageId
+      ? {
+          packageId: parsed.data.packageId,
+          paymentMethod: parsed.data.paymentMethod,
+        }
+      : {
+          placement: parsed.data.placement,
+          durationDays: parsed.data.durationDays,
+          paymentMethod: parsed.data.paymentMethod,
+        };
     const boost = await boostListing(accessToken, parsed.data.listingId, {
-      placement: parsed.data.placement,
-      durationDays: parsed.data.durationDays,
+      ...payload,
     });
 
-    const completedBoost = await completeBoostPayment(accessToken, boost.id, {
-      durationDays: parsed.data.durationDays,
-      providerRef: boost.payment?.providerRef,
-    });
+    const completedBoost =
+      parsed.data.paymentMethod === "WALLET"
+        ? boost
+        : await completeBoostPayment(
+            accessToken,
+            boost.id,
+            parsed.data.packageId
+              ? { providerRef: boost.payment?.providerRef }
+              : {
+                  durationDays: parsed.data.durationDays,
+                  providerRef: boost.payment?.providerRef,
+                },
+          );
     const checkoutParams = new URLSearchParams({
       status: completedBoost.transaction?.status ?? "SUCCEEDED",
       listingId: parsed.data.listingId,
@@ -499,6 +725,318 @@ export async function boostListingAction(formData: FormData) {
   redirect("/my-listings");
 }
 
+export async function completeListingPaymentAction(formData: FormData) {
+  const parsed = completeListingPaymentSchema.safeParse({
+    listingId: formData.get("listingId"),
+    providerRef: cleanOptional(String(formData.get("providerRef") ?? "")),
+    returnTo: formData.get("returnTo") || undefined,
+  });
+  const returnTo = getSafeNextPath(
+    parsed.success ? parsed.data.returnTo : null,
+    "/my-listings",
+  );
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  if (parsed.success) {
+    const transaction = await completeListingPayment(
+      accessToken,
+      parsed.data.listingId,
+      {
+        providerRef: parsed.data.providerRef,
+      },
+    );
+
+    revalidatePath("/");
+    revalidatePath("/search");
+    revalidatePath("/my-listings");
+    revalidatePath("/transactions");
+    revalidatePath(`/listings/${parsed.data.listingId}`);
+
+    redirect(
+      withQueryParam(returnTo, {
+        status: transaction.status,
+        transactionId: transaction.id,
+      }),
+    );
+  }
+
+  redirect(returnTo);
+}
+
+export async function walletTopUpAction(formData: FormData) {
+  const parsed = walletTopUpSchema.safeParse({
+    amount: formData.get("amount"),
+    currency: formData.get("currency") || "AED",
+  });
+  const { accessToken } = await requireSessionContext("/my-listings");
+
+  if (parsed.success) {
+    const topUp = await createWalletTopUp(accessToken, parsed.data);
+
+    await completeWalletTopUp(accessToken, topUp.transaction.id, {
+      providerRef: topUp.payment?.providerRef,
+    });
+
+    revalidatePath("/my-listings");
+    revalidatePath("/transactions");
+    redirect("/my-listings?wallet=top-up-success");
+  }
+
+  redirect("/my-listings?wallet=top-up-invalid");
+}
+
+export async function createBoostPackageAction(formData: FormData) {
+  const parsed = boostPackageSchema.safeParse({
+    name: formData.get("name"),
+    slug: cleanOptional(String(formData.get("slug") ?? "")),
+    description: cleanOptional(String(formData.get("description") ?? "")),
+    placement: formData.get("placement"),
+    price: formData.get("price"),
+    currency: formData.get("currency") || "AED",
+    durationDays: formData.get("durationDays"),
+    sortOrder: formData.get("sortOrder") || 0,
+    isActive: formData.get("isActive") === "true",
+    priorityWeight: formData.get("priorityWeight") || 0,
+    priorityEnabled: formData.get("priorityEnabled") === "true",
+    categoryIds: formData.getAll("categoryIds").map(String),
+  });
+
+  if (!parsed.success) {
+    redirect("/admin/boost-packages?package=invalid");
+  }
+
+  const { accessToken } = await requireSessionContext("/admin/boost-packages");
+
+  try {
+    const boostPackage = await createBoostPackage(accessToken, {
+      name: parsed.data.name,
+      slug: parsed.data.slug,
+      description: parsed.data.description,
+      placement: parsed.data.placement,
+      price: parsed.data.price,
+      currency: parsed.data.currency,
+      durationDays: parsed.data.durationDays,
+      sortOrder: parsed.data.sortOrder,
+      isActive: parsed.data.isActive,
+      categoryIds: parsed.data.categoryIds,
+    });
+    await createPriorityRule(accessToken, {
+      name: `${boostPackage.name} package priority`,
+      target: "BOOST_PACKAGE",
+      boostPackageId: boostPackage.id,
+      weight: parsed.data.priorityWeight,
+      sortOrder: parsed.data.sortOrder,
+      isActive: parsed.data.priorityEnabled,
+    });
+  } catch (error) {
+    redirect(
+      `/admin/boost-packages?package=error&message=${encodeURIComponent(
+        getActionMessage(error, "We could not create that package."),
+      )}`,
+    );
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/boost-packages");
+  revalidatePath("/admin/priority-rules");
+  revalidatePath("/search");
+  revalidatePath("/my-listings");
+  redirect("/admin/boost-packages?package=created");
+}
+
+export async function updateBoostPackageAction(formData: FormData) {
+  const parsed = boostPackageSchema.safeParse({
+    packageId: formData.get("packageId"),
+    name: formData.get("name"),
+    slug: cleanOptional(String(formData.get("slug") ?? "")),
+    description: cleanOptional(String(formData.get("description") ?? "")),
+    placement: formData.get("placement"),
+    price: formData.get("price"),
+    currency: formData.get("currency") || "AED",
+    durationDays: formData.get("durationDays"),
+    sortOrder: formData.get("sortOrder") || 0,
+    isActive: formData.get("isActive") === "true",
+    priorityWeight: formData.get("priorityWeight") || 0,
+    priorityEnabled: formData.get("priorityEnabled") === "true",
+    categoryIds: formData.getAll("categoryIds").map(String),
+  });
+  const { accessToken } = await requireSessionContext("/admin/boost-packages");
+
+  if (parsed.success && parsed.data.packageId) {
+    const boostPackage = await updateBoostPackage(
+      accessToken,
+      parsed.data.packageId,
+      {
+        name: parsed.data.name,
+        slug: parsed.data.slug,
+        description: parsed.data.description,
+        placement: parsed.data.placement,
+        price: parsed.data.price,
+        currency: parsed.data.currency,
+        durationDays: parsed.data.durationDays,
+        sortOrder: parsed.data.sortOrder,
+        isActive: parsed.data.isActive,
+        categoryIds: parsed.data.categoryIds,
+      },
+    );
+    await createPriorityRule(accessToken, {
+      name: `${boostPackage.name} package priority`,
+      target: "BOOST_PACKAGE",
+      boostPackageId: boostPackage.id,
+      weight: parsed.data.priorityWeight,
+      sortOrder: parsed.data.sortOrder,
+      isActive: parsed.data.priorityEnabled,
+    });
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/boost-packages");
+  revalidatePath("/admin/priority-rules");
+  revalidatePath("/search");
+  revalidatePath("/my-listings");
+  redirect("/admin/boost-packages");
+}
+
+export async function deleteBoostPackageAction(formData: FormData) {
+  const packageId = String(formData.get("packageId") ?? "");
+  const { accessToken } = await requireSessionContext("/admin/boost-packages");
+
+  if (packageId) {
+    await deleteBoostPackage(accessToken, packageId);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/boost-packages");
+  revalidatePath("/my-listings");
+  redirect("/admin/boost-packages");
+}
+
+export async function createPriorityRuleAction(formData: FormData) {
+  const parsed = priorityRuleSchema.safeParse({
+    name: formData.get("name"),
+    target: formData.get("target"),
+    boostPackageId: cleanOptional(String(formData.get("boostPackageId") ?? "")),
+    categoryId: cleanOptional(String(formData.get("categoryId") ?? "")),
+    weight: formData.get("weight"),
+    sortOrder: formData.get("sortOrder") || 0,
+    isActive: formData.get("isActive") === "true",
+  });
+
+  if (!parsed.success) {
+    redirect("/admin/priority-rules?rule=invalid");
+  }
+
+  const { accessToken } = await requireSessionContext("/admin/priority-rules");
+
+  await createPriorityRule(accessToken, {
+    name: parsed.data.name,
+    target: parsed.data.target as ApiListingPriorityRuleTarget,
+    boostPackageId:
+      parsed.data.target === "BOOST_PACKAGE"
+        ? parsed.data.boostPackageId
+        : undefined,
+    categoryId:
+      parsed.data.target === "CATEGORY_PRIORITY"
+        ? parsed.data.categoryId
+        : undefined,
+    weight: parsed.data.weight,
+    sortOrder: parsed.data.sortOrder,
+    isActive: parsed.data.isActive,
+  });
+
+  revalidatePath("/");
+  revalidatePath("/search");
+  revalidatePath("/admin");
+  revalidatePath("/admin/priority-rules");
+  redirect("/admin/priority-rules?rule=created");
+}
+
+export async function updatePriorityRuleAction(formData: FormData) {
+  const parsed = priorityRuleSchema.safeParse({
+    ruleId: formData.get("ruleId"),
+    name: formData.get("name"),
+    target: formData.get("target"),
+    boostPackageId: cleanOptional(String(formData.get("boostPackageId") ?? "")),
+    categoryId: cleanOptional(String(formData.get("categoryId") ?? "")),
+    weight: formData.get("weight"),
+    sortOrder: formData.get("sortOrder") || 0,
+    isActive: formData.get("isActive") === "true",
+  });
+  const { accessToken } = await requireSessionContext("/admin/priority-rules");
+
+  if (parsed.success && parsed.data.ruleId) {
+    await updatePriorityRule(accessToken, parsed.data.ruleId, {
+      name: parsed.data.name,
+      target: parsed.data.target as ApiListingPriorityRuleTarget,
+      boostPackageId:
+        parsed.data.target === "BOOST_PACKAGE"
+          ? parsed.data.boostPackageId
+          : undefined,
+      categoryId:
+        parsed.data.target === "CATEGORY_PRIORITY"
+          ? parsed.data.categoryId
+          : undefined,
+      weight: parsed.data.weight,
+      sortOrder: parsed.data.sortOrder,
+      isActive: parsed.data.isActive,
+    });
+  }
+
+  revalidatePath("/");
+  revalidatePath("/search");
+  revalidatePath("/admin");
+  revalidatePath("/admin/priority-rules");
+  redirect("/admin/priority-rules");
+}
+
+export async function deletePriorityRuleAction(formData: FormData) {
+  const ruleId = String(formData.get("ruleId") ?? "");
+  const { accessToken } = await requireSessionContext("/admin/priority-rules");
+
+  if (ruleId) {
+    await deletePriorityRule(accessToken, ruleId);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/search");
+  revalidatePath("/admin");
+  revalidatePath("/admin/priority-rules");
+  redirect("/admin/priority-rules");
+}
+
+export async function updateAdminUserAction(formData: FormData) {
+  const returnTo = cleanOptional(String(formData.get("returnTo") ?? ""));
+  const parsed = adminUserSchema.safeParse({
+    userId: formData.get("userId"),
+    name: formData.get("name"),
+    phone: cleanOptional(String(formData.get("phone") ?? "")),
+    role: formData.get("role"),
+    isEmailVerified: formData.get("isEmailVerified") === "true",
+    isPhoneVerified: formData.get("isPhoneVerified") === "true",
+    sellerPriorityTier: formData.get("sellerPriorityTier"),
+  });
+  const { accessToken } = await requireSessionContext("/admin/users");
+
+  if (parsed.success) {
+    await updateAdminUser(accessToken, parsed.data.userId, {
+      name: parsed.data.name,
+      phone: parsed.data.phone ?? null,
+      role: parsed.data.role,
+      isEmailVerified: parsed.data.isEmailVerified,
+      isPhoneVerified: parsed.data.isPhoneVerified,
+      sellerPriorityTier: parsed.data
+        .sellerPriorityTier as ApiSellerPriorityTier,
+    });
+  }
+
+  revalidatePath("/");
+  revalidatePath("/search");
+  revalidatePath("/admin");
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/reports/seller-approvals");
+  redirect(returnTo?.startsWith("/admin") ? returnTo : "/admin/users");
+}
+
 export async function moderateListingAction(formData: FormData) {
   const listingId = String(formData.get("listingId") ?? "");
   const status = String(formData.get("status") ?? "") as ApiListingStatus;
@@ -510,6 +1048,52 @@ export async function moderateListingAction(formData: FormData) {
 
   revalidatePath("/admin");
   redirect("/admin");
+}
+
+export async function updateListingPriorityOverrideAction(formData: FormData) {
+  const scoreInput = cleanOptional(String(formData.get("score") ?? ""));
+  const startsAtInput = cleanOptional(String(formData.get("startsAt") ?? ""));
+  const startsAtDate = startsAtInput ? new Date(startsAtInput) : null;
+  const expiresAtInput = cleanOptional(String(formData.get("expiresAt") ?? ""));
+  const expiresAtDate = expiresAtInput ? new Date(expiresAtInput) : null;
+
+  if (startsAtDate && Number.isNaN(startsAtDate.getTime())) {
+    redirect("/admin?priority=invalid#priority-overrides");
+  }
+
+  if (expiresAtDate && Number.isNaN(expiresAtDate.getTime())) {
+    redirect("/admin?priority=invalid#priority-overrides");
+  }
+
+  const parsed = listingPriorityOverrideSchema.safeParse({
+    listingId: formData.get("listingId"),
+    paid: formData.get("paid") === "true",
+    promoted: formData.get("promoted") === "true",
+    pinned: formData.get("pinned") === "true",
+    score: scoreInput ? Number(scoreInput) : null,
+    startsAt: startsAtDate ? startsAtDate.toISOString() : null,
+    expiresAt: expiresAtDate ? expiresAtDate.toISOString() : null,
+  });
+
+  if (!parsed.success) {
+    redirect("/admin?priority=invalid#priority-overrides");
+  }
+
+  const { accessToken } = await requireSessionContext("/admin");
+
+  await updateListingPriorityOverride(accessToken, parsed.data.listingId, {
+    paid: parsed.data.paid,
+    promoted: parsed.data.promoted,
+    pinned: parsed.data.pinned,
+    score: parsed.data.score,
+    startsAt: parsed.data.startsAt,
+    expiresAt: parsed.data.expiresAt,
+  });
+
+  revalidatePath("/");
+  revalidatePath("/search");
+  revalidatePath("/admin");
+  redirect("/admin?priority=updated#priority-overrides");
 }
 
 export async function createListingReportAction(formData: FormData) {
@@ -547,6 +1131,103 @@ export async function createListingReportAction(formData: FormData) {
 
   revalidatePath("/reports");
   redirect(`${fallbackListingPath}?report=submitted`);
+}
+
+export async function toggleSavedListingAction(formData: FormData) {
+  const parsed = toggleSavedListingSchema.safeParse({
+    listingId: formData.get("listingId"),
+    intent: formData.get("intent"),
+    returnTo: formData.get("returnTo") || "/saved",
+  });
+  const returnTo = getSafeNextPath(
+    parsed.success ? parsed.data.returnTo : null,
+    "/saved",
+  );
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  if (!parsed.success) {
+    redirect(returnTo);
+  }
+
+  if (parsed.data.intent === "save") {
+    await saveListing(accessToken, parsed.data.listingId);
+  } else {
+    await unsaveListing(accessToken, parsed.data.listingId);
+  }
+
+  revalidatePath("/saved");
+  revalidatePath("/search");
+  revalidatePath(`/listings/${parsed.data.listingId}`);
+  revalidatePath("/my-listings");
+  redirect(returnTo);
+}
+
+export async function rateSellerAction(formData: FormData) {
+  const parsed = sellerRatingSchema.safeParse({
+    listingId: formData.get("listingId"),
+    stars: formData.get("stars"),
+    review: String(formData.get("review") ?? ""),
+    returnTo: formData.get("returnTo") || "/search",
+  });
+
+  if (!parsed.success) {
+    redirect("/search?rating=invalid");
+  }
+
+  const { accessToken } = await requireSessionContext(parsed.data.returnTo);
+
+  let sellerId: string | undefined;
+
+  try {
+    const result = await upsertSellerRating(
+      accessToken,
+      parsed.data.listingId,
+      {
+        stars: parsed.data.stars,
+        review: parsed.data.review,
+      },
+    );
+    sellerId = result.summary.sellerId;
+  } catch (error) {
+    const message = getActionMessage(error, "We could not save that rating.");
+    const separator = parsed.data.returnTo.includes("?") ? "&" : "?";
+    redirect(
+      `${parsed.data.returnTo}${separator}rating=error&message=${encodeURIComponent(message)}`,
+    );
+  }
+
+  revalidatePath(`/listings/${parsed.data.listingId}`);
+  if (sellerId) {
+    revalidatePath(`/sellers/${sellerId}`);
+  }
+  revalidatePath("/search");
+  revalidatePath("/profile");
+  revalidatePath("/my-listings");
+  revalidatePath("/admin");
+  const separator = parsed.data.returnTo.includes("?") ? "&" : "?";
+  redirect(`${parsed.data.returnTo}${separator}rating=saved`);
+}
+
+export async function deleteSellerRatingAction(formData: FormData) {
+  const listingId = String(formData.get("listingId") ?? "").trim();
+  const returnTo = String(formData.get("returnTo") ?? "/search");
+
+  if (!listingId || !returnTo.startsWith("/")) {
+    redirect("/search?rating=invalid");
+  }
+
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  const result = await deleteSellerRating(accessToken, listingId);
+
+  revalidatePath(`/listings/${listingId}`);
+  revalidatePath(`/sellers/${result.summary.sellerId}`);
+  revalidatePath("/search");
+  revalidatePath("/profile");
+  revalidatePath("/my-listings");
+  revalidatePath("/admin");
+  const separator = returnTo.includes("?") ? "&" : "?";
+  redirect(`${returnTo}${separator}rating=removed`);
 }
 
 export async function updateListingReportAction(formData: FormData) {
@@ -603,6 +1284,182 @@ export async function updateListingReportAction(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/admin/listing-reports");
   redirect(withQueryParam(returnTo, { updated: "success" }));
+}
+
+export async function sendAdminReportEmailAction(formData: FormData) {
+  const parsed = adminReportEmailSchema.safeParse({
+    reportType: formData.get("reportType"),
+    recipient: formData.get("recipient"),
+    subject: cleanOptional(String(formData.get("subject") ?? "")),
+    message: cleanOptional(String(formData.get("message") ?? "")),
+    days: cleanOptional(String(formData.get("days") ?? "")),
+    from: cleanOptional(String(formData.get("from") ?? "")),
+    to: cleanOptional(String(formData.get("to") ?? "")),
+    take: cleanOptional(String(formData.get("take") ?? "")),
+    topTake: cleanOptional(String(formData.get("topTake") ?? "")),
+    returnTo: formData.get("returnTo") || "/admin/reports",
+  });
+  const returnTo = getSafeNextPath(
+    parsed.success ? parsed.data.returnTo : formData.get("returnTo"),
+    "/admin/reports",
+  );
+
+  if (!parsed.success) {
+    const firstError =
+      parsed.error.issues[0]?.message ??
+      "Check the report email fields and try again.";
+
+    redirect(
+      withQueryParam(returnTo, {
+        email: "error",
+        message: firstError,
+      }),
+    );
+  }
+
+  const { accessToken } = await requireSessionContext(returnTo);
+  const filters = {
+    days: parsed.data.days,
+    from: parsed.data.from,
+    to: parsed.data.to,
+    take: parsed.data.take,
+    topTake: parsed.data.topTake,
+  };
+  let successMessage = "Report emailed.";
+  let emailStatus = "success";
+
+  try {
+    const result = await sendAdminReportEmail(
+      accessToken,
+      parsed.data.reportType as AdminReportEmailType,
+      {
+        recipients: [parsed.data.recipient],
+        subject: parsed.data.subject,
+        message: parsed.data.message,
+        filters,
+      },
+    );
+    emailStatus = result.delivery.enabled ? "success" : "disabled";
+    successMessage = result.delivery.enabled
+      ? "Report emailed."
+      : "Mail delivery is disabled, so the report email was not sent.";
+  } catch (error) {
+    redirect(
+      withQueryParam(returnTo, {
+        email: "error",
+        message: getActionMessage(
+          error,
+          "We could not send that report email.",
+        ),
+      }),
+    );
+  }
+
+  redirect(
+    withQueryParam(returnTo, {
+      email: emailStatus,
+      message: successMessage,
+    }),
+  );
+}
+
+export async function moderateSellerReviewAction(formData: FormData) {
+  const parsed = moderateSellerReviewSchema.safeParse({
+    ratingId: formData.get("ratingId"),
+    sellerId: cleanOptional(String(formData.get("sellerId") ?? "")),
+    listingId: cleanOptional(String(formData.get("listingId") ?? "")),
+    status: formData.get("status"),
+    note: cleanOptional(String(formData.get("note") ?? "")),
+  });
+  const returnTo = getSafeNextPath(formData.get("returnTo"), "/admin/reviews");
+
+  if (!parsed.success) {
+    redirect(
+      withQueryParam(returnTo, {
+        updated: "error",
+        message: "Check the review moderation fields and try again.",
+      }),
+    );
+  }
+
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  try {
+    await moderateSellerReview(accessToken, parsed.data.ratingId, {
+      status: parsed.data.status as ApiSellerReviewStatus,
+      note: parsed.data.note,
+    });
+  } catch (error) {
+    redirect(
+      withQueryParam(returnTo, {
+        updated: "error",
+        message: getActionMessage(
+          error,
+          "We could not update that seller review.",
+        ),
+      }),
+    );
+  }
+
+  if (parsed.data.sellerId) {
+    revalidatePath(`/sellers/${parsed.data.sellerId}`);
+  }
+  if (parsed.data.listingId) {
+    revalidatePath(`/listings/${parsed.data.listingId}`);
+  }
+  revalidatePath("/admin");
+  revalidatePath("/admin/reviews");
+  revalidatePath("/search");
+  revalidatePath("/my-listings");
+  revalidatePath("/profile");
+  redirect(withQueryParam(returnTo, { updated: "success" }));
+}
+
+export async function deleteSellerReviewAction(formData: FormData) {
+  const parsed = deleteSellerReviewSchema.safeParse({
+    ratingId: formData.get("ratingId"),
+    sellerId: cleanOptional(String(formData.get("sellerId") ?? "")),
+    listingId: cleanOptional(String(formData.get("listingId") ?? "")),
+  });
+  const returnTo = getSafeNextPath(formData.get("returnTo"), "/admin/reviews");
+
+  if (!parsed.success) {
+    redirect(
+      withQueryParam(returnTo, {
+        updated: "error",
+        message: "Choose a seller review to delete.",
+      }),
+    );
+  }
+
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  try {
+    await deleteSellerReview(accessToken, parsed.data.ratingId);
+  } catch (error) {
+    redirect(
+      withQueryParam(returnTo, {
+        updated: "error",
+        message: getActionMessage(
+          error,
+          "We could not delete that seller review.",
+        ),
+      }),
+    );
+  }
+
+  if (parsed.data.sellerId) {
+    revalidatePath(`/sellers/${parsed.data.sellerId}`);
+  }
+  if (parsed.data.listingId) {
+    revalidatePath(`/listings/${parsed.data.listingId}`);
+  }
+  revalidatePath("/admin");
+  revalidatePath("/admin/reviews");
+  revalidatePath("/search");
+  revalidatePath("/my-listings");
+  revalidatePath("/profile");
+  redirect(withQueryParam(returnTo, { updated: "deleted" }));
 }
 
 export async function createCategoryAction(

@@ -247,7 +247,10 @@ export class MediaService {
       throw new NotFoundException('Listing not found');
     }
 
-    if (actor.role?.toUpperCase() === 'ADMIN' || listing.sellerId === actor.id) {
+    if (
+      actor.role?.toUpperCase() === 'ADMIN' ||
+      listing.sellerId === actor.id
+    ) {
       return;
     }
 

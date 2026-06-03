@@ -2,9 +2,9 @@ export const PAYMENT_PROVIDER = Symbol('PAYMENT_PROVIDER');
 
 export type CreatePaymentIntentInput = {
   transactionId: string;
-  boostId: string;
+  boostId?: string | null;
   userId: string;
-  listingId: string;
+  listingId?: string | null;
   amount: string;
   currency: string;
   metadata?: Record<string, unknown>;

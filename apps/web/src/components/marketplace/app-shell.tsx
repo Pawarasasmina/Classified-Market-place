@@ -6,6 +6,11 @@ import { useEffect, type ReactNode } from "react";
 import { logoutAction } from "@/app/(main)/actions";
 import { ColorProfileToggle } from "@/components/marketplace/color-profile-toggle";
 import { NotificationBell } from "@/components/marketplace/notification-bell";
+import {
+  hasAdminPermission,
+  hasAnyAdminPermission,
+  type AdminPermission,
+} from "@/lib/admin-permissions";
 import type { SessionUser } from "@/lib/marketplace";
 
 const customerNavLinks = [
@@ -22,13 +27,32 @@ const customerNavLinks = [
   { href: "/profile", label: "Profile" },
 ];
 
-const adminNavLinks = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/categories", label: "Categories" },
-  { href: "/admin#moderation", label: "Moderation" },
-  { href: "/admin/listing-reports", label: "Reports" },
-  { href: "/admin/transactions", label: "Ledger" },
-  { href: "/messages", label: "Support Inbox" },
+const adminNavLinks: Array<{
+  href: string;
+  label: string;
+  permission?: AdminPermission;
+}> = [
+  { href: "/admin", label: "Dashboard", permission: "ADMIN_DASHBOARD" },
+  { href: "/admin/categories", label: "Categories", permission: "CATEGORIES_READ" },
+  { href: "/admin/boost-packages", label: "Boosts", permission: "BOOSTS_WRITE" },
+  { href: "/admin/boosts", label: "Active Boosts", permission: "BOOSTS_READ" },
+  { href: "/admin/priority-rules", label: "Priority", permission: "LISTINGS_PRIORITY" },
+  { href: "/admin/users", label: "Users", permission: "USERS_READ" },
+  { href: "/admin#moderation", label: "Moderation", permission: "LISTINGS_MODERATE" },
+  { href: "/admin/reviews", label: "Reviews", permission: "REVIEWS_READ" },
+  { href: "/admin/reports", label: "Monitoring", permission: "REPORTS_READ" },
+  { href: "/admin/reports/active-listings", label: "Active Listings", permission: "REPORTS_READ" },
+  { href: "/admin/reports/paid-listings", label: "Paid Listings", permission: "REPORTS_READ" },
+  { href: "/admin/reports/category-income", label: "Category Income", permission: "REPORTS_READ" },
+  { href: "/admin/reports/boost-revenue", label: "Boost Revenue", permission: "REPORTS_READ" },
+  { href: "/admin/reports/wallet-payments", label: "Wallet Payments", permission: "REPORTS_READ" },
+  { href: "/admin/reports/sellers", label: "Sellers", permission: "REPORTS_READ" },
+  { href: "/admin/reports/top-sellers", label: "Top Sellers", permission: "REPORTS_READ" },
+  { href: "/admin/reports/seller-approvals", label: "Approvals", permission: "REPORTS_READ" },
+  { href: "/admin/listing-reports", label: "Report Queue", permission: "REPORTS_READ" },
+  { href: "/admin/transactions", label: "Ledger", permission: "TRANSACTIONS_READ" },
+  { href: "/admin/audit-logs", label: "Audit Logs", permission: "AUDIT_LOGS_READ" },
+  { href: "/messages", label: "Support Inbox", permission: "SUPPORT_READ" },
   { href: "/notifications", label: "Notifications" },
   { href: "/profile", label: "Profile" },
 ];
@@ -37,17 +61,21 @@ function isActive(pathname: string, href: string) {
   const baseHref = href.split("#")[0]?.split("?")[0] ?? href;
 
   if (baseHref === "/") return pathname === "/";
-  return pathname.startsWith(baseHref);
+  if (baseHref === "/admin") return pathname === "/admin";
+  if (href.includes("#")) return pathname === baseHref;
+
+  return pathname === baseHref || pathname.startsWith(`${baseHref}/`);
 }
 
 function isAdminUser(user: SessionUser | null) {
-  return user?.role.toUpperCase() === "ADMIN";
+  return hasAnyAdminPermission(user?.role);
 }
 
 function adminWorkspaceRoute(pathname: string) {
   return (
     pathname.startsWith("/admin") ||
     pathname.startsWith("/messages") ||
+    pathname.startsWith("/notifications") ||
     pathname === "/profile"
   );
 }
@@ -85,7 +113,10 @@ export function MarketplaceShell({
   const adminExperience = adminShell || adminLogin;
   const shouldRedirectToAdmin = adminShell && !adminWorkspaceRoute(pathname);
   const navLinks = adminShell
-    ? adminNavLinks
+    ? adminNavLinks.filter(
+        (link) =>
+          !link.permission || hasAdminPermission(user?.role, link.permission),
+      )
     : adminLogin
       ? []
       : customerNavLinks;
@@ -228,15 +259,7 @@ export function MarketplaceShell({
           </div>
         ) : null}
       </header>
-      <main>
-        {shouldRedirectToAdmin ? (
-          <div className="page">
-            <div className="panel">Opening admin dashboard...</div>
-          </div>
-        ) : (
-          children
-        )}
-      </main>
+      <main>{children}</main>
       {!adminExperience ? (
         <footer className="marketplace-footer">
           <div className="mx-auto grid max-w-[92rem] gap-6 px-4 py-8 text-sm sm:px-8 lg:grid-cols-[1fr_auto] lg:items-center lg:px-10">

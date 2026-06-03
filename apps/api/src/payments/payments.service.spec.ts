@@ -21,8 +21,16 @@ describe('PaymentsService', () => {
       update: jest.Mock;
     };
     transaction: {
+      findUnique: jest.Mock;
       findFirst: jest.Mock;
       update: jest.Mock;
+    };
+    walletAccount: {
+      upsert: jest.Mock;
+      update: jest.Mock;
+    };
+    walletLedger: {
+      create: jest.Mock;
     };
     $transaction: jest.Mock;
   };
@@ -33,7 +41,9 @@ describe('PaymentsService', () => {
   };
   let notifications: {
     notifyBoostActivated: jest.Mock;
+    notifyPaymentRequested: jest.Mock;
     notifyTransactionStatusChanged: jest.Mock;
+    notifyWalletTopUp: jest.Mock;
   };
   let service: PaymentsService;
 
@@ -80,11 +90,33 @@ describe('PaymentsService', () => {
         })),
       },
       transaction: {
+        findUnique: jest.fn().mockResolvedValue(transaction),
         findFirst: jest.fn().mockResolvedValue(transaction),
         update: jest.fn().mockImplementation(({ data }) => ({
           ...transaction,
           ...data,
         })),
+      },
+      walletAccount: {
+        upsert: jest.fn().mockResolvedValue({
+          id: 'wallet-1',
+          userId: 'seller-1',
+          balance: new Prisma.Decimal(25),
+          currency: 'AED',
+        }),
+        update: jest.fn().mockImplementation(({ data }) => ({
+          id: 'wallet-1',
+          userId: 'seller-1',
+          balance: data.balance,
+          currency: 'AED',
+        })),
+      },
+      walletLedger: {
+        create: jest.fn().mockResolvedValue({
+          id: 'ledger-1',
+          walletId: 'wallet-1',
+          transactionId: 'transaction-1',
+        }),
       },
       $transaction: jest.fn((callback) => callback(prisma)),
     };
@@ -104,11 +136,13 @@ describe('PaymentsService', () => {
     };
     notifications = {
       notifyBoostActivated: jest.fn(),
+      notifyPaymentRequested: jest.fn(),
       notifyTransactionStatusChanged: jest.fn(),
+      notifyWalletTopUp: jest.fn(),
     };
     service = new PaymentsService(
       prisma as never,
-      provider as never,
+      provider,
       notifications as never,
     );
   });
@@ -119,6 +153,8 @@ describe('PaymentsService', () => {
       boostId: 'boost-1',
       userId: 'seller-1',
       listingId: 'listing-1',
+      listingTitle: 'Clean phone',
+      type: TransactionType.BOOST_PURCHASE,
       amount: new Prisma.Decimal(25),
       currency: 'AED',
     });
@@ -129,6 +165,52 @@ describe('PaymentsService', () => {
         boostId: 'boost-1',
         amount: '25.00',
         currency: 'AED',
+      }),
+    );
+    expect(notifications.notifyPaymentRequested).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'seller-1',
+        transactionId: 'transaction-1',
+        listingId: 'listing-1',
+        listingTitle: 'Clean phone',
+        boostId: 'boost-1',
+        type: TransactionType.BOOST_PURCHASE,
+        amount: expect.any(Prisma.Decimal),
+        currency: 'AED',
+        provider: 'dev',
+        providerRef: 'dev-payment-1',
+        checkoutUrl:
+          'http://127.0.0.1:3001/payments/dev/checkout/dev-payment-1',
+      }),
+    );
+  });
+
+  it('creates wallet top-up payment intents through the configured provider', async () => {
+    await service.createWalletTopUpPaymentIntent({
+      transactionId: 'transaction-1',
+      userId: 'seller-1',
+      amount: new Prisma.Decimal(100),
+      currency: 'AED',
+    });
+
+    expect(provider.createPaymentIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transactionId: 'transaction-1',
+        boostId: null,
+        listingId: null,
+        amount: '100.00',
+        currency: 'AED',
+      }),
+    );
+    expect(notifications.notifyPaymentRequested).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'seller-1',
+        transactionId: 'transaction-1',
+        type: TransactionType.WALLET_TOP_UP,
+        amount: expect.any(Prisma.Decimal),
+        currency: 'AED',
+        provider: 'dev',
+        providerRef: 'dev-payment-1',
       }),
     );
   });
@@ -172,6 +254,9 @@ describe('PaymentsService', () => {
         userId: 'seller-1',
         transactionId: 'transaction-1',
         listingId: 'listing-1',
+        listingTitle: 'Clean phone',
+        boostId: 'boost-1',
+        type: TransactionType.BOOST_PURCHASE,
         status: TransactionStatus.SUCCEEDED,
         amount: transaction.amount,
         currency: 'AED',
@@ -219,15 +304,62 @@ describe('PaymentsService', () => {
     );
 
     expect(provider.parseWebhook).toHaveBeenCalled();
-    expect(prisma.transaction.findFirst).toHaveBeenCalledWith({
-      where: {
-        provider: 'dev',
-        providerRef: 'dev-payment-1',
-      },
-    });
+    expect(prisma.transaction.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          provider: 'dev',
+          providerRef: 'dev-payment-1',
+        },
+      }),
+    );
     expect(prisma.boost.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: BoostStatus.ACTIVE }),
+      }),
+    );
+  });
+
+  it('credits the seller wallet from a successful top-up webhook', async () => {
+    prisma.transaction.findFirst.mockResolvedValue({
+      ...transaction,
+      type: TransactionType.WALLET_TOP_UP,
+      amount: new Prisma.Decimal(100),
+      listingId: null,
+    });
+
+    await service.handleWebhook(
+      'dev',
+      { providerRef: 'dev-payment-1', status: 'succeeded' },
+      {},
+    );
+
+    expect(prisma.walletAccount.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'wallet-1' },
+        data: {
+          balance: expect.any(Prisma.Decimal),
+        },
+      }),
+    );
+    expect(prisma.walletLedger.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          walletId: 'wallet-1',
+          transactionId: 'transaction-1',
+          type: 'SELF_TOP_UP',
+          amount: expect.any(Prisma.Decimal),
+          currency: 'AED',
+        }),
+      }),
+    );
+    expect(notifications.notifyWalletTopUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'seller-1',
+        transactionId: 'transaction-1',
+        walletId: 'wallet-1',
+        ledgerId: 'ledger-1',
+        amount: expect.any(Prisma.Decimal),
+        currency: 'AED',
       }),
     );
   });
@@ -259,7 +391,7 @@ describe('PaymentsService', () => {
     ).resolves.toMatchObject({
       received: true,
       status: 'succeeded',
-      boost: expect.objectContaining({
+      payment: expect.objectContaining({
         id: 'boost-1',
         status: BoostStatus.ACTIVE,
       }),
@@ -308,6 +440,9 @@ describe('PaymentsService', () => {
         userId: 'seller-1',
         transactionId: 'transaction-1',
         listingId: 'listing-1',
+        listingTitle: 'Clean phone',
+        boostId: 'boost-1',
+        type: TransactionType.BOOST_PURCHASE,
         status: TransactionStatus.FAILED,
       }),
     );
@@ -350,6 +485,9 @@ describe('PaymentsService', () => {
         userId: 'seller-1',
         transactionId: 'transaction-1',
         listingId: 'listing-1',
+        listingTitle: 'Clean phone',
+        boostId: 'boost-1',
+        type: TransactionType.BOOST_PURCHASE,
         status: TransactionStatus.REFUNDED,
       }),
     );

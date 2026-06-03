@@ -5,7 +5,8 @@ export type NotificationType =
   | "OFFER"
   | "BOOST"
   | "TRANSACTION"
-  | "REPORT";
+  | "REPORT"
+  | "RATING";
 
 export type NotificationMetadata = Record<string, unknown> & {
   deepLink?: string;

@@ -1,7 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ListingCard } from "@/components/marketplace/listing-card";
-import { fetchListings, fetchSellerProfile } from "@/lib/marketplace-api";
+import {
+  SellerRatingSummary,
+  SellerRatingSummaryCard,
+} from "@/components/marketplace/seller-rating-summary";
+import { SellerReviews } from "@/components/marketplace/seller-reviews";
+import {
+  fetchListings,
+  fetchSellerProfile,
+  fetchSellerReviews,
+} from "@/lib/marketplace-api";
 
 type SellerPageProps = {
   params: Promise<{ sellerId: string }>;
@@ -9,9 +18,10 @@ type SellerPageProps = {
 
 export default async function SellerPage(props: SellerPageProps) {
   const { sellerId } = await props.params;
-  const [seller, listings] = await Promise.all([
+  const [seller, listings, reviews] = await Promise.all([
     fetchSellerProfile(sellerId),
     fetchListings({ sellerId }),
+    fetchSellerReviews(sellerId),
   ]);
 
   if (!seller) {
@@ -25,20 +35,33 @@ export default async function SellerPage(props: SellerPageProps) {
           <div className="flex items-center gap-4">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[rgba(181,183,202,0.24)] bg-[rgba(255,255,255,0.08)] text-2xl font-black text-white">
               {seller.avatarUrl ? (
-                <img src={seller.avatarUrl} alt="" className="h-full w-full object-cover" />
+                <img
+                  src={seller.avatarUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 seller.name.charAt(0)
               )}
             </div>
             <div>
               <p className="section-eyebrow">Seller profile</p>
-              <h1 className="mt-2 text-3xl font-black text-white">{seller.name}</h1>
+              <h1 className="mt-2 text-3xl font-black text-white">
+                {seller.name}
+              </h1>
               <p className="mt-2 text-sm text-[#d7d9ea]">
                 {seller.location ?? seller.joinedLabel}
               </p>
               <p className="mt-2 text-sm text-[#d7d9ea]">
-                {seller.verified ? "Verified seller" : "Marketplace seller"} - {seller.totalListings} listings
+                {seller.verified ? "Verified seller" : "Marketplace seller"} -{" "}
+                {seller.totalListings} listings
               </p>
+              <SellerRatingSummary
+                averageRating={seller.averageRating}
+                ratingCount={seller.ratingCount}
+                reviewCount={seller.reviewCount}
+                className="mt-2 text-sm font-bold text-[#d7d9ea]"
+              />
             </div>
           </div>
           <Link
@@ -55,6 +78,15 @@ export default async function SellerPage(props: SellerPageProps) {
         ) : null}
       </section>
 
+      <SellerRatingSummaryCard
+        averageRating={seller.averageRating}
+        ratingCount={seller.ratingCount}
+        reviewCount={seller.reviewCount}
+        reputationScore={seller.reputationScore}
+      />
+
+      <SellerReviews reviews={reviews} />
+
       <section>
         <div className="mb-4">
           <p className="section-eyebrow">Inventory</p>
@@ -64,7 +96,9 @@ export default async function SellerPage(props: SellerPageProps) {
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {listings.length ? (
-            listings.map((listing) => <ListingCard key={listing.id} listing={listing} compact />)
+            listings.map((listing) => (
+              <ListingCard key={listing.id} listing={listing} compact />
+            ))
           ) : (
             <div className="panel md:col-span-2 lg:col-span-3">
               No active listings yet.

@@ -23,9 +23,7 @@ describe('MediaController', () => {
       buffer: Buffer.from([0xff, 0xd8, 0xff, 0x00]),
     };
 
-    expect(
-      controller.uploadListingImage({ id: 'user-1' }, {}, file),
-    ).toEqual({
+    expect(controller.uploadListingImage({ id: 'user-1' }, {}, file)).toEqual({
       id: 'asset-1',
       url: 'http://127.0.0.1:3001/uploads/listing-images/asset.jpg',
     });

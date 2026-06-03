@@ -6,8 +6,15 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { BoostStatus, ListingStatus, TransactionStatus } from '@prisma/client';
-import type { Prisma, Transaction } from '@prisma/client';
+import {
+  BoostPlacement,
+  BoostStatus,
+  ListingStatus,
+  Prisma,
+  TransactionStatus,
+  TransactionType,
+} from '@prisma/client';
+import type { Transaction } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PAYMENT_PROVIDER } from './payment-provider';
@@ -121,14 +128,133 @@ export class PaymentsService {
     boostId: string;
     userId: string;
     listingId: string;
+    listingTitle?: string | null;
+    type?: TransactionType;
     amount: Prisma.Decimal;
     currency: string;
     metadata?: Record<string, unknown>;
   }): Promise<PaymentIntent> {
-    return this.paymentProvider.createPaymentIntent({
-      ...input,
-      amount: input.amount.toFixed(2),
-    });
+    return this.paymentProvider
+      .createPaymentIntent({
+        ...input,
+        amount: input.amount.toFixed(2),
+      })
+      .then(async (paymentIntent) => {
+        try {
+          await this.notifications?.notifyPaymentRequested({
+            userId: input.userId,
+            transactionId: input.transactionId,
+            listingId: input.listingId,
+            listingTitle: input.listingTitle,
+            boostId: input.boostId,
+            type: input.type,
+            amount: input.amount,
+            currency: input.currency,
+            provider: paymentIntent.provider,
+            providerRef: paymentIntent.providerRef,
+            checkoutUrl: paymentIntent.checkoutUrl,
+            metadata: {
+              ...((input.metadata ?? {}) as Prisma.InputJsonObject),
+              paymentProviderMetadata: (paymentIntent.metadata ??
+                {}) as Prisma.InputJsonObject,
+            },
+          });
+        } catch {
+          this.logger.warn(
+            `Could not persist payment request notification for ${input.transactionId}`,
+          );
+        }
+
+        return paymentIntent;
+      });
+  }
+
+  createListingFeePaymentIntent(input: {
+    transactionId: string;
+    userId: string;
+    listingId: string;
+    listingTitle?: string | null;
+    amount: Prisma.Decimal;
+    currency: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<PaymentIntent> {
+    return this.paymentProvider
+      .createPaymentIntent({
+        ...input,
+        boostId: null,
+        amount: input.amount.toFixed(2),
+      })
+      .then(async (paymentIntent) => {
+        try {
+          await this.notifications?.notifyPaymentRequested({
+            userId: input.userId,
+            transactionId: input.transactionId,
+            listingId: input.listingId,
+            listingTitle: input.listingTitle,
+            boostId: null,
+            type: TransactionType.LISTING_FEE,
+            amount: input.amount,
+            currency: input.currency,
+            provider: paymentIntent.provider,
+            providerRef: paymentIntent.providerRef,
+            checkoutUrl: paymentIntent.checkoutUrl,
+            metadata: {
+              ...((input.metadata ?? {}) as Prisma.InputJsonObject),
+              paymentProviderMetadata: (paymentIntent.metadata ??
+                {}) as Prisma.InputJsonObject,
+            },
+          });
+        } catch {
+          this.logger.warn(
+            `Could not persist listing fee payment request notification for ${input.transactionId}`,
+          );
+        }
+
+        return paymentIntent;
+      });
+  }
+
+  createWalletTopUpPaymentIntent(input: {
+    transactionId: string;
+    userId: string;
+    amount: Prisma.Decimal;
+    currency: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<PaymentIntent> {
+    return this.paymentProvider
+      .createPaymentIntent({
+        ...input,
+        boostId: null,
+        listingId: null,
+        amount: input.amount.toFixed(2),
+      })
+      .then(async (paymentIntent) => {
+        try {
+          await this.notifications?.notifyPaymentRequested({
+            userId: input.userId,
+            transactionId: input.transactionId,
+            listingId: null,
+            boostId: null,
+            type: TransactionType.WALLET_TOP_UP,
+            amount: input.amount,
+            currency: input.currency,
+            provider: paymentIntent.provider,
+            providerRef: paymentIntent.providerRef,
+            checkoutUrl: paymentIntent.checkoutUrl,
+            metadata: {
+              ...((input.metadata ?? {}) as Prisma.InputJsonObject),
+              paymentProviderMetadata: (paymentIntent.metadata ??
+                {}) as Prisma.InputJsonObject,
+            },
+          });
+        } catch {
+          this.logger.warn(
+            `Could not persist wallet top-up payment request notification for ${input.transactionId}`,
+          );
+        }
+
+        return paymentIntent;
+      });
   }
 
   async completeBoostPaymentForActor(
@@ -170,6 +296,79 @@ export class PaymentsService {
     return this.activateBoostPayment(boost, boost.transaction, input);
   }
 
+  async completeListingFeePaymentForActor(
+    user: ActingUser,
+    transactionId: string,
+    input: { providerRef?: string },
+  ) {
+    const transaction = await this.prisma.transaction.findFirst({
+      where: {
+        id: transactionId,
+        type: TransactionType.LISTING_FEE,
+      },
+      include: {
+        listing: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            sellerId: true,
+          },
+        },
+      },
+    });
+
+    if (!transaction || !transaction.listing) {
+      throw new NotFoundException('Listing fee transaction not found');
+    }
+
+    if (
+      transaction.listing.status === ListingStatus.DELETED ||
+      transaction.listing.status === ListingStatus.REMOVED
+    ) {
+      throw new BadRequestException(
+        'This listing can no longer accept listing-fee payment',
+      );
+    }
+
+    if (!isAdminRole(user.role) && transaction.userId !== user.id) {
+      throw new ForbiddenException(
+        'You can only complete your own listing payment',
+      );
+    }
+
+    return this.completeListingFeeTransaction(transaction, {
+      providerRef: input.providerRef,
+    });
+  }
+
+  async completeWalletTopUpPaymentForActor(
+    user: ActingUser,
+    transactionId: string,
+    input: { providerRef?: string },
+  ) {
+    const transaction = await this.prisma.transaction.findFirst({
+      where: {
+        id: transactionId,
+        type: TransactionType.WALLET_TOP_UP,
+      },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException('Wallet top-up transaction not found');
+    }
+
+    if (!isAdminRole(user.role) && transaction.userId !== user.id) {
+      throw new ForbiddenException(
+        'You can only complete your own wallet top-up',
+      );
+    }
+
+    return this.completeWalletTopUpTransaction(transaction, {
+      providerRef: input.providerRef,
+    });
+  }
+
   async handleWebhook(
     providerName: string,
     payload: unknown,
@@ -182,12 +381,12 @@ export class PaymentsService {
     const event = await this.paymentProvider.parseWebhook(payload, headers);
 
     if (event.status === 'succeeded') {
-      const boost = await this.completeBoostPaymentByProviderRef(event);
+      const payment = await this.completePaymentByProviderRef(event);
 
       return {
         received: true,
         status: event.status,
-        boost,
+        payment,
       };
     }
 
@@ -204,16 +403,38 @@ export class PaymentsService {
     };
   }
 
-  private async completeBoostPaymentByProviderRef(event: PaymentWebhookEvent) {
+  private async completePaymentByProviderRef(event: PaymentWebhookEvent) {
     const transaction = await this.prisma.transaction.findFirst({
       where: {
         provider: event.provider,
         providerRef: event.providerRef,
       },
+      include: {
+        listing: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            sellerId: true,
+          },
+        },
+      },
     });
 
     if (!transaction) {
       throw new NotFoundException('Transaction not found');
+    }
+
+    if (transaction.type === TransactionType.LISTING_FEE) {
+      return this.completeListingFeeTransaction(transaction, {
+        providerRef: event.providerRef,
+      });
+    }
+
+    if (transaction.type === TransactionType.WALLET_TOP_UP) {
+      return this.completeWalletTopUpTransaction(transaction, {
+        providerRef: event.providerRef,
+      });
     }
 
     const boost = await this.prisma.boost.findFirst({
@@ -317,6 +538,7 @@ export class PaymentsService {
     boost: {
       id: string;
       status: BoostStatus;
+      placement: BoostPlacement;
       startsAt: Date;
       endsAt: Date;
       listing: {
@@ -401,13 +623,19 @@ export class PaymentsService {
     try {
       await this.notifications?.notifyBoostActivated({
         userId: transaction.userId,
+        boostId: boost.id,
         listingId: boost.listing.id,
         listingTitle: boost.listing.title,
         transactionId: transaction.id,
+        placement: boost.placement,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        provider: transaction.provider,
+        providerRef: input.providerRef ?? transaction.providerRef,
         startsAt,
         endsAt,
       });
-    } catch (error) {
+    } catch {
       this.logger.warn(
         `Could not persist boost activation notification for ${boost.id}`,
       );
@@ -421,12 +649,160 @@ export class PaymentsService {
     return updatedBoost;
   }
 
+  private async completeListingFeeTransaction(
+    transaction: Transaction & {
+      listing?: {
+        id: string;
+        title: string;
+        status: ListingStatus;
+        sellerId: string;
+      } | null;
+    },
+    input: { providerRef?: string },
+  ) {
+    if (transaction.status === TransactionStatus.SUCCEEDED) {
+      throw new BadRequestException('Listing payment has already succeeded');
+    }
+
+    if (transaction.status !== TransactionStatus.PENDING) {
+      throw new BadRequestException('Listing payment is not pending');
+    }
+
+    const now = new Date();
+    const updatedTransaction = await this.prisma.transaction.update({
+      where: { id: transaction.id },
+      data: {
+        status: TransactionStatus.SUCCEEDED,
+        providerRef: input.providerRef ?? transaction.providerRef,
+        metadata: mergeMetadata(transaction.metadata, {
+          paidAt: now.toISOString(),
+        }),
+      },
+      include: {
+        listing: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            sellerId: true,
+          },
+        },
+      },
+    });
+
+    await this.notifyTransactionStatusChanged({
+      ...transaction,
+      status: TransactionStatus.SUCCEEDED,
+      providerRef: input.providerRef ?? transaction.providerRef,
+    });
+
+    return updatedTransaction;
+  }
+
+  private async completeWalletTopUpTransaction(
+    transaction: Transaction,
+    input: { providerRef?: string },
+  ) {
+    if (transaction.status === TransactionStatus.SUCCEEDED) {
+      return this.prisma.transaction.findUnique({
+        where: { id: transaction.id },
+      });
+    }
+
+    if (transaction.status !== TransactionStatus.PENDING) {
+      throw new BadRequestException('Wallet top-up payment is not pending');
+    }
+
+    const now = new Date();
+    const result = await this.prisma.$transaction(async (tx) => {
+      const updatedTransaction = await tx.transaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: TransactionStatus.SUCCEEDED,
+          providerRef: input.providerRef ?? transaction.providerRef,
+          metadata: mergeMetadata(transaction.metadata, {
+            paidAt: now.toISOString(),
+          }),
+        },
+      });
+      const wallet = await tx.walletAccount.upsert({
+        where: { userId: transaction.userId },
+        update: {},
+        create: {
+          userId: transaction.userId,
+          currency: transaction.currency,
+        },
+      });
+
+      if (wallet.currency !== transaction.currency) {
+        throw new BadRequestException(
+          'Wallet currency does not match top-up currency',
+        );
+      }
+
+      const nextBalance = new Prisma.Decimal(wallet.balance).plus(
+        transaction.amount,
+      );
+      const updatedWallet = await tx.walletAccount.update({
+        where: { id: wallet.id },
+        data: { balance: nextBalance },
+      });
+      const ledger = await tx.walletLedger.create({
+        data: {
+          walletId: wallet.id,
+          transactionId: transaction.id,
+          type: 'SELF_TOP_UP',
+          amount: transaction.amount,
+          currency: transaction.currency,
+          balanceAfter: nextBalance,
+          metadata: {
+            provider: transaction.provider,
+            providerRef: input.providerRef ?? transaction.providerRef,
+            paidAt: now.toISOString(),
+          },
+        },
+      });
+
+      return {
+        ledger,
+        transaction: updatedTransaction,
+        wallet: updatedWallet,
+      };
+    });
+
+    try {
+      await this.notifications?.notifyWalletTopUp({
+        userId: transaction.userId,
+        transactionId: transaction.id,
+        walletId: result.wallet.id,
+        ledgerId: result.ledger.id,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        balanceAfter: result.wallet.balance,
+        note: 'Seller wallet top-up',
+      });
+    } catch {
+      this.logger.warn(
+        `Could not persist wallet top-up notification for ${result.wallet.id}`,
+      );
+    }
+
+    await this.notifyTransactionStatusChanged({
+      ...transaction,
+      status: TransactionStatus.SUCCEEDED,
+      providerRef: input.providerRef ?? transaction.providerRef,
+    });
+
+    return result;
+  }
+
   private async notifyTransactionStatusChanged(
     transaction: Pick<
       Transaction,
       | 'id'
       | 'userId'
       | 'listingId'
+      | 'type'
       | 'status'
       | 'amount'
       | 'currency'
@@ -435,20 +811,68 @@ export class PaymentsService {
     >,
   ) {
     try {
+      const context = await this.getTransactionNotificationContext(
+        transaction.id,
+      );
+
       await this.notifications?.notifyTransactionStatusChanged({
         userId: transaction.userId,
         transactionId: transaction.id,
-        listingId: transaction.listingId,
+        listingId: transaction.listingId ?? context.listingId,
+        listingTitle: context.listingTitle,
+        boostId: context.boostId,
+        type: transaction.type,
         status: transaction.status,
         amount: transaction.amount,
         currency: transaction.currency,
         provider: transaction.provider,
         providerRef: transaction.providerRef,
       });
-    } catch (error) {
+    } catch {
       this.logger.warn(
         `Could not persist transaction notification for ${transaction.id}`,
       );
     }
+  }
+
+  private async getTransactionNotificationContext(transactionId: string) {
+    const boost = await this.prisma.boost.findFirst({
+      where: { transactionId },
+      select: {
+        id: true,
+        listing: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
+    });
+
+    if (boost?.listing) {
+      return {
+        boostId: boost.id,
+        listingId: boost.listing.id,
+        listingTitle: boost.listing.title,
+      };
+    }
+
+    const transaction = await this.prisma.transaction.findFirst({
+      where: { id: transactionId },
+      select: {
+        listing: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
+    });
+
+    return {
+      boostId: null,
+      listingId: transaction?.listing?.id ?? null,
+      listingTitle: transaction?.listing?.title ?? null,
+    };
   }
 }
