@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CategoryIcon } from "@/components/marketplace/category-icon";
 import { ListingCard } from "@/components/marketplace/listing-card";
+import { hasAnyAdminPermission } from "@/lib/admin-permissions";
 import { getSessionUser } from "@/lib/auth-dal";
 import {
   buildMarketplaceCategoryTree,
@@ -29,7 +30,7 @@ export default async function HomePage(props: HomePageProps) {
   const customerPreview = searchParams.view === "customer";
   const user = await getSessionUser();
 
-  if (user?.role.toUpperCase() === "ADMIN" && !customerPreview) {
+  if (hasAnyAdminPermission(user?.role) && !customerPreview) {
     redirect("/admin");
   }
 
@@ -139,7 +140,7 @@ export default async function HomePage(props: HomePageProps) {
           <div className="mt-6 grid gap-3">
             {[
               "Verified category schemas and live search filters",
-              "Simple posting flow for sellers",
+              "Simple posting flow for every account",
               "Saved items and direct buyer chat",
             ].map((item) => (
               <div key={item} className="feature-rail text-sm">

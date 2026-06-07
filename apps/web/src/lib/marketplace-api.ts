@@ -1,24 +1,55 @@
 import "server-only";
 
+import type { AssignableUserRole } from "@/lib/admin-permissions";
 import {
   mapCategory,
+  mapAuditLog,
   mapListing,
+  mapListingReport,
   mapSeller,
   mapSessionUser,
+  mapTransaction,
   type AdminBooking,
   type AdminBookingMessage,
   type AdminBookingParticipant,
   type AdminUser,
+  type ApiActiveListingsReport,
+  type ApiAuditLog,
+  type ApiBoost,
+  type ApiBoostPackage,
+  type ApiBoostPlacement,
+  type ApiBoostRevenueReport,
+  type ApiCategoryIncomeReport,
+  type ApiAdminMonitoringReport,
+  type ApiAdminSellerReport,
   type ApiCategory,
+  type ApiPaidListingsReport,
+  type ApiPendingSellerApprovalsReport,
+  type ApiListingPriorityRule,
+  type ApiListingPriorityRuleTarget,
+  type ApiSellerRating,
+  type ApiSellerRatingSummary,
+  type ApiSellerReviewStatus,
   type ApiListing,
+  type ApiListingPaymentMode,
+  type ApiListingQuota,
+  type ApiListingReport,
   type ApiListingStatus,
+  type ApiReportStatus,
+  type ApiSellerPriorityTier,
+  type ApiTransaction,
+  type ApiTransactionStatus,
+  type ApiTransactionType,
+  type ApiTopSellersReport,
   type ApiUser,
+  type ApiWalletPaymentsReport,
+  type ApiWalletAccount,
 } from "@/lib/marketplace";
 
 export class MarketplaceApiError extends Error {
   constructor(
     message: string,
-    public readonly status: number
+    public readonly status: number,
   ) {
     super(message);
     this.name = "MarketplaceApiError";
@@ -33,9 +64,189 @@ type ListingQuery = {
   location?: string;
   minPrice?: number;
   maxPrice?: number;
-  sort?: "newest" | "price_asc" | "price_desc";
+  sort?: "recommended" | "newest" | "price_asc" | "price_desc";
+  boostPlacement?: ApiBoostPlacement;
   take?: number;
 };
+
+type TransactionQuery = {
+  status?: ApiTransactionStatus;
+  type?: ApiTransactionType;
+  userId?: string;
+  listingId?: string;
+  take?: number;
+};
+
+type AuditLogQuery = {
+  actorId?: string;
+  action?: string;
+  entityType?: string;
+  entityId?: string;
+  success?: boolean;
+  from?: string;
+  to?: string;
+  take?: number;
+};
+
+type ListingReportQuery = {
+  status?: ApiReportStatus;
+  listingId?: string;
+  reporterId?: string;
+  take?: number;
+};
+
+type AdminMonitoringQuery = {
+  days?: number;
+  from?: string;
+  to?: string;
+  topTake?: number;
+};
+
+type AdminSellerReportQuery = {
+  days?: number;
+  from?: string;
+  to?: string;
+  take?: number;
+};
+
+type TopSellersReportQuery = {
+  days?: number;
+  from?: string;
+  to?: string;
+  take?: number;
+};
+
+type PendingSellerApprovalsQuery = {
+  days?: number;
+  from?: string;
+  to?: string;
+  take?: number;
+};
+
+type ActiveListingsReportQuery = {
+  days?: number;
+  from?: string;
+  to?: string;
+  take?: number;
+};
+
+type PaidListingsReportQuery = {
+  days?: number;
+  from?: string;
+  to?: string;
+  take?: number;
+};
+
+type WalletPaymentsReportQuery = {
+  days?: number;
+  from?: string;
+  to?: string;
+  take?: number;
+};
+
+type BoostRevenueReportQuery = {
+  days?: number;
+  from?: string;
+  to?: string;
+  take?: number;
+};
+
+type CategoryIncomeReportQuery = {
+  days?: number;
+  from?: string;
+  to?: string;
+  take?: number;
+};
+
+export type AdminReportEmailType =
+  | "monitoring"
+  | "active-listings"
+  | "paid-listings"
+  | "category-income"
+  | "boost-revenue"
+  | "wallet-payments"
+  | "sellers"
+  | "top-sellers"
+  | "approvals"
+  | "seller-approvals";
+
+export type AdminReportEmailFilters = {
+  days?: number;
+  from?: string;
+  to?: string;
+  take?: number;
+  topTake?: number;
+};
+
+export type SendAdminReportEmailPayload = {
+  recipients: string[];
+  subject?: string;
+  message?: string;
+  filters?: AdminReportEmailFilters;
+};
+
+export type AdminReportEmailDelivery = {
+  enabled: boolean;
+  messageId?: string;
+  accepted: string[];
+  rejected: string[];
+};
+
+export type AdminReportEmailResult = {
+  reportType: AdminReportEmailType;
+  recipients: string[];
+  subject: string;
+  filters: AdminReportEmailFilters;
+  delivery: AdminReportEmailDelivery;
+};
+
+type SellerReviewQuery = {
+  status?: ApiSellerReviewStatus;
+};
+
+export const boostPlans = [
+  {
+    placement: "TOP_LISTING",
+    label: "Top listing",
+    durationDays: 7,
+    priceLabel: "AED 25",
+    description: "Prioritized placement at the top of customer results.",
+  },
+  {
+    placement: "HIGHLIGHTED_LISTING",
+    label: "Highlighted listing",
+    durationDays: 7,
+    priceLabel: "AED 25",
+    description: "Highlighted badge and boosted ordering across lists.",
+  },
+  {
+    placement: "CATEGORY_PRIORITY",
+    label: "Category priority",
+    durationDays: 7,
+    priceLabel: "AED 25",
+    description: "Priority placement inside the listing category results.",
+  },
+  {
+    placement: "HOMEPAGE_PROMOTION",
+    label: "Homepage promotion",
+    durationDays: 7,
+    priceLabel: "AED 25",
+    description: "Promoted placement on the customer-facing homepage.",
+  },
+  {
+    placement: "TIME_BASED_BOOST",
+    label: "Time-based boost",
+    durationDays: 7,
+    priceLabel: "AED 25",
+    description: "Short campaign boost controlled by the selected duration.",
+  },
+] satisfies {
+  placement: ApiBoostPlacement;
+  label: string;
+  durationDays: number;
+  priceLabel: string;
+  description: string;
+}[];
 
 type AuthResponse = {
   accessToken: string;
@@ -68,6 +279,7 @@ type ListingPayload = {
   currency: string;
   location: string;
   status?: ApiListingStatus;
+  listingPaymentMode?: ApiListingPaymentMode;
   attributes: Record<string, unknown>;
   images?: ListingImagePayload[];
 };
@@ -87,8 +299,186 @@ type ApiAdminBooking = {
   messages: AdminBookingMessage[];
 };
 
+type CreateBoostPayload = {
+  packageId?: string;
+  placement?: ApiBoostPlacement;
+  paymentMethod?: "GATEWAY" | "WALLET";
+  durationDays?: number;
+  startsAt?: string;
+  endsAt?: string;
+};
+
+type BoostPackagePayload = {
+  name: string;
+  slug?: string;
+  description?: string;
+  placement: ApiBoostPlacement;
+  price: number;
+  currency?: string;
+  durationDays: number;
+  isActive?: boolean;
+  sortOrder?: number;
+  categoryIds?: string[];
+};
+
+type PriorityRulePayload = {
+  name: string;
+  target: ApiListingPriorityRuleTarget;
+  boostPackageId?: string;
+  categoryId?: string;
+  weight: number;
+  isActive?: boolean;
+  sortOrder?: number;
+};
+
+type ListingPriorityOverridePayload = {
+  paid: boolean;
+  promoted: boolean;
+  pinned: boolean;
+  score: number | null;
+  startsAt: string | null;
+  expiresAt: string | null;
+};
+
+type AdminUserPayload = {
+  name?: string;
+  displayName?: string;
+  phone?: string | null;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  location?: string | null;
+  role?: AssignableUserRole | string;
+  isEmailVerified?: boolean;
+  isPhoneVerified?: boolean;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  sellerPriorityTier?: ApiSellerPriorityTier;
+};
+
+type BoostResponse = ApiBoost & {
+  payment?: {
+    provider: string;
+    providerRef: string;
+    checkoutUrl?: string;
+  };
+};
+
+type ListingPaymentResponse = {
+  provider: string;
+  providerRef: string;
+  checkoutUrl?: string;
+  transactionId?: string;
+};
+
+type ListingResponse = ApiListing & {
+  payment?: ListingPaymentResponse;
+};
+
+type WalletTopUpResponse = {
+  payment?: {
+    provider: string;
+    providerRef: string;
+    checkoutUrl?: string;
+  };
+  transaction: ApiTransaction;
+  wallet: ApiWalletAccount;
+};
+
+const fallbackCategories: ApiCategory[] = [
+  {
+    id: "fallback-motors",
+    name: "Motors",
+    slug: "motors",
+    description: "Cars, bikes, spare parts, and dealer inventory.",
+    schemaDefinition: null,
+    isActive: true,
+    parentId: null,
+    sortOrder: 10,
+    _count: { listings: 0 },
+  },
+  {
+    id: "fallback-property",
+    name: "Property",
+    slug: "property",
+    description: "Apartments, villas, offices, and land.",
+    schemaDefinition: null,
+    isActive: true,
+    parentId: null,
+    sortOrder: 20,
+    _count: { listings: 0 },
+  },
+  {
+    id: "fallback-electronics",
+    name: "Electronics",
+    slug: "electronics",
+    description: "Phones, laptops, consoles, and accessories.",
+    schemaDefinition: {
+      fields: [
+        { key: "brand", label: "Brand", type: "text", required: true },
+        { key: "model", label: "Model", type: "text" },
+        {
+          key: "condition",
+          label: "Condition",
+          type: "select",
+          options: ["New", "Like new", "Used"],
+        },
+      ],
+    },
+    isActive: true,
+    parentId: null,
+    sortOrder: 30,
+    _count: { listings: 0 },
+  },
+  {
+    id: "fallback-jobs",
+    name: "Jobs",
+    slug: "jobs",
+    description: "Hiring, freelance gigs, and business opportunities.",
+    schemaDefinition: {
+      fields: [
+        {
+          key: "jobType",
+          label: "Job type",
+          type: "select",
+          options: ["Full-time", "Part-time", "Contract"],
+        },
+        { key: "salary", label: "Monthly salary", type: "number" },
+      ],
+    },
+    isActive: true,
+    parentId: null,
+    sortOrder: 40,
+    _count: { listings: 0 },
+  },
+  {
+    id: "fallback-services",
+    name: "Services",
+    slug: "services",
+    description: "Repair, maintenance, beauty, and local help.",
+    schemaDefinition: {
+      fields: [
+        {
+          key: "serviceType",
+          label: "Service type",
+          type: "text",
+          required: true,
+        },
+        { key: "onsite", label: "On-site service", type: "toggle" },
+      ],
+    },
+    isActive: true,
+    parentId: null,
+    sortOrder: 50,
+    _count: { listings: 0 },
+  },
+];
+
 function getApiBaseUrl() {
   return process.env.MARKETPLACE_API_URL ?? "http://127.0.0.1:3001";
+}
+
+function isTransientMarketplaceError(error: unknown) {
+  return error instanceof MarketplaceApiError && error.status >= 500;
 }
 
 async function parseErrorMessage(response: Response) {
@@ -112,13 +502,15 @@ async function apiRequest<T>(
   path: string,
   {
     accessToken,
+    emptyResponseValue,
     headers,
     searchParams,
     ...init
   }: RequestInit & {
     accessToken?: string;
+    emptyResponseValue?: T;
     searchParams?: Record<string, string | number | undefined>;
-  } = {}
+  } = {},
 ) {
   const url = new URL(path, getApiBaseUrl());
 
@@ -146,19 +538,35 @@ async function apiRequest<T>(
   } catch {
     throw new MarketplaceApiError(
       `Marketplace API is unavailable at ${getApiBaseUrl()}.`,
-      503
+      503,
     );
   }
 
   if (!response.ok) {
-    throw new MarketplaceApiError(await parseErrorMessage(response), response.status);
+    throw new MarketplaceApiError(
+      await parseErrorMessage(response),
+      response.status,
+    );
   }
 
   if (response.status === 204) {
     return undefined as T;
   }
 
-  return (await response.json()) as T;
+  const body = await response.text();
+
+  if (!body) {
+    if (emptyResponseValue !== undefined) {
+      return emptyResponseValue;
+    }
+
+    throw new MarketplaceApiError(
+      "Marketplace API returned an empty response.",
+      502,
+    );
+  }
+
+  return JSON.parse(body) as T;
 }
 
 function mapAuthResponse(response: AuthResponse) {
@@ -173,8 +581,16 @@ function mapAuthResponse(response: AuthResponse) {
 }
 
 export async function fetchCategories() {
-  const categories = await apiRequest<ApiCategory[]>("/categories");
-  return categories.map(mapCategory);
+  try {
+    const categories = await apiRequest<ApiCategory[]>("/categories");
+    return categories.map(mapCategory);
+  } catch (error) {
+    if (isTransientMarketplaceError(error)) {
+      return fallbackCategories.map(mapCategory);
+    }
+
+    throw error;
+  }
 }
 
 export async function fetchAdminCategories(accessToken: string) {
@@ -199,16 +615,7 @@ export async function fetchAdminUser(accessToken: string, userId: string) {
 export async function updateAdminUser(
   accessToken: string,
   userId: string,
-  payload: {
-    displayName?: string;
-    phone?: string | null;
-    avatarUrl?: string | null;
-    bio?: string | null;
-    location?: string | null;
-    role?: string;
-    emailVerified?: boolean;
-    phoneVerified?: boolean;
-  }
+  payload: AdminUserPayload,
 ) {
   return apiRequest<AdminUser>(`/users/admin/${userId}`, {
     method: "PATCH",
@@ -220,13 +627,13 @@ export async function updateAdminUser(
 
 export async function fetchAdminUserListings(
   accessToken: string,
-  userId: string
+  userId: string,
 ) {
   const listings = await apiRequest<ApiListing[]>(
     `/users/admin/${userId}/listings`,
     {
       accessToken,
-    }
+    },
   );
 
   return listings.map(mapListing);
@@ -234,20 +641,20 @@ export async function fetchAdminUserListings(
 
 export async function fetchAdminUserBookings(
   accessToken: string,
-  userId: string
+  userId: string,
 ) {
   const bookings = await apiRequest<ApiAdminBooking[]>(
     `/users/admin/${userId}/bookings`,
     {
       accessToken,
-    }
+    },
   );
 
   return bookings.map(
     (booking): AdminBooking => ({
       ...booking,
       listing: booking.listing ? mapListing(booking.listing) : null,
-    })
+    }),
   );
 }
 
@@ -259,7 +666,7 @@ export async function createCategory(
     description?: string;
     parentSlug?: string;
     listingExpiryDays?: number;
-  }
+  },
 ) {
   const category = await apiRequest<ApiCategory>("/categories/admin", {
     method: "POST",
@@ -279,7 +686,7 @@ export async function updateCategory(
     parentSlug?: string;
     isActive?: boolean;
     listingExpiryDays?: number;
-  }
+  },
 ) {
   const category = await apiRequest<ApiCategory>(`/categories/admin/${slug}`, {
     method: "PATCH",
@@ -298,26 +705,189 @@ export async function deleteCategory(accessToken: string, slug: string) {
   return mapCategory(category);
 }
 
-export async function fetchListings(query: ListingQuery = {}) {
-  const listings = await apiRequest<ApiListing[]>("/listings", {
+export async function fetchBoostPackages() {
+  return apiRequest<ApiBoostPackage[]>("/boost-packages");
+}
+
+export async function fetchListingBoostPackages(listingId: string) {
+  return apiRequest<ApiBoostPackage[]>(`/listings/${listingId}/boost-packages`);
+}
+
+export async function fetchAdminBoostPackages(accessToken: string) {
+  return apiRequest<ApiBoostPackage[]>("/admin/boost-packages", {
+    accessToken,
+  });
+}
+
+export async function fetchAdminActiveBoostedListings(accessToken: string) {
+  return apiRequest<ApiBoost[]>("/admin/boosted-listings/active", {
+    accessToken,
+  });
+}
+
+export async function createBoostPackage(
+  accessToken: string,
+  payload: BoostPackagePayload,
+) {
+  return apiRequest<ApiBoostPackage>("/admin/boost-packages", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateBoostPackage(
+  accessToken: string,
+  packageId: string,
+  payload: Partial<BoostPackagePayload>,
+) {
+  return apiRequest<ApiBoostPackage>(`/admin/boost-packages/${packageId}`, {
+    method: "PATCH",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteBoostPackage(
+  accessToken: string,
+  packageId: string,
+) {
+  return apiRequest<ApiBoostPackage>(`/admin/boost-packages/${packageId}`, {
+    method: "DELETE",
+    accessToken,
+  });
+}
+
+export async function fetchAdminPriorityRules(accessToken: string) {
+  return apiRequest<ApiListingPriorityRule[]>(
+    "/listings/admin/priority-rules",
+    {
+      accessToken,
+    },
+  );
+}
+
+export async function createPriorityRule(
+  accessToken: string,
+  payload: PriorityRulePayload,
+) {
+  return apiRequest<ApiListingPriorityRule>("/listings/admin/priority-rules", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updatePriorityRule(
+  accessToken: string,
+  ruleId: string,
+  payload: Partial<PriorityRulePayload>,
+) {
+  return apiRequest<ApiListingPriorityRule>(
+    `/listings/admin/priority-rules/${ruleId}`,
+    {
+      method: "PATCH",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function deletePriorityRule(accessToken: string, ruleId: string) {
+  return apiRequest<ApiListingPriorityRule>(
+    `/listings/admin/priority-rules/${ruleId}`,
+    {
+      method: "DELETE",
+      accessToken,
+    },
+  );
+}
+
+export async function fetchAdminSellerRatingSummaries(accessToken: string) {
+  return apiRequest<ApiSellerRatingSummary[]>(
+    "/seller-ratings/admin/summaries",
+    {
+      accessToken,
+    },
+  );
+}
+
+export async function fetchAdminSellerReviews(
+  accessToken: string,
+  query: SellerReviewQuery = {},
+) {
+  return apiRequest<ApiSellerRating[]>("/seller-ratings/admin/reviews", {
+    accessToken,
     searchParams: {
-      search: query.search,
-      categorySlug: query.categorySlug,
-      sellerId: query.sellerId,
-      location: query.location,
-      minPrice: query.minPrice,
-      maxPrice: query.maxPrice,
-      sort: query.sort,
-      take: query.take,
+      status: query.status,
     },
   });
+}
+
+export async function moderateSellerReview(
+  accessToken: string,
+  ratingId: string,
+  payload: { status: ApiSellerReviewStatus; note?: string },
+) {
+  return apiRequest<ApiSellerRating>(
+    `/seller-ratings/admin/reviews/${ratingId}`,
+    {
+      method: "PATCH",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function deleteSellerReview(
+  accessToken: string,
+  ratingId: string,
+) {
+  return apiRequest<ApiSellerRating>(
+    `/seller-ratings/admin/reviews/${ratingId}`,
+    {
+      method: "DELETE",
+      accessToken,
+    },
+  );
+}
+
+export async function fetchListings(query: ListingQuery = {}) {
+  let listings: ApiListing[];
+
+  try {
+    listings = await apiRequest<ApiListing[]>("/listings", {
+      searchParams: {
+        search: query.search,
+        categorySlug: query.categorySlug,
+        sellerId: query.sellerId,
+        location: query.location,
+        minPrice: query.minPrice,
+        maxPrice: query.maxPrice,
+        sort: query.sort,
+        boostPlacement: query.boostPlacement,
+        take: query.take,
+      },
+    });
+  } catch (error) {
+    if (isTransientMarketplaceError(error)) {
+      return [];
+    }
+
+    throw error;
+  }
 
   return listings.map(mapListing);
 }
 
 export async function fetchAdminListings(
   accessToken: string,
-  query: ListingQuery = {}
+  query: ListingQuery = {},
 ) {
   const listings = await apiRequest<ApiListing[]>("/listings/admin/all", {
     accessToken,
@@ -330,6 +900,7 @@ export async function fetchAdminListings(
       minPrice: query.minPrice,
       maxPrice: query.maxPrice,
       sort: query.sort,
+      boostPlacement: query.boostPlacement,
       take: query.take,
     },
   });
@@ -350,6 +921,30 @@ export async function fetchListing(listingId: string) {
   }
 }
 
+export async function recordListingView(listingId: string, source = "detail") {
+  return apiRequest<{ recorded: boolean }>(`/listings/${listingId}/views`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source }),
+  });
+}
+
+export async function saveListing(accessToken: string, listingId: string) {
+  const listing = await apiRequest<ApiListing>(`/listings/${listingId}/save`, {
+    method: "POST",
+    accessToken,
+  });
+
+  return mapListing(listing);
+}
+
+export async function unsaveListing(accessToken: string, listingId: string) {
+  return apiRequest<{ saved: false }>(`/listings/${listingId}/save`, {
+    method: "DELETE",
+    accessToken,
+  });
+}
+
 export async function fetchMyListings(accessToken: string) {
   const listings = await apiRequest<ApiListing[]>("/listings/me/items", {
     accessToken,
@@ -358,10 +953,30 @@ export async function fetchMyListings(accessToken: string) {
   return listings.map(mapListing);
 }
 
-export async function fetchSellerProfile(userId: string) {
+export async function fetchMySavedListings(accessToken: string) {
+  const listings = await apiRequest<ApiListing[]>("/listings/me/saved", {
+    accessToken,
+  });
+
+  return listings.map(mapListing);
+}
+
+export async function fetchMyListingQuota(accessToken: string) {
+  return apiRequest<ApiListingQuota>("/listings/me/quota", {
+    accessToken,
+  });
+}
+
+export async function fetchMyListing(accessToken: string, listingId: string) {
   try {
-    const profile = await apiRequest<ApiUser>(`/users/${userId}`);
-    return mapSeller(profile);
+    const listing = await apiRequest<ApiListing>(
+      `/listings/me/items/${listingId}`,
+      {
+        accessToken,
+      },
+    );
+
+    return mapListing(listing);
   } catch (error) {
     if (error instanceof MarketplaceApiError && error.status === 404) {
       return null;
@@ -369,6 +984,386 @@ export async function fetchSellerProfile(userId: string) {
 
     throw error;
   }
+}
+
+export async function fetchMyTransactions(
+  accessToken: string,
+  query: TransactionQuery = {},
+) {
+  const transactions = await apiRequest<ApiTransaction[]>("/transactions/me", {
+    accessToken,
+    searchParams: {
+      status: query.status,
+      type: query.type,
+      listingId: query.listingId,
+      take: query.take,
+    },
+  });
+
+  return transactions.map(mapTransaction);
+}
+
+export async function fetchTransaction(
+  accessToken: string,
+  transactionId: string,
+) {
+  const transaction = await apiRequest<ApiTransaction>(
+    `/transactions/${transactionId}`,
+    {
+      accessToken,
+    },
+  );
+
+  return mapTransaction(transaction);
+}
+
+export async function fetchAdminTransactions(
+  accessToken: string,
+  query: TransactionQuery = {},
+) {
+  const transactions = await apiRequest<ApiTransaction[]>(
+    "/admin/transactions",
+    {
+      accessToken,
+      searchParams: {
+        status: query.status,
+        type: query.type,
+        userId: query.userId,
+        listingId: query.listingId,
+        take: query.take,
+      },
+    },
+  );
+
+  return transactions.map(mapTransaction);
+}
+
+export async function fetchAdminAuditLogs(
+  accessToken: string,
+  query: AuditLogQuery = {},
+) {
+  const logs = await apiRequest<ApiAuditLog[]>("/admin/audit-logs", {
+    accessToken,
+    searchParams: {
+      actorId: query.actorId,
+      action: query.action,
+      entityType: query.entityType,
+      entityId: query.entityId,
+      success: query.success === undefined ? undefined : String(query.success),
+      from: query.from,
+      to: query.to,
+      take: query.take,
+    },
+  });
+
+  return logs.map(mapAuditLog);
+}
+
+export async function createListingReport(
+  accessToken: string,
+  listingId: string,
+  payload: {
+    reason: string;
+    details?: string;
+  },
+) {
+  const report = await apiRequest<ApiListingReport>(
+    `/listings/${listingId}/reports`,
+    {
+      method: "POST",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  return mapListingReport(report);
+}
+
+export async function fetchMyListingReports(
+  accessToken: string,
+  query: ListingReportQuery = {},
+) {
+  const reports = await apiRequest<ApiListingReport[]>("/reports/me", {
+    accessToken,
+    searchParams: {
+      status: query.status,
+      listingId: query.listingId,
+      take: query.take,
+    },
+  });
+
+  return reports.map(mapListingReport);
+}
+
+export async function fetchAdminListingReports(
+  accessToken: string,
+  query: ListingReportQuery = {},
+) {
+  const reports = await apiRequest<ApiListingReport[]>(
+    "/admin/listing-reports",
+    {
+      accessToken,
+      searchParams: {
+        status: query.status,
+        listingId: query.listingId,
+        reporterId: query.reporterId,
+        take: query.take,
+      },
+    },
+  );
+
+  return reports.map(mapListingReport);
+}
+
+export async function fetchAdminMonitoringReport(
+  accessToken: string,
+  query: AdminMonitoringQuery = {},
+) {
+  return apiRequest<ApiAdminMonitoringReport>("/admin/reports/monitoring", {
+    accessToken,
+    searchParams: {
+      days: query.days,
+      from: query.from,
+      to: query.to,
+      topTake: query.topTake,
+    },
+  });
+}
+
+export async function fetchAdminSellerReport(
+  accessToken: string,
+  query: AdminSellerReportQuery = {},
+) {
+  return apiRequest<ApiAdminSellerReport>("/admin/reports/sellers", {
+    accessToken,
+    searchParams: {
+      days: query.days,
+      from: query.from,
+      to: query.to,
+      take: query.take,
+    },
+  });
+}
+
+export async function fetchTopSellersReport(
+  accessToken: string,
+  query: TopSellersReportQuery = {},
+) {
+  return apiRequest<ApiTopSellersReport>("/admin/reports/top-sellers", {
+    accessToken,
+    searchParams: {
+      days: query.days,
+      from: query.from,
+      to: query.to,
+      take: query.take,
+    },
+  });
+}
+
+export async function fetchPendingSellerApprovalsReport(
+  accessToken: string,
+  query: PendingSellerApprovalsQuery = {},
+) {
+  return apiRequest<ApiPendingSellerApprovalsReport>(
+    "/admin/reports/seller-approvals",
+    {
+      accessToken,
+      searchParams: {
+        days: query.days,
+        from: query.from,
+        to: query.to,
+        take: query.take,
+      },
+    },
+  );
+}
+
+export async function fetchActiveListingsReport(
+  accessToken: string,
+  query: ActiveListingsReportQuery = {},
+) {
+  return apiRequest<ApiActiveListingsReport>("/admin/reports/active-listings", {
+    accessToken,
+    searchParams: {
+      days: query.days,
+      from: query.from,
+      to: query.to,
+      take: query.take,
+    },
+  });
+}
+
+export async function fetchPaidListingsReport(
+  accessToken: string,
+  query: PaidListingsReportQuery = {},
+) {
+  return apiRequest<ApiPaidListingsReport>("/admin/reports/paid-listings", {
+    accessToken,
+    searchParams: {
+      days: query.days,
+      from: query.from,
+      to: query.to,
+      take: query.take,
+    },
+  });
+}
+
+export async function fetchWalletPaymentsReport(
+  accessToken: string,
+  query: WalletPaymentsReportQuery = {},
+) {
+  return apiRequest<ApiWalletPaymentsReport>("/admin/reports/wallet-payments", {
+    accessToken,
+    searchParams: {
+      days: query.days,
+      from: query.from,
+      to: query.to,
+      take: query.take,
+    },
+  });
+}
+
+export async function fetchBoostRevenueReport(
+  accessToken: string,
+  query: BoostRevenueReportQuery = {},
+) {
+  return apiRequest<ApiBoostRevenueReport>("/admin/reports/boost-revenue", {
+    accessToken,
+    searchParams: {
+      days: query.days,
+      from: query.from,
+      to: query.to,
+      take: query.take,
+    },
+  });
+}
+
+export async function fetchCategoryIncomeReport(
+  accessToken: string,
+  query: CategoryIncomeReportQuery = {},
+) {
+  return apiRequest<ApiCategoryIncomeReport>("/admin/reports/category-income", {
+    accessToken,
+    searchParams: {
+      days: query.days,
+      from: query.from,
+      to: query.to,
+      take: query.take,
+    },
+  });
+}
+
+export async function sendAdminReportEmail(
+  accessToken: string,
+  reportType: AdminReportEmailType,
+  payload: SendAdminReportEmailPayload,
+) {
+  return apiRequest<AdminReportEmailResult>(
+    `/admin/reports/${reportType}/email`,
+    {
+      method: "POST",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function updateListingReport(
+  accessToken: string,
+  reportId: string,
+  payload: {
+    status?: ApiReportStatus;
+    details?: string;
+    adminNotes?: string;
+    listingStatus?: ApiListingStatus;
+  },
+) {
+  const report = await apiRequest<ApiListingReport>(
+    `/admin/listing-reports/${reportId}`,
+    {
+      method: "PATCH",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  return mapListingReport(report);
+}
+
+export async function fetchSellerProfile(userId: string) {
+  try {
+    const [profile, ratingSummary] = await Promise.all([
+      apiRequest<ApiUser>(`/users/${userId}`),
+      fetchSellerRatingSummary(userId),
+    ]);
+    return mapSeller(profile, ratingSummary);
+  } catch (error) {
+    if (error instanceof MarketplaceApiError && error.status === 404) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+export async function fetchSellerRatingSummary(sellerId: string) {
+  return apiRequest<ApiSellerRatingSummary>(
+    `/seller-ratings/sellers/${sellerId}/summary`,
+  );
+}
+
+export async function fetchSellerReviews(sellerId: string) {
+  return apiRequest<ApiSellerRating[]>(
+    `/seller-ratings/sellers/${sellerId}/reviews`,
+  );
+}
+
+export async function fetchReceivedSellerRatings(accessToken: string) {
+  return apiRequest<ApiSellerRating[]>("/seller-ratings/me/received", {
+    accessToken,
+  });
+}
+
+export async function fetchMySellerRating(
+  accessToken: string,
+  listingId: string,
+) {
+  return apiRequest<ApiSellerRating | null>(
+    `/seller-ratings/listings/${listingId}/mine`,
+    { accessToken, emptyResponseValue: null },
+  );
+}
+
+export async function upsertSellerRating(
+  accessToken: string,
+  listingId: string,
+  payload: { stars: number; review?: string },
+) {
+  return apiRequest<{
+    rating: ApiSellerRating;
+    summary: ApiSellerRatingSummary;
+  }>(`/seller-ratings/listings/${listingId}`, {
+    method: "PUT",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteSellerRating(
+  accessToken: string,
+  listingId: string,
+) {
+  return apiRequest<{ deleted: true; summary: ApiSellerRatingSummary }>(
+    `/seller-ratings/listings/${listingId}`,
+    {
+      method: "DELETE",
+      accessToken,
+    },
+  );
 }
 
 export async function fetchCurrentUser(accessToken: string) {
@@ -379,6 +1374,40 @@ export async function fetchCurrentUser(accessToken: string) {
   return mapSessionUser(user);
 }
 
+export async function fetchMyWallet(accessToken: string) {
+  return apiRequest<ApiWalletAccount>("/wallet/me", {
+    accessToken,
+  });
+}
+
+export async function createWalletTopUp(
+  accessToken: string,
+  payload: { amount: number; currency?: string },
+) {
+  return apiRequest<WalletTopUpResponse>("/wallet/top-ups", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function completeWalletTopUp(
+  accessToken: string,
+  transactionId: string,
+  payload: { providerRef?: string } = {},
+) {
+  return apiRequest<{
+    transaction?: ApiTransaction;
+    wallet?: ApiWalletAccount;
+  }>(`/wallet/top-ups/${transactionId}/payment/succeed`, {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function updateCurrentUser(
   accessToken: string,
   payload: {
@@ -387,7 +1416,7 @@ export async function updateCurrentUser(
     avatarUrl?: string;
     bio?: string;
     location?: string;
-  }
+  },
 ) {
   const user = await apiRequest<ApiUser>("/users/me", {
     method: "PATCH",
@@ -411,7 +1440,7 @@ export async function changePassword(
   payload: {
     currentPassword?: string;
     newPassword: string;
-  }
+  },
 ) {
   return apiRequest<{ message: string }>("/users/me/password", {
     method: "PATCH",
@@ -431,7 +1460,7 @@ export async function loginUser(payload: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    })
+    }),
   );
 }
 
@@ -468,7 +1497,7 @@ export async function googleLoginUser(payload: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    })
+    }),
   );
 }
 
@@ -478,7 +1507,7 @@ export async function refreshSession(refreshToken: string) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
-    })
+    }),
   );
 }
 
@@ -497,7 +1526,7 @@ export async function forgotPassword(payload: { email: string }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    }
+    },
   );
 }
 
@@ -519,7 +1548,7 @@ export async function verifyEmailToken(token: string) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token }),
-    }
+    },
   );
 
   return {
@@ -553,7 +1582,10 @@ export async function fetchAuthSessions(accessToken: string) {
   });
 }
 
-export async function revokeAuthSession(accessToken: string, sessionId: string) {
+export async function revokeAuthSession(
+  accessToken: string,
+  sessionId: string,
+) {
   return apiRequest<{ message: string }>(`/auth/sessions/${sessionId}`, {
     method: "DELETE",
     accessToken,
@@ -573,7 +1605,7 @@ export async function verifyPhone(
   payload: {
     phone: string;
     otpCode: string;
-  }
+  },
 ) {
   const response = await apiRequest<{ message: string; user: ApiUser }>(
     "/auth/verify-phone",
@@ -582,7 +1614,7 @@ export async function verifyPhone(
       accessToken,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    }
+    },
   );
 
   return {
@@ -595,7 +1627,7 @@ export async function requestPhoneOtp(
   accessToken: string,
   payload: {
     phone: string;
-  }
+  },
 ) {
   return apiRequest<{
     message: string;
@@ -609,20 +1641,26 @@ export async function requestPhoneOtp(
   });
 }
 
-export async function createListing(accessToken: string, payload: ListingPayload) {
-  const listing = await apiRequest<ApiListing>("/listings", {
+export async function createListing(
+  accessToken: string,
+  payload: ListingPayload,
+) {
+  const listing = await apiRequest<ListingResponse>("/listings", {
     method: "POST",
     accessToken,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
-  return mapListing(listing);
+  return {
+    listing: mapListing(listing),
+    payment: listing.payment,
+  };
 }
 
 export async function saveListingDraft(
   accessToken: string,
-  payload: ListingDraftPayload
+  payload: ListingDraftPayload,
 ) {
   const listing = await apiRequest<ApiListing>("/listings/drafts", {
     method: "POST",
@@ -637,14 +1675,17 @@ export async function saveListingDraft(
 export async function publishListingDraft(
   accessToken: string,
   listingId: string,
-  payload: ListingPayload
+  payload: ListingPayload,
 ) {
-  const listing = await apiRequest<ApiListing>(`/listings/${listingId}/publish`, {
-    method: "POST",
-    accessToken,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  const listing = await apiRequest<ApiListing>(
+    `/listings/${listingId}/publish`,
+    {
+      method: "POST",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
 
   return mapListing(listing);
 }
@@ -652,7 +1693,7 @@ export async function publishListingDraft(
 export async function updateListing(
   accessToken: string,
   listingId: string,
-  payload: Partial<ListingPayload>
+  payload: Partial<ListingPayload>,
 ) {
   const listing = await apiRequest<ApiListing>(`/listings/${listingId}`, {
     method: "PATCH",
@@ -673,10 +1714,49 @@ export async function deleteListing(accessToken: string, listingId: string) {
   return mapListing(listing);
 }
 
+export async function boostListing(
+  accessToken: string,
+  listingId: string,
+  payload: CreateBoostPayload,
+) {
+  return apiRequest<BoostResponse>(`/listings/${listingId}/boosts`, {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function completeBoostPayment(
+  accessToken: string,
+  boostId: string,
+  payload: { durationDays?: number; providerRef?: string } = {},
+) {
+  return apiRequest<BoostResponse>(`/boosts/${boostId}/payment/succeed`, {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function completeListingPayment(
+  accessToken: string,
+  listingId: string,
+  payload: { providerRef?: string } = {},
+) {
+  return apiRequest<ApiTransaction>(`/listings/${listingId}/payment/succeed`, {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).then(mapTransaction);
+}
+
 export async function moderateListing(
   accessToken: string,
   listingId: string,
-  status: ApiListingStatus
+  status: ApiListingStatus,
 ) {
   const listing = await apiRequest<ApiListing>(
     `/listings/admin/${listingId}/moderate`,
@@ -685,7 +1765,25 @@ export async function moderateListing(
       accessToken,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
-    }
+    },
+  );
+
+  return mapListing(listing);
+}
+
+export async function updateListingPriorityOverride(
+  accessToken: string,
+  listingId: string,
+  payload: ListingPriorityOverridePayload,
+) {
+  const listing = await apiRequest<ApiListing>(
+    `/listings/admin/${listingId}/priority-override`,
+    {
+      method: "PATCH",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
   );
 
   return mapListing(listing);

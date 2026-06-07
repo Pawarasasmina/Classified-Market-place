@@ -11,7 +11,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ListingStatus } from '@prisma/client';
+import { ListingPaymentMode, ListingStatus } from '@prisma/client';
+import { MAX_LISTING_IMAGES } from '../../media/media.constants';
 import { ListingImageInputDto } from './listing-image-input.dto';
 
 export class CreateListingDto {
@@ -49,12 +50,16 @@ export class CreateListingDto {
   status?: ListingStatus;
 
   @IsOptional()
+  @IsEnum(ListingPaymentMode)
+  listingPaymentMode?: ListingPaymentMode;
+
+  @IsOptional()
   @IsObject()
   attributes?: Record<string, unknown>;
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(20)
+  @ArrayMaxSize(MAX_LISTING_IMAGES)
   @ValidateNested({ each: true })
   @Type(() => ListingImageInputDto)
   images?: ListingImageInputDto[];

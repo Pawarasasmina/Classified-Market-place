@@ -11,6 +11,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { MAX_LISTING_IMAGES } from '../../media/media.constants';
 import { ListingImageInputDto } from './listing-image-input.dto';
 
 export class UpdateListingDto {
@@ -50,7 +51,7 @@ export class UpdateListingDto {
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(20)
+  @ArrayMaxSize(MAX_LISTING_IMAGES)
   @ValidateNested({ each: true })
   @Type(() => ListingImageInputDto)
   images?: ListingImageInputDto[];

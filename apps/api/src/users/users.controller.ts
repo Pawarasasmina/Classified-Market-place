@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { rolesForPermission } from '../common/admin-permissions';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
@@ -51,45 +52,46 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'admin')
+  @Roles(...rolesForPermission('USERS_READ'))
   @Get('admin/all')
   findAllForAdmin() {
     return this.usersService.findAllForAdmin();
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'admin')
+  @Roles(...rolesForPermission('USERS_WRITE'))
+  @Patch('admin/:id')
+  adminUpdateUser(
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+    @Body() updateUserDto: AdminUpdateUserDto,
+  ) {
+    return this.usersService.adminUpdateUser(id, updateUserDto, user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...rolesForPermission('SUPPORT_READ'))
   @Get('admin/chat-users')
   findAdminChatUsers(@CurrentUser() user: { id: string }) {
     return this.usersService.findChatUsers(user.id, ['USER', 'user']);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'admin')
+  @Roles(...rolesForPermission('USERS_READ'))
   @Get('admin/:id')
   findOneForAdmin(@Param('id') id: string) {
     return this.usersService.findOneForAdmin(id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'admin')
-  @Patch('admin/:id')
-  updateForAdmin(
-    @Param('id') id: string,
-    @Body() updateUserDto: AdminUpdateUserDto,
-  ) {
-    return this.usersService.updateForAdmin(id, updateUserDto);
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'admin')
+  @Roles(...rolesForPermission('USERS_READ'))
   @Get('admin/:id/listings')
   findListingsForAdmin(@Param('id') id: string) {
     return this.usersService.findListingsForAdmin(id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'admin')
+  @Roles(...rolesForPermission('USERS_READ'))
   @Get('admin/:id/bookings')
   findBookingsForAdmin(@Param('id') id: string) {
     return this.usersService.findBookingsForAdmin(id);

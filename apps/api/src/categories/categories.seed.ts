@@ -70,7 +70,12 @@ export const defaultCategories: DefaultCategory[] = [
         },
         { key: 'bedrooms', label: 'Bedrooms', type: 'number' },
         { key: 'bathrooms', label: 'Bathrooms', type: 'number' },
-        { key: 'area', label: 'Area', type: 'number', placeholder: '1200 sqft' },
+        {
+          key: 'area',
+          label: 'Area',
+          type: 'number',
+          placeholder: '1200 sqft',
+        },
         { key: 'furnished', label: 'Furnished', type: 'toggle' },
       ],
     },

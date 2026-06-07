@@ -143,7 +143,9 @@ export class MessagingGateway
       body.conversationId,
       body.message,
     );
-    this.server.to(this.roomName(body.conversationId)).emit('message:new', message);
+    this.server
+      .to(this.roomName(body.conversationId))
+      .emit('message:new', message);
     ack?.(message);
     return message;
   }
@@ -154,8 +156,13 @@ export class MessagingGateway
     @MessageBody() body: { conversationId: string },
   ) {
     const user = this.requireSocketUser(client);
-    const result = await this.messagingService.markRead(user.id, body.conversationId);
-    this.server.to(this.roomName(body.conversationId)).emit('message:read', result);
+    const result = await this.messagingService.markRead(
+      user.id,
+      body.conversationId,
+    );
+    this.server
+      .to(this.roomName(body.conversationId))
+      .emit('message:read', result);
     return result;
   }
 

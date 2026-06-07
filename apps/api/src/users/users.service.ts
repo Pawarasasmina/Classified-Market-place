@@ -4,8 +4,9 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ListingStatus, MessageType } from '@prisma/client';
+import { ListingStatus, MessageType, SellerPriorityTier } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -28,6 +29,7 @@ function sanitizeUser(user: {
   bio: string | null;
   location: string | null;
   role: string;
+  sellerPriorityTier: SellerPriorityTier;
   phone: string | null;
   phoneVerified: boolean;
   emailVerified: boolean;
@@ -52,6 +54,7 @@ const safeUserSelect = {
   emailVerified: true,
   phoneVerified: true,
   role: true,
+  sellerPriorityTier: true,
   reputationScore: true,
   createdAt: true,
   updatedAt: true,
@@ -77,7 +80,10 @@ function normalizeAdminRole(role: string | undefined) {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications?: NotificationsService,
+  ) {}
 
   private async getAdminUserStats(userId: string) {
     const [
@@ -214,12 +220,16 @@ export class UsersService {
   async findAllForAdmin() {
     const users = await this.prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      take: 200,
     });
 
     return Promise.all(
       users.map((user) => this.attachAdminUserStats(sanitizeUser(user))),
     );
+  }
+
+  async listForAdmin() {
+    return this.findAllForAdmin();
   }
 
   async findOneForAdmin(userId: string) {
@@ -235,6 +245,14 @@ export class UsersService {
   }
 
   async updateForAdmin(userId: string, updateUserDto: AdminUpdateUserDto) {
+    return this.adminUpdateUser(userId, updateUserDto);
+  }
+
+  async adminUpdateUser(
+    userId: string,
+    dto: AdminUpdateUserDto,
+    actorId?: string | null,
+  ) {
     const existingUser = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -246,18 +264,29 @@ export class UsersService {
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
-        displayName: updateUserDto.displayName ?? updateUserDto.name,
-        phone: updateUserDto.phone,
-        avatarUrl: updateUserDto.avatarUrl,
-        bio: updateUserDto.bio,
-        location: updateUserDto.location,
-        role: normalizeAdminRole(updateUserDto.role),
-        emailVerified:
-          updateUserDto.emailVerified ?? updateUserDto.isEmailVerified,
-        phoneVerified:
-          updateUserDto.phoneVerified ?? updateUserDto.isPhoneVerified,
+        displayName: dto.displayName ?? dto.name,
+        phone: dto.phone,
+        avatarUrl: dto.avatarUrl,
+        bio: dto.bio,
+        location: dto.location,
+        role: normalizeAdminRole(dto.role),
+        emailVerified: dto.emailVerified ?? dto.isEmailVerified,
+        phoneVerified: dto.phoneVerified ?? dto.isPhoneVerified,
+        sellerPriorityTier: dto.sellerPriorityTier,
       },
     });
+
+    if (
+      dto.sellerPriorityTier !== undefined &&
+      existingUser.sellerPriorityTier !== user.sellerPriorityTier
+    ) {
+      await this.notifications?.notifySellerAccountDecision({
+        userId,
+        actorId,
+        previousTier: existingUser.sellerPriorityTier,
+        nextTier: user.sellerPriorityTier,
+      });
+    }
 
     return this.attachAdminUserStats(sanitizeUser(user));
   }

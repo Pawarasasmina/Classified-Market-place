@@ -18,9 +18,10 @@ type SearchPageProps = {
 };
 
 function normalizeSort(sort: string | undefined) {
+  if (sort === "newest") return "newest" as const;
   if (sort === "price_asc") return "price_asc" as const;
   if (sort === "price_desc") return "price_desc" as const;
-  return "newest" as const;
+  return "recommended" as const;
 }
 
 function numberParam(value: string | undefined) {
@@ -31,7 +32,7 @@ function numberParam(value: string | undefined) {
 function buildSearchHref(params: {
   q?: string;
   category?: string;
-  sort?: "newest" | "price_asc" | "price_desc";
+  sort?: "recommended" | "newest" | "price_asc" | "price_desc";
   location?: string;
   minPrice?: string;
   maxPrice?: string;
@@ -44,7 +45,8 @@ function buildSearchHref(params: {
   if (params.location) next.set("location", params.location);
   if (params.minPrice) next.set("minPrice", params.minPrice);
   if (params.maxPrice) next.set("maxPrice", params.maxPrice);
-  if (params.sort && params.sort !== "newest") next.set("sort", params.sort);
+  if (params.sort && params.sort !== "recommended")
+    next.set("sort", params.sort);
   if (params.view) next.set("view", params.view);
 
   const query = next.toString();
@@ -85,13 +87,16 @@ export default async function SearchPage(props: SearchPageProps) {
             Browse live listings with real category filters and backend sorting.
           </h1>
           <p className="mt-4 max-w-4xl text-sm leading-7 text-[var(--muted)]">
-              Filter by keyword, category, location, and price. Results stay focused
-              on active customer-facing inventory.
+            Filter by keyword, category, location, and price. Recommended
+            surfaces promoted and trusted listings first; direct sorts honor the
+            field you choose and use priority only to break ties.
           </p>
         </div>
         <aside className="hero-panel p-6">
           <p className="section-eyebrow">Result summary</p>
-          <p className="mt-4 text-5xl font-black text-white">{listings.length}</p>
+          <p className="mt-4 text-5xl font-black text-white">
+            {listings.length}
+          </p>
           <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
             matching listings across the current page
           </p>
@@ -101,7 +106,9 @@ export default async function SearchPage(props: SearchPageProps) {
       <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
         <aside className="filter-panel h-fit">
           <form className="grid gap-4">
-            {customerPreview ? <input type="hidden" name="view" value="customer" /> : null}
+            {customerPreview ? (
+              <input type="hidden" name="view" value="customer" />
+            ) : null}
             <label className="grid gap-2">
               <span>Keyword</span>
               <input
@@ -113,7 +120,11 @@ export default async function SearchPage(props: SearchPageProps) {
             </label>
             <label className="grid gap-2">
               <span>Category</span>
-              <select name="category" defaultValue={category} className="surface-input text-sm">
+              <select
+                name="category"
+                defaultValue={category}
+                className="surface-input text-sm"
+              >
                 <option value="">All categories</option>
                 {flatCategories.map(({ category: item, depth }) => (
                   <option key={item.slug} value={item.slug}>
@@ -156,8 +167,13 @@ export default async function SearchPage(props: SearchPageProps) {
             </div>
             <label className="grid gap-2">
               <span>Sort</span>
-              <select name="sort" defaultValue={sort} className="surface-input text-sm">
-                <option value="newest">Newest</option>
+              <select
+                name="sort"
+                defaultValue={sort}
+                className="surface-input text-sm"
+              >
+                <option value="recommended">Recommended</option>
+                <option value="newest">Newest first</option>
                 <option value="price_asc">Price low to high</option>
                 <option value="price_desc">Price high to low</option>
               </select>
@@ -171,7 +187,14 @@ export default async function SearchPage(props: SearchPageProps) {
             <p className="field-label">Quick categories</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <a
-                href={buildSearchHref({ q, sort, location, minPrice, maxPrice, view })}
+                href={buildSearchHref({
+                  q,
+                  sort,
+                  location,
+                  minPrice,
+                  maxPrice,
+                  view,
+                })}
                 className={`rounded-full px-3 py-2 text-xs font-bold ${
                   category
                     ? "border border-[var(--line)] text-[var(--muted)]"
@@ -208,17 +231,13 @@ export default async function SearchPage(props: SearchPageProps) {
 
         <div className="grid gap-5">
           <div className="hero-panel flex flex-wrap items-center gap-2 p-4 text-sm">
-            <span className="search-chip">
-              Query: {q || "any"}
-            </span>
+            <span className="search-chip">Query: {q || "any"}</span>
             <span className="search-chip">
               Category: {selectedCategory?.name ?? "all"}
             </span>
+            <span className="search-chip">Location: {location || "any"}</span>
             <span className="search-chip">
-              Location: {location || "any"}
-            </span>
-            <span className="search-chip">
-              Sort: {sort.replace("_", " ")}
+              Sort: {sort.replaceAll("_", " ")}
             </span>
           </div>
 
@@ -236,7 +255,8 @@ export default async function SearchPage(props: SearchPageProps) {
               <div className="panel md:col-span-2 xl:col-span-3">
                 <h2 className="text-xl font-black">No listings matched.</h2>
                 <p className="mt-2 text-sm text-[var(--muted)]">
-                  Try a broader keyword, remove price filters, or browse all categories.
+                  Try a broader keyword, remove price filters, or browse all
+                  categories.
                 </p>
               </div>
             )}

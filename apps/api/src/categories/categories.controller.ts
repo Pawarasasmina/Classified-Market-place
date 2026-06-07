@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { rolesForPermission } from '../common/admin-permissions';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CategoriesService } from './categories.service';
@@ -25,28 +26,28 @@ export class CategoriesController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'admin')
+  @Roles(...rolesForPermission('CATEGORIES_READ'))
   @Get('admin/all')
   findAllForAdmin() {
     return this.categoriesService.findAll(true);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'admin')
+  @Roles(...rolesForPermission('CATEGORIES_WRITE'))
   @Post('admin')
   create(@Body() dto: CreateCategoryDto) {
     return this.categoriesService.create(dto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'admin')
+  @Roles(...rolesForPermission('CATEGORIES_WRITE'))
   @Patch('admin/:slug')
   update(@Param('slug') slug: string, @Body() dto: UpdateCategoryDto) {
     return this.categoriesService.update(slug, dto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'admin')
+  @Roles(...rolesForPermission('CATEGORIES_WRITE'))
   @Delete('admin/:slug')
   remove(@Param('slug') slug: string) {
     return this.categoriesService.remove(slug);

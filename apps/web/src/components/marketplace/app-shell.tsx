@@ -7,6 +7,12 @@ import { logoutAction } from "@/app/(main)/actions";
 import { CategoryIcon } from "@/components/marketplace/category-icon";
 import { ColorProfileToggle } from "@/components/marketplace/color-profile-toggle";
 import { GoogleOneTapPrompt } from "@/components/marketplace/google-auth-form";
+import { NotificationBell } from "@/components/marketplace/notification-bell";
+import {
+  hasAdminPermission,
+  hasAnyAdminPermission,
+  type AdminPermission,
+} from "@/lib/admin-permissions";
 import {
   buildMarketplaceCategoryTree,
   type MarketplaceCategoryNode,
@@ -20,16 +26,100 @@ const customerNavLinks = [
   { href: "/sell", label: "Sell" },
   { href: "/saved", label: "Saved" },
   { href: "/messages", label: "Messages" },
+  { href: "/notifications", label: "Notifications" },
+  { href: "/transactions", label: "Purchases" },
+  { href: "/reports", label: "Reports" },
   { href: "/my-listings", label: "My Listings" },
   { href: "/profile", label: "Profile" },
 ];
 
-const adminNavLinks = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/users", label: "Users" },
-  { href: "/admin/categories", label: "Categories" },
-  { href: "/admin#moderation", label: "Moderation" },
-  { href: "/messages", label: "Support Inbox" },
+const adminNavLinks: Array<{
+  href: string;
+  label: string;
+  permission?: AdminPermission;
+}> = [
+  { href: "/admin", label: "Dashboard", permission: "ADMIN_DASHBOARD" },
+  {
+    href: "/admin/categories",
+    label: "Categories",
+    permission: "CATEGORIES_READ",
+  },
+  {
+    href: "/admin/boost-packages",
+    label: "Boosts",
+    permission: "BOOSTS_WRITE",
+  },
+  { href: "/admin/boosts", label: "Active Boosts", permission: "BOOSTS_READ" },
+  {
+    href: "/admin/priority-rules",
+    label: "Priority",
+    permission: "LISTINGS_PRIORITY",
+  },
+  { href: "/admin/users", label: "Users", permission: "USERS_READ" },
+  {
+    href: "/admin#moderation",
+    label: "Moderation",
+    permission: "LISTINGS_MODERATE",
+  },
+  { href: "/admin/reviews", label: "Reviews", permission: "REVIEWS_READ" },
+  { href: "/admin/reports", label: "Monitoring", permission: "REPORTS_READ" },
+  {
+    href: "/admin/reports/active-listings",
+    label: "Active Listings",
+    permission: "REPORTS_READ",
+  },
+  {
+    href: "/admin/reports/paid-listings",
+    label: "Paid Listings",
+    permission: "REPORTS_READ",
+  },
+  {
+    href: "/admin/reports/category-income",
+    label: "Category Income",
+    permission: "REPORTS_READ",
+  },
+  {
+    href: "/admin/reports/boost-revenue",
+    label: "Boost Revenue",
+    permission: "REPORTS_READ",
+  },
+  {
+    href: "/admin/reports/wallet-payments",
+    label: "Wallet Payments",
+    permission: "REPORTS_READ",
+  },
+  {
+    href: "/admin/reports/sellers",
+    label: "Sellers",
+    permission: "REPORTS_READ",
+  },
+  {
+    href: "/admin/reports/top-sellers",
+    label: "Top Sellers",
+    permission: "REPORTS_READ",
+  },
+  {
+    href: "/admin/reports/seller-approvals",
+    label: "Approvals",
+    permission: "REPORTS_READ",
+  },
+  {
+    href: "/admin/listing-reports",
+    label: "Report Queue",
+    permission: "REPORTS_READ",
+  },
+  {
+    href: "/admin/transactions",
+    label: "Ledger",
+    permission: "TRANSACTIONS_READ",
+  },
+  {
+    href: "/admin/audit-logs",
+    label: "Audit Logs",
+    permission: "AUDIT_LOGS_READ",
+  },
+  { href: "/messages", label: "Support Inbox", permission: "SUPPORT_READ" },
+  { href: "/notifications", label: "Notifications" },
   { href: "/profile", label: "Profile" },
 ];
 
@@ -45,7 +135,10 @@ function CategoryChildLinks({
       {nodes.map((node) => (
         <div key={node.slug} className="grid gap-2">
           <Link
-            href={withCustomerPreview(`/search?category=${node.slug}`, customerPreview)}
+            href={withCustomerPreview(
+              `/search?category=${node.slug}`,
+              customerPreview,
+            )}
             className="rounded-md px-3 py-2 text-sm font-black text-[var(--foreground)] hover:bg-[var(--surface-strong)]"
           >
             {node.name}
@@ -57,7 +150,7 @@ function CategoryChildLinks({
                   key={child.slug}
                   href={withCustomerPreview(
                     `/search?category=${child.slug}`,
-                    customerPreview
+                    customerPreview,
                   )}
                   className="rounded-md px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"
                 >
@@ -81,10 +174,14 @@ function CustomerCategoryMenu({
   customerPreview: boolean;
   active: boolean;
 }) {
-  const tree = useMemo(() => buildMarketplaceCategoryTree(categories), [categories]);
+  const tree = useMemo(
+    () => buildMarketplaceCategoryTree(categories),
+    [categories],
+  );
   const [open, setOpen] = useState(false);
   const [activeSlug, setActiveSlug] = useState(tree[0]?.slug ?? "");
-  const activeNode = tree.find((category) => category.slug === activeSlug) ?? tree[0];
+  const activeNode =
+    tree.find((category) => category.slug === activeSlug) ?? tree[0];
 
   if (!tree.length) {
     return (
@@ -152,8 +249,12 @@ function CustomerCategoryMenu({
                 <>
                   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="section-eyebrow">Browse {activeNode.name}</p>
-                      <h3 className="mt-2 text-2xl font-black">{activeNode.name}</h3>
+                      <p className="section-eyebrow">
+                        Browse {activeNode.name}
+                      </p>
+                      <h3 className="mt-2 text-2xl font-black">
+                        {activeNode.name}
+                      </h3>
                       <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">
                         {activeNode.description}
                       </p>
@@ -161,7 +262,7 @@ function CustomerCategoryMenu({
                     <Link
                       href={withCustomerPreview(
                         `/search?category=${activeNode.slug}`,
-                        customerPreview
+                        customerPreview,
                       )}
                       className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-black text-white"
                     >
@@ -175,7 +276,8 @@ function CustomerCategoryMenu({
                     />
                   ) : (
                     <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4 text-sm text-[var(--muted)]">
-                      Listings in this category use the standard marketplace filters.
+                      Listings in this category use the standard marketplace
+                      filters.
                     </div>
                   )}
                 </>
@@ -192,17 +294,21 @@ function isActive(pathname: string, href: string) {
   const baseHref = href.split("#")[0]?.split("?")[0] ?? href;
 
   if (baseHref === "/") return pathname === "/";
-  return pathname.startsWith(baseHref);
+  if (baseHref === "/admin") return pathname === "/admin";
+  if (href.includes("#")) return pathname === baseHref;
+
+  return pathname === baseHref || pathname.startsWith(`${baseHref}/`);
 }
 
 function isAdminUser(user: SessionUser | null) {
-  return user?.role.toUpperCase() === "ADMIN";
+  return hasAnyAdminPermission(user?.role);
 }
 
 function adminWorkspaceRoute(pathname: string) {
   return (
     pathname.startsWith("/admin") ||
     pathname.startsWith("/messages") ||
+    pathname.startsWith("/notifications") ||
     pathname === "/profile"
   );
 }
@@ -220,10 +326,14 @@ export function MarketplaceShell({
   children,
   user,
   categories,
+  accessToken,
+  notificationsApiBaseUrl,
 }: {
   children: ReactNode;
   user: SessionUser | null;
   categories: MarketplaceCategory[];
+  accessToken: string | null;
+  notificationsApiBaseUrl: string;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -236,8 +346,7 @@ export function MarketplaceShell({
     pathname === "/login" &&
     (searchParams.get("next") ?? "").startsWith("/admin");
   const adminExperience = adminShell || adminLogin;
-  const shouldRedirectToAdmin =
-    adminShell && !adminWorkspaceRoute(pathname);
+  const shouldRedirectToAdmin = adminShell && !adminWorkspaceRoute(pathname);
   const search = searchParams.toString();
   const oneTapNextPath = search ? `${pathname}?${search}` : pathname;
   const showOneTap =
@@ -246,7 +355,10 @@ export function MarketplaceShell({
     pathname !== "/login" &&
     pathname !== "/register";
   const navLinks = adminShell
-    ? adminNavLinks
+    ? adminNavLinks.filter(
+        (link) =>
+          !link.permission || hasAdminPermission(user?.role, link.permission),
+      )
     : adminLogin
       ? []
       : customerNavLinks;
@@ -291,7 +403,9 @@ export function MarketplaceShell({
         <div className="mx-auto flex max-w-[92rem] flex-col gap-4 px-4 py-4 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-10">
           <Link
             href={
-              adminExperience ? "/admin" : withCustomerPreview("/", customerPreview)
+              adminExperience
+                ? "/admin"
+                : withCustomerPreview("/", customerPreview)
             }
             className="flex items-center gap-3"
           >
@@ -326,7 +440,9 @@ export function MarketplaceShell({
                   <Link
                     key={link.href}
                     href={
-                      adminShell ? link.href : withCustomerPreview(link.href, customerPreview)
+                      adminShell
+                        ? link.href
+                        : withCustomerPreview(link.href, customerPreview)
                     }
                     className={`px-3 py-2 font-semibold ${
                       isActive(pathname, link.href)
@@ -336,7 +452,7 @@ export function MarketplaceShell({
                   >
                     {link.label}
                   </Link>
-                )
+                ),
               )}
             </nav>
           ) : null}
@@ -344,6 +460,12 @@ export function MarketplaceShell({
             {!adminExperience ? <ColorProfileToggle /> : null}
             {user ? (
               <>
+                {accessToken ? (
+                  <NotificationBell
+                    accessToken={accessToken}
+                    apiBaseUrl={notificationsApiBaseUrl}
+                  />
+                ) : null}
                 <span className="marketplace-header-badge rounded-md px-3 py-2 font-semibold">
                   {user.displayName}
                 </span>
@@ -357,7 +479,10 @@ export function MarketplaceShell({
                     View customer view
                   </Link>
                 ) : customerPreview ? (
-                  <Link href="/admin" className="marketplace-header-button px-3 py-2 font-semibold">
+                  <Link
+                    href="/admin"
+                    className="marketplace-header-button px-3 py-2 font-semibold"
+                  >
                     Back to admin
                   </Link>
                 ) : null}
@@ -392,7 +517,9 @@ export function MarketplaceShell({
                 <Link
                   key={link.href}
                   href={
-                    adminShell ? link.href : withCustomerPreview(link.href, customerPreview)
+                    adminShell
+                      ? link.href
+                      : withCustomerPreview(link.href, customerPreview)
                   }
                   className={`whitespace-nowrap rounded-md px-3 py-2 font-semibold ${
                     isActive(pathname, link.href)
@@ -407,15 +534,7 @@ export function MarketplaceShell({
           </div>
         ) : null}
       </header>
-      <main>
-        {shouldRedirectToAdmin ? (
-          <div className="page">
-            <div className="panel">Opening admin dashboard...</div>
-          </div>
-        ) : (
-          children
-        )}
-      </main>
+      <main>{children}</main>
       {!adminExperience ? (
         <footer className="marketplace-footer">
           <div className="mx-auto grid max-w-[92rem] gap-6 px-4 py-8 text-sm sm:px-8 lg:grid-cols-[1fr_auto] lg:items-center lg:px-10">
@@ -424,15 +543,23 @@ export function MarketplaceShell({
                 Classified Marketplace
               </p>
               <p className="marketplace-footer-muted mt-2 max-w-2xl">
-                A modern local marketplace for trusted discovery, seller tools,
+                A modern local marketplace for trusted discovery, item posting,
                 and direct conversations.
               </p>
             </div>
             <div className="marketplace-footer-muted flex flex-wrap gap-3">
-              <Link href={withCustomerPreview("/search", customerPreview)}>Browse</Link>
-              <Link href={withCustomerPreview("/sell", customerPreview)}>Sell</Link>
-              <Link href={withCustomerPreview("/messages", customerPreview)}>Messages</Link>
-              <Link href={withCustomerPreview("/profile", customerPreview)}>Account</Link>
+              <Link href={withCustomerPreview("/search", customerPreview)}>
+                Browse
+              </Link>
+              <Link href={withCustomerPreview("/sell", customerPreview)}>
+                Sell
+              </Link>
+              <Link href={withCustomerPreview("/messages", customerPreview)}>
+                Messages
+              </Link>
+              <Link href={withCustomerPreview("/profile", customerPreview)}>
+                Account
+              </Link>
             </div>
           </div>
         </footer>

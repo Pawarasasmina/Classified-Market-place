@@ -10,6 +10,7 @@ import {
   type ChatMessage,
   type ChatOfferUpdateResult,
 } from "@/lib/messaging-api";
+import { hasAdminPermission } from "@/lib/admin-permissions";
 
 type InboxWorkspaceProps = {
   accessToken: string;
@@ -42,8 +43,7 @@ const EMPTY_BUCKETS: ChatBuckets = {
 const deleteForEveryoneWindowMs = 15 * 60 * 1000;
 
 function isStaffRole(role: string) {
-  const normalized = role.toUpperCase();
-  return normalized === "ADMIN" || normalized === "SUPPORT";
+  return hasAdminPermission(role, "SUPPORT_READ");
 }
 
 function sortConversations(conversations: ChatConversation[]) {
@@ -230,6 +230,7 @@ export function InboxWorkspace({
   const [offerCurrency, setOfferCurrency] = useState("AED");
   const [imageUrl, setImageUrl] = useState("");
   const [error, setError] = useState("");
+  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [staffReports, setStaffReports] = useState<ChatAdminReports | null>(null);
@@ -547,6 +548,7 @@ export function InboxWorkspace({
 
     async function load() {
       setError("");
+      setIsLoadingConversations(true);
 
       try {
         const [active, archived] = await Promise.all([
@@ -614,6 +616,10 @@ export function InboxWorkspace({
       } catch (loadError) {
         if (!cancelled) {
           setError(normalizeApiError(loadError, "Could not load conversations."));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingConversations(false);
         }
       }
     }
@@ -692,7 +698,7 @@ export function InboxWorkspace({
     setIsSending(true);
     setError("");
     const now = new Date().toISOString();
-    const tempId = `temp-${Date.now()}-${tempIdRef.current++}`;
+    const tempId = `temp-${now}-${tempIdRef.current++}`;
     const tempMessage: ChatMessage = {
       id: tempId,
       conversationId: activeConversationId,
@@ -1267,8 +1273,8 @@ export function InboxWorkspace({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[24rem_1fr]">
-      <aside className="panel h-fit">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+      <aside className="panel h-fit min-w-0 overflow-hidden">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="section-eyebrow">Inbox</p>
@@ -1307,7 +1313,7 @@ export function InboxWorkspace({
               key={conversation.id}
               type="button"
               onClick={() => void openConversation(conversation, inboxView)}
-              className={`rounded-md border px-4 py-3 text-left text-sm transition ${
+              className={`w-full min-w-0 rounded-md border px-4 py-3 text-left text-sm transition ${
                 conversation.id === activeConversationId
                   ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--foreground)]"
                   : "border-[var(--line)] bg-[var(--surface)] hover:border-[var(--brand)]"
@@ -1329,13 +1335,13 @@ export function InboxWorkspace({
               <span className="mt-2 block truncate text-[var(--muted)]">
                 {messagePreview(conversation.lastMessage, currentUserId)}
               </span>
-              <div className="mt-3 flex items-center justify-between gap-2 text-xs text-[var(--muted)]">
-                <span>
+              <div className="mt-3 flex min-w-0 items-center justify-between gap-2 text-xs text-[var(--muted)]">
+                <span className="min-w-0 truncate">
                   {conversation.counterpart
                     ? `${conversation.counterpart.displayName} · ${conversation.counterpart.role}`
                     : "Conversation"}
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   {conversation.mutedAt ? (
                     <span className="rounded-full border border-[var(--line)] px-2 py-1">
                       Muted
@@ -1350,7 +1356,11 @@ export function InboxWorkspace({
               </div>
             </button>
           ))}
-          {!visibleConversations.length ? (
+          {isLoadingConversations ? (
+            <div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--surface-strong)] px-4 py-6 text-sm text-[var(--muted)]">
+              Loading conversations...
+            </div>
+          ) : !visibleConversations.length ? (
             <div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--surface-strong)] px-4 py-6 text-sm text-[var(--muted)]">
               {inboxView === "active"
                 ? "No active conversations yet."
@@ -1380,7 +1390,7 @@ export function InboxWorkspace({
         ) : null}
       </aside>
 
-      <section className="panel">
+      <section className="panel min-w-0">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="section-eyebrow">Chat</p>
@@ -1608,7 +1618,11 @@ export function InboxWorkspace({
               {typingUser} is typing...
             </div>
           ) : null}
-          {!messages.length ? (
+          {isLoadingConversations ? (
+            <div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--surface)] px-4 py-8 text-sm text-[var(--muted)]">
+              Loading messages...
+            </div>
+          ) : !messages.length ? (
             <div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--surface)] px-4 py-8 text-sm text-[var(--muted)]">
               Open a listing and start a conversation.
             </div>

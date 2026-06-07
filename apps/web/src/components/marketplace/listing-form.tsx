@@ -7,10 +7,7 @@ import {
   type ChangeEvent,
   type DragEvent,
 } from "react";
-import {
-  createListingAction,
-  updateListingAction,
-} from "@/app/(main)/actions";
+import { createListingAction, updateListingAction } from "@/app/(main)/actions";
 import {
   type FormActionState,
   type MarketplaceCategory,
@@ -64,20 +61,21 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
     : createListingAction;
   const [state, formAction, pending] = useActionState(action, initialState);
   const [categorySlug, setCategorySlug] = useState(
-    listing?.categorySlug || categories[0]?.slug || ""
+    listing?.categorySlug || categories[0]?.slug || "",
   );
   const [images, setImages] = useState<UploadImage[]>(
     (listing?.imageUrls ?? []).map((src, index) => ({
       id: `${src}-${index}`,
       src,
-    }))
+    })),
   );
   const [imageMessage, setImageMessage] = useState("");
   const [draggingImageId, setDraggingImageId] = useState<string | null>(null);
   const [isImageDropActive, setIsImageDropActive] = useState(false);
   const category = useMemo(
-    () => categories.find((item) => item.slug === categorySlug) ?? categories[0],
-    [categories, categorySlug]
+    () =>
+      categories.find((item) => item.slug === categorySlug) ?? categories[0],
+    [categories, categorySlug],
   );
 
   async function addImages(files: File[]) {
@@ -88,12 +86,17 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
     const remaining = maxListingImages - images.length;
 
     if (remaining <= 0) {
-      setImageMessage(`Each listing can have up to ${maxListingImages} images.`);
+      setImageMessage(
+        `Each listing can have up to ${maxListingImages} images.`,
+      );
       return;
     }
 
     const accepted = files
-      .filter((file) => file.type.startsWith("image/") && file.size <= maxSingleImageBytes)
+      .filter(
+        (file) =>
+          file.type.startsWith("image/") && file.size <= maxSingleImageBytes,
+      )
       .slice(0, remaining);
 
     if (accepted.length !== files.length) {
@@ -106,7 +109,7 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
       accepted.map(async (file, index) => ({
         id: `${file.name}-${Date.now()}-${index}`,
         src: await readFileAsDataUrl(file),
-      }))
+      })),
     );
 
     setImages((current) => [...current, ...nextImages]);
@@ -124,7 +127,10 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
     void addImages(Array.from(event.dataTransfer.files));
   }
 
-  function handleImageDrop(event: DragEvent<HTMLDivElement>, targetImageId: string) {
+  function handleImageDrop(
+    event: DragEvent<HTMLDivElement>,
+    targetImageId: string,
+  ) {
     event.preventDefault();
 
     if (event.dataTransfer.files.length) {
@@ -139,7 +145,9 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
     }
 
     setImages((current) => {
-      const fromIndex = current.findIndex((image) => image.id === draggingImageId);
+      const fromIndex = current.findIndex(
+        (image) => image.id === draggingImageId,
+      );
       const toIndex = current.findIndex((image) => image.id === targetImageId);
 
       if (fromIndex < 0 || toIndex < 0) {
@@ -178,21 +186,32 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
 
   return (
     <form action={formAction} className="panel grid gap-6">
-      {listing ? <input type="hidden" name="listingId" value={listing.id} /> : null}
+      {listing ? (
+        <input type="hidden" name="listingId" value={listing.id} />
+      ) : null}
       {publishingDraft ? (
         <input type="hidden" name="draftListingId" value={listing.id} />
       ) : null}
       {images.map((image) => (
-        <input key={image.id} type="hidden" name="image" value={image.src} readOnly />
+        <input
+          key={image.id}
+          type="hidden"
+          name="image"
+          value={image.src}
+          readOnly
+        />
       ))}
 
       <div>
         <p className="section-eyebrow">Listing details</p>
         <h2 className="mt-2 text-2xl font-black">
-          {listing ? "Update your marketplace listing." : "Tell buyers what you are selling."}
+          {listing
+            ? "Update your marketplace listing."
+            : "Tell buyers what you are selling."}
         </h2>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          Use a precise title, honest condition details, and a few good photos.
+          No separate seller account is needed. Use a precise title, honest
+          condition details, and a few good photos.
         </p>
       </div>
 
@@ -213,7 +232,9 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
             ))}
           </select>
           {state.fieldErrors?.categorySlug ? (
-            <p className="text-sm text-red-700">{state.fieldErrors.categorySlug}</p>
+            <p className="text-sm text-red-700">
+              {state.fieldErrors.categorySlug}
+            </p>
           ) : null}
         </label>
         <label className="space-y-2">
@@ -256,7 +277,9 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
           placeholder="Condition, highlights, pickup details"
         />
         {state.fieldErrors?.description ? (
-          <p className="text-sm text-red-700">{state.fieldErrors.description}</p>
+          <p className="text-sm text-red-700">
+            {state.fieldErrors.description}
+          </p>
         ) : null}
       </label>
 
@@ -323,7 +346,8 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
           <div>
             <p className="text-sm font-bold">Photos</p>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              Add up to 20 images. Drop files to upload, then drag photos to reorder.
+              Add up to 20 images. Drop files to upload, then drag photos to
+              reorder.
             </p>
           </div>
           <span className="text-sm font-semibold text-[var(--muted)]">
@@ -367,7 +391,11 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
           />
         </label>
 
-        {imageMessage ? <p className="mt-3 text-sm text-[var(--accent-strong)]">{imageMessage}</p> : null}
+        {imageMessage ? (
+          <p className="mt-3 text-sm text-[var(--accent-strong)]">
+            {imageMessage}
+          </p>
+        ) : null}
         {images.length ? (
           <div className="mt-4 grid gap-3 sm:grid-cols-3 md:grid-cols-5">
             {images.map((image, index) => (
@@ -385,7 +413,11 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
                 }`}
               >
                 <div className="relative overflow-hidden rounded-md">
-                  <img src={image.src} alt="" className="h-28 w-full object-cover" />
+                  <img
+                    src={image.src}
+                    alt=""
+                    className="h-28 w-full object-cover"
+                  />
                   {index === 0 ? (
                     <span className="absolute bottom-1 left-1 rounded-md bg-[var(--brand)] px-2 py-1 text-xs font-bold text-white">
                       Cover
@@ -405,7 +437,7 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
                     type="button"
                     onClick={() =>
                       setImages((current) =>
-                        current.filter((item) => item.id !== image.id)
+                        current.filter((item) => item.id !== image.id),
                       )
                     }
                     className="rounded-md border border-red-200 px-2 py-1 text-xs font-bold text-red-700"

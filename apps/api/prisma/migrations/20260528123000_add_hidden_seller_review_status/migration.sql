@@ -1,0 +1,1 @@
+ALTER TYPE "SellerReviewStatus" ADD VALUE IF NOT EXISTS 'HIDDEN';
