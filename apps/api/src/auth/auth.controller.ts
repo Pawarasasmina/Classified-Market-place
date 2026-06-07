@@ -20,7 +20,10 @@ export class AuthController {
 
   @Post('register')
   register(@Body() registerDto: RegisterDto, @Req() request: Request) {
-    return this.authService.register(registerDto, this.getTokenContext(request));
+    return this.authService.register(
+      registerDto,
+      this.getTokenContext(request),
+    );
   }
 
   @Post('login')

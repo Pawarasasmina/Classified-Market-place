@@ -35,7 +35,7 @@ export async function getSessionContext() {
 
       try {
         const refreshed = await refreshSession(refreshToken);
-        await setSessionTokens(refreshed);
+        await setSessionTokens(refreshed).catch(() => null);
         return {
           accessToken: refreshed.accessToken,
           user: refreshed.user,

@@ -1,4 +1,4 @@
-import { ListingStatus } from '@prisma/client';
+import { BoostPlacement, ListingStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsEnum,
@@ -45,8 +45,12 @@ export class QueryListingsDto {
   maxPrice?: number;
 
   @IsOptional()
-  @IsIn(['newest', 'price_asc', 'price_desc'])
-  sort?: 'newest' | 'price_asc' | 'price_desc';
+  @IsIn(['recommended', 'newest', 'price_asc', 'price_desc'])
+  sort?: 'recommended' | 'newest' | 'price_asc' | 'price_desc';
+
+  @IsOptional()
+  @IsEnum(BoostPlacement)
+  boostPlacement?: BoostPlacement;
 
   @IsOptional()
   @Type(() => Number)

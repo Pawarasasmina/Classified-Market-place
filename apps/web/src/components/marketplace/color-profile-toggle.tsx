@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 type ColorProfile = "light" | "dark";
 type IconProps = {
@@ -8,10 +8,52 @@ type IconProps = {
 };
 
 const storageKey = "smartmarket-color-profile";
+const profileChangeEvent = "smartmarket-color-profile-change";
 
 function applyProfile(profile: ColorProfile) {
   document.documentElement.dataset.colorProfile = profile;
   document.documentElement.style.colorScheme = profile;
+}
+
+function readStoredProfile() {
+  try {
+    return window.localStorage.getItem(storageKey) === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+function getProfileSnapshot(): ColorProfile {
+  if (typeof document === "undefined") {
+    return "dark";
+  }
+
+  return document.documentElement.dataset.colorProfile === "light"
+    ? "light"
+    : "dark";
+}
+
+function getServerProfileSnapshot(): ColorProfile {
+  return "dark";
+}
+
+function subscribeToProfileChanges(onStoreChange: () => void) {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  const syncProfile = () => {
+    applyProfile(readStoredProfile());
+    onStoreChange();
+  };
+
+  window.addEventListener("storage", syncProfile);
+  window.addEventListener(profileChangeEvent, syncProfile);
+
+  return () => {
+    window.removeEventListener("storage", syncProfile);
+    window.removeEventListener(profileChangeEvent, syncProfile);
+  };
 }
 
 function SunIcon({ className }: IconProps) {
@@ -57,31 +99,21 @@ function MoonIcon({ className }: IconProps) {
 }
 
 export function ColorProfileToggle() {
-  const [profile, setProfile] = useState<ColorProfile>(() => {
-    if (typeof window === "undefined") {
-      return "dark";
-    }
-
-    try {
-      const stored = window.localStorage.getItem(storageKey);
-      return stored === "light" ? "light" : "dark";
-    } catch {
-      return "dark";
-    }
-  });
+  const profile = useSyncExternalStore(
+    subscribeToProfileChanges,
+    getProfileSnapshot,
+    getServerProfileSnapshot,
+  );
   const dark = profile === "dark";
 
-  useEffect(() => {
-    applyProfile(profile);
-  }, [profile]);
-
   function updateProfile(nextProfile: ColorProfile) {
-    setProfile(nextProfile);
+    applyProfile(nextProfile);
     try {
       window.localStorage.setItem(storageKey, nextProfile);
     } catch {
       // The visual change should still work if storage is unavailable.
     }
+    window.dispatchEvent(new Event(profileChangeEvent));
   }
 
   return (

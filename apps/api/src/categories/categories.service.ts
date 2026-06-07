@@ -44,7 +44,9 @@ export class CategoriesService implements OnModuleInit {
   }
 
   async seedDefaults() {
-    for (const category of defaultCategories.filter((item) => !item.parentSlug)) {
+    for (const category of defaultCategories.filter(
+      (item) => !item.parentSlug,
+    )) {
       await this.prisma.category.upsert({
         where: { slug: category.slug },
         update: {
@@ -67,7 +69,9 @@ export class CategoriesService implements OnModuleInit {
       });
     }
 
-    for (const category of defaultCategories.filter((item) => item.parentSlug)) {
+    for (const category of defaultCategories.filter(
+      (item) => item.parentSlug,
+    )) {
       const parent = await this.prisma.category.findUnique({
         where: { slug: category.parentSlug },
       });

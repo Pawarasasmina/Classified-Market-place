@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import nodemailer from 'nodemailer';
+import nodemailer, { type Transporter } from 'nodemailer';
+import type Mail from 'nodemailer/lib/mailer';
 
 type SendAuthEmailInput = {
   to: string;
@@ -12,11 +13,165 @@ type SendAuthEmailInput = {
   fallbackText: string;
 };
 
+export type SendMailInput = {
+  to: string | string[];
+  subject: string;
+  text: string;
+  html?: string;
+  cc?: string | string[];
+  bcc?: string | string[];
+  replyTo?: string;
+  attachments?: Mail.Attachment[];
+};
+
+export type MailDeliveryResult = {
+  enabled: boolean;
+  messageId?: string;
+  accepted: string[];
+  rejected: string[];
+};
+
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
+  private transporter?: Transporter;
 
   constructor(private readonly configService: ConfigService) {}
+
+  async sendAuthEmail(input: SendAuthEmailInput) {
+    try {
+      const result = await this.sendMail({
+        to: input.to,
+        subject: input.subject,
+        text: [
+          input.heading,
+          '',
+          input.body,
+          '',
+          `${input.actionLabel}: ${input.actionUrl}`,
+          '',
+          input.fallbackText,
+        ].join('\n'),
+        html: this.renderHtml(input),
+      });
+
+      return result.enabled && result.rejected.length === 0;
+    } catch (error) {
+      this.logger.error(
+        `Failed to send email to ${input.to}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return false;
+    }
+  }
+
+  async sendMail(input: SendMailInput): Promise<MailDeliveryResult> {
+    const recipients = this.normalizeRecipients(input.to);
+
+    if (!recipients.length) {
+      throw new Error('At least one email recipient is required');
+    }
+
+    const enabled = this.getBoolean('MAIL_ENABLED', this.hasMailConfig());
+
+    if (!enabled) {
+      this.logger.log(
+        `Mail delivery disabled. Skipped "${input.subject}" to ${recipients.join(
+          ', ',
+        )}.`,
+      );
+
+      return {
+        enabled: false,
+        messageId: 'mail-disabled',
+        accepted: recipients,
+        rejected: [],
+      };
+    }
+
+    const result = await this.getTransporter().sendMail({
+      from: this.getFromAddress(),
+      to: recipients,
+      subject: input.subject,
+      text: input.text,
+      html: input.html,
+      cc: input.cc,
+      bcc: input.bcc,
+      replyTo: input.replyTo ?? this.getOptionalString('MAIL_REPLY_TO'),
+      attachments: input.attachments,
+    });
+
+    return {
+      enabled: true,
+      messageId: result.messageId,
+      accepted: this.normalizeRecipients(result.accepted),
+      rejected: this.normalizeRecipients(result.rejected),
+    };
+  }
+
+  async verifyConnection() {
+    if (!this.getBoolean('MAIL_ENABLED', this.hasMailConfig())) {
+      return { enabled: false, verified: false };
+    }
+
+    await this.getTransporter().verify();
+
+    return { enabled: true, verified: true };
+  }
+
+  private getTransporter() {
+    if (!this.transporter) {
+      const host = this.getRequiredMailString('MAIL_HOST', 'SMTP_HOST');
+      const port = this.getNumber('MAIL_PORT', 'SMTP_PORT', 587);
+      const secure = this.getBoolean(
+        'MAIL_SECURE',
+        this.getBoolean('SMTP_SECURE', port === 465),
+      );
+      const user =
+        this.getOptionalString('MAIL_USER') ??
+        this.getOptionalString('SMTP_USER');
+      const pass =
+        this.getOptionalString('MAIL_PASSWORD') ??
+        this.getOptionalString('SMTP_PASS');
+
+      this.transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure,
+        auth: user || pass ? { user, pass } : undefined,
+      });
+    }
+
+    return this.transporter;
+  }
+
+  private getFromAddress() {
+    const address = this.getOptionalString('MAIL_FROM_ADDRESS');
+    const name = this.getOptionalString('MAIL_FROM_NAME');
+
+    if (address) {
+      return name ? { name, address } : address;
+    }
+
+    return (
+      this.getOptionalString('MAIL_FROM') ??
+      'Classified Marketplace <no-reply@classified.local>'
+    );
+  }
+
+  private hasMailConfig() {
+    const host =
+      this.getOptionalString('MAIL_HOST') ??
+      this.getOptionalString('SMTP_HOST');
+    const user =
+      this.getOptionalString('MAIL_USER') ??
+      this.getOptionalString('SMTP_USER');
+    const pass =
+      this.getOptionalString('MAIL_PASSWORD') ??
+      this.getOptionalString('SMTP_PASS');
+
+    return [host, user, pass].every((value) => this.isConfigured(value));
+  }
 
   private isConfigured(value: string | undefined) {
     return (
@@ -26,38 +181,59 @@ export class MailService {
     );
   }
 
-  private getTransporter() {
-    const host = this.configService.get<string>('SMTP_HOST');
-    const port = Number(this.configService.get<string>('SMTP_PORT', '587'));
-    const secure =
-      this.configService.get<string>('SMTP_SECURE', 'false') === 'true';
-    const user = this.configService.get<string>('SMTP_USER');
-    const pass = this.configService.get<string>('SMTP_PASS');
+  private getRequiredMailString(primaryKey: string, fallbackKey: string) {
+    const value =
+      this.getOptionalString(primaryKey) ?? this.getOptionalString(fallbackKey);
 
-    if (
-      !this.isConfigured(host) ||
-      !this.isConfigured(user) ||
-      !this.isConfigured(pass)
-    ) {
-      return null;
+    if (!value) {
+      throw new Error(
+        `${primaryKey} is required when mail delivery is enabled`,
+      );
     }
 
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: {
-        user,
-        pass,
-      },
-    });
+    return value;
   }
 
-  private getFromAddress() {
-    return (
-      this.configService.get<string>('MAIL_FROM') ??
-      'Classified Marketplace <no-reply@classified.local>'
-    );
+  private getOptionalString(key: string) {
+    const value = this.configService.get<string>(key);
+    const trimmed = value?.trim();
+
+    return trimmed || undefined;
+  }
+
+  private getBoolean(key: string, fallback: boolean) {
+    const value = this.getOptionalString(key);
+
+    if (value === undefined) {
+      return fallback;
+    }
+
+    return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+  }
+
+  private getNumber(primaryKey: string, fallbackKey: string, fallback: number) {
+    const value =
+      this.getOptionalString(primaryKey) ?? this.getOptionalString(fallbackKey);
+    const parsed = value ? Number(value) : Number.NaN;
+
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  private normalizeRecipients(
+    recipients: string | string[] | Array<string | Mail.Address> | undefined,
+  ) {
+    if (!recipients) {
+      return [];
+    }
+
+    const values = Array.isArray(recipients) ? recipients : [recipients];
+
+    return values
+      .map((recipient) =>
+        typeof recipient === 'string' ? recipient : recipient.address,
+      )
+      .map((recipient) => recipient.trim())
+      .filter(Boolean);
   }
 
   private escapeHtml(value: string) {
@@ -112,41 +288,5 @@ export class MailService {
         </table>
       </div>
     `;
-  }
-
-  async sendAuthEmail(input: SendAuthEmailInput) {
-    const transporter = this.getTransporter();
-
-    if (!transporter) {
-      this.logger.warn(
-        `SMTP is not configured. Email for ${input.to} was not sent.`,
-      );
-      return false;
-    }
-
-    try {
-      await transporter.sendMail({
-        from: this.getFromAddress(),
-        to: input.to,
-        subject: input.subject,
-        text: [
-          input.heading,
-          '',
-          input.body,
-          '',
-          `${input.actionLabel}: ${input.actionUrl}`,
-          '',
-          input.fallbackText,
-        ].join('\n'),
-        html: this.renderHtml(input),
-      });
-      return true;
-    } catch (error) {
-      this.logger.error(
-        `Failed to send email to ${input.to}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-      return false;
-    }
   }
 }

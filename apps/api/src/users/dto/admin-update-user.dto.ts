@@ -1,4 +1,11 @@
-import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
+import { SellerPriorityTier } from '@prisma/client';
+import { IsBoolean, IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
+import { assignableUserRoles } from '../../common/admin-permissions';
+
+const assignableRoleInputs = [
+  ...assignableUserRoles,
+  ...assignableUserRoles.map((role) => role.toLowerCase()),
+];
 
 export class AdminUpdateUserDto {
   @IsOptional()
@@ -26,7 +33,7 @@ export class AdminUpdateUserDto {
   location?: string | null;
 
   @IsOptional()
-  @IsIn(['USER', 'ADMIN', 'user', 'admin'])
+  @IsIn(assignableRoleInputs)
   role?: string;
 
   @IsOptional()
@@ -44,4 +51,8 @@ export class AdminUpdateUserDto {
   @IsOptional()
   @IsBoolean()
   phoneVerified?: boolean;
+
+  @IsOptional()
+  @IsEnum(SellerPriorityTier)
+  sellerPriorityTier?: SellerPriorityTier;
 }

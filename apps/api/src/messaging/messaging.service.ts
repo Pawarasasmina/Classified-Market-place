@@ -7,11 +7,14 @@ import {
 } from '@nestjs/common';
 import {
   MessageType,
+  NotificationType,
   OfferStatus,
   Prisma,
   ReportStatus,
 } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { hasAdminPermission } from '../common/admin-permissions';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
@@ -99,8 +102,7 @@ type MessageWithDetails = Prisma.MessageGetPayload<{
 }>;
 
 function isStaffRole(role: string) {
-  const normalizedRole = role.toUpperCase();
-  return normalizedRole === 'ADMIN' || normalizedRole === 'SUPPORT';
+  return hasAdminPermission(role, 'SUPPORT_READ');
 }
 
 function asRecord(value: unknown) {
@@ -125,6 +127,7 @@ export class MessagingService {
     private readonly encryption: MessagingEncryptionService,
     private readonly presence: MessagingPresenceService,
     private readonly pushNotifications: PushNotificationsService,
+    private readonly notifications?: NotificationsService,
   ) {}
 
   private isBlockedListingStatus(status: string) {
@@ -164,8 +167,20 @@ export class MessagingService {
       status: listing.status,
       location: listing.location,
       sellerId: listing.sellerId,
-      primaryImageUrl: listing.images[0]?.url ?? null,
+      primaryImageUrl: this.getCompactImageUrl(listing.images[0]?.url),
     };
+  }
+
+  private getCompactImageUrl(url: string | null | undefined) {
+    if (!url) {
+      return null;
+    }
+
+    if (url.startsWith('data:') && url.length > 2048) {
+      return null;
+    }
+
+    return url;
   }
 
   private decryptMessage(message: MessageWithDetails) {
@@ -204,8 +219,43 @@ export class MessagingService {
     }
   }
 
-  private serializeMessage(message: MessageWithDetails) {
+  private getCompactMessagePayload(type: MessageType, payload: unknown) {
+    if (!payload) {
+      return null;
+    }
+
+    if (type === MessageType.LISTING_CARD) {
+      return null;
+    }
+
+    const record = asRecord(payload);
+
+    if (
+      record &&
+      (type === MessageType.IMAGE || type === MessageType.FILE) &&
+      typeof record.url === 'string'
+    ) {
+      return {
+        ...record,
+        url: this.getCompactImageUrl(record.url),
+      };
+    }
+
+    try {
+      return JSON.stringify(payload).length > 4096 ? null : payload;
+    } catch {
+      return null;
+    }
+  }
+
+  private serializeMessage(
+    message: MessageWithDetails,
+    options: { compactPayload?: boolean } = {},
+  ) {
     const decrypted = this.decryptMessage(message);
+    const payload = options.compactPayload
+      ? this.getCompactMessagePayload(message.type, decrypted.payload)
+      : decrypted.payload;
 
     return {
       id: message.id,
@@ -216,7 +266,7 @@ export class MessagingService {
       senderAvatarUrl: message.sender.avatarUrl,
       type: message.type,
       body: decrypted.body,
-      payload: decrypted.payload,
+      payload,
       listingId: message.listingId,
       listing: this.getListingSummary(message.listing),
       offerAmount: message.offerAmount ? Number(message.offerAmount) : null,
@@ -441,7 +491,10 @@ export class MessagingService {
       };
     }
 
-    if (conversation.listing && this.isBlockedListingStatus(conversation.listing.status)) {
+    if (
+      conversation.listing &&
+      this.isBlockedListingStatus(conversation.listing.status)
+    ) {
       return {
         blockedByMe,
         blockedByOther,
@@ -513,19 +566,22 @@ export class MessagingService {
         : null,
       title,
       lastMessage: visibleLastMessage
-        ? this.serializeMessage(visibleLastMessage)
+        ? this.serializeMessage(visibleLastMessage, { compactPayload: true })
         : null,
       updatedAt: conversation.updatedAt,
     };
   }
 
-  private canDeleteForEveryone(message: {
-    senderId: string;
-    createdAt: Date;
-    deletedAt: Date | null;
-    type: MessageType;
-    offerStatus: OfferStatus | null;
-  }, userId: string) {
+  private canDeleteForEveryone(
+    message: {
+      senderId: string;
+      createdAt: Date;
+      deletedAt: Date | null;
+      type: MessageType;
+      offerStatus: OfferStatus | null;
+    },
+    userId: string,
+  ) {
     if (message.senderId !== userId || message.deletedAt) {
       return false;
     }
@@ -538,7 +594,9 @@ export class MessagingService {
       return false;
     }
 
-    return Date.now() - message.createdAt.getTime() <= deleteForEveryoneWindowMs;
+    return (
+      Date.now() - message.createdAt.getTime() <= deleteForEveryoneWindowMs
+    );
   }
 
   private async unarchiveConversationForUser(
@@ -721,7 +779,10 @@ export class MessagingService {
         throw new NotFoundException('Listing not found');
       }
 
-      if (listing.id !== conversation.listingId && listing.sellerId !== userId) {
+      if (
+        listing.id !== conversation.listingId &&
+        listing.sellerId !== userId
+      ) {
         throw new ForbiddenException(
           'Only the listing owner can share a different listing here.',
         );
@@ -758,12 +819,10 @@ export class MessagingService {
 
   async createConversation(userId: string, dto: CreateConversationDto) {
     const participantIds = new Set([userId]);
-    let directParticipant:
-      | {
-          id: string;
-          role: string;
-        }
-      | null = null;
+    let directParticipant: {
+      id: string;
+      role: string;
+    } | null = null;
 
     if (dto.participantId) {
       if (dto.participantId === userId) {
@@ -878,7 +937,10 @@ export class MessagingService {
       }
 
       const directParticipantIds = [...participantIds];
-      const existing = await this.findExactConversation(directParticipantIds, null);
+      const existing = await this.findExactConversation(
+        directParticipantIds,
+        null,
+      );
 
       if (existing) {
         await this.unarchiveConversationForUser(existing.id, userId);
@@ -956,11 +1018,15 @@ export class MessagingService {
   ) {
     await this.assertParticipant(conversationId, userId);
     const conversation = await this.getConversationDetails(conversationId);
-    const interactionState = await this.getInteractionState(userId, conversation);
+    const interactionState = await this.getInteractionState(
+      userId,
+      conversation,
+    );
 
     if (!interactionState.canSend) {
       throw new ForbiddenException(
-        interactionState.sendDisabledReason ?? 'This conversation is read-only.',
+        interactionState.sendDisabledReason ??
+          'This conversation is read-only.',
       );
     }
 
@@ -1133,7 +1199,10 @@ export class MessagingService {
     const conversation = message.conversation;
     await this.assertParticipant(conversation.id, userId);
 
-    const interactionState = await this.getInteractionState(userId, conversation);
+    const interactionState = await this.getInteractionState(
+      userId,
+      conversation,
+    );
 
     if (!interactionState.canSend) {
       throw new ForbiddenException(
@@ -1156,7 +1225,9 @@ export class MessagingService {
     this.assertListingAllowsMessaging(conversation.listing, 'offer');
 
     if (conversation.listing.sellerId !== userId) {
-      throw new ForbiddenException('Only the listing seller can update an offer');
+      throw new ForbiddenException(
+        'Only the listing seller can update an offer',
+      );
     }
 
     if (message.offerStatus && message.offerStatus !== OfferStatus.PENDING) {
@@ -1251,12 +1322,15 @@ export class MessagingService {
         lastMessage: lastVisibleMessage
           ? this.serializeMessage(lastVisibleMessage)
           : null,
-        updatedAt: lastVisibleMessage?.updatedAt ?? message.conversation.updatedAt,
+        updatedAt:
+          lastVisibleMessage?.updatedAt ?? message.conversation.updatedAt,
       };
     }
 
     if (message.type === MessageType.SYSTEM) {
-      throw new BadRequestException('System messages cannot be deleted for everyone.');
+      throw new BadRequestException(
+        'System messages cannot be deleted for everyone.',
+      );
     }
 
     if (!this.canDeleteForEveryone(message, userId)) {
@@ -1332,11 +1406,7 @@ export class MessagingService {
               ? new Date()
               : null,
         mutedAt:
-          dto.muted === undefined
-            ? undefined
-            : dto.muted
-              ? new Date()
-              : null,
+          dto.muted === undefined ? undefined : dto.muted ? new Date() : null,
       },
     });
 
@@ -1558,6 +1628,32 @@ export class MessagingService {
             : serialized.type === MessageType.LISTING_CARD
               ? 'Listing details shared'
               : 'New message');
+    const recipientsToNotify = recipients.filter(
+      (recipient) => !recipient.mutedAt,
+    );
+
+    try {
+      await this.notifications?.notifyMessage({
+        recipientIds: recipientsToNotify.map((recipient) => recipient.userId),
+        actorId: senderId,
+        conversationId: conversation.id,
+        messageId: serialized.id,
+        listingId: serialized.listingId ?? conversation.listingId,
+        messageType: serialized.type,
+        notificationType: this.getNotificationTypeForMessage(serialized),
+        senderName: sender?.displayName ?? 'Marketplace user',
+        preview,
+        metadata: {
+          ...(conversation.listing?.title
+            ? { listingTitle: conversation.listing.title }
+            : {}),
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not persist notifications for conversation ${conversation.id}`,
+      );
+    }
 
     await Promise.all(
       recipients
@@ -1577,5 +1673,20 @@ export class MessagingService {
           }),
         ),
     );
+  }
+
+  private getNotificationTypeForMessage(
+    message: ReturnType<MessagingService['serializeMessage']>,
+  ) {
+    const payload = asRecord(message.payload);
+
+    if (
+      message.type === MessageType.OFFER ||
+      payload?.kind === 'offer_status'
+    ) {
+      return NotificationType.OFFER;
+    }
+
+    return NotificationType.MESSAGE;
   }
 }

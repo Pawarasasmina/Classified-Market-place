@@ -67,7 +67,7 @@ export function ProfileForm({ user }: { user: SessionUser }) {
       <input type="hidden" name="avatarUrl" value={avatarUrl} readOnly />
 
       <div>
-        <p className="section-eyebrow">Public seller profile</p>
+        <p className="section-eyebrow">Public marketplace profile</p>
         <h2 className="mt-2 text-2xl font-black">Keep buyer-facing details current.</h2>
         <p className="mt-2 text-sm text-[var(--muted)]">
           Changing your mobile number will require OTP verification again.
@@ -157,7 +157,7 @@ export function ProfileForm({ user }: { user: SessionUser }) {
           name="bio"
           defaultValue={user.bio ?? ""}
           className="surface-input min-h-28 w-full text-sm"
-          placeholder="Short public seller bio"
+          placeholder="Short public marketplace bio"
         />
       </label>
 

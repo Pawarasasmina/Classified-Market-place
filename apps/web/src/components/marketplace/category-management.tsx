@@ -235,6 +235,7 @@ function CategoryTreeRow({
   onSelect,
   onToggle,
   onAddSubcategory,
+  canEdit,
 }: {
   row: TreeRow;
   selected: boolean;
@@ -242,6 +243,7 @@ function CategoryTreeRow({
   onSelect: (category: MarketplaceCategory) => void;
   onToggle: (slug: string) => void;
   onAddSubcategory: (category: MarketplaceCategory) => void;
+  canEdit: boolean;
 }) {
   const { node, depth } = row;
   const hasChildren = node.nestedChildren.length > 0;
@@ -302,15 +304,17 @@ function CategoryTreeRow({
           onClick={() => onSelect(node)}
           className="rounded-md border border-[var(--line)] px-2 py-1 text-xs font-semibold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
         >
-          Edit
+          {canEdit ? "Edit" : "View"}
         </button>
-        <button
-          type="button"
-          onClick={() => onAddSubcategory(node)}
-          className="rounded-md border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--brand-strong)] hover:border-[var(--brand)] hover:bg-[var(--brand-soft)]"
-        >
-          Add child
-        </button>
+        {canEdit ? (
+          <button
+            type="button"
+            onClick={() => onAddSubcategory(node)}
+            className="rounded-md border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--brand-strong)] hover:border-[var(--brand)] hover:bg-[var(--brand-soft)]"
+          >
+            Add child
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -320,10 +324,12 @@ function SelectedCategoryPanel({
   category,
   categories,
   onAddSubcategory,
+  canEdit,
 }: {
   category?: MarketplaceCategory;
   categories: MarketplaceCategory[];
   onAddSubcategory: (category: MarketplaceCategory) => void;
+  canEdit: boolean;
 }) {
   if (!category) {
     return (
@@ -359,6 +365,7 @@ function SelectedCategoryPanel({
         </div>
       </div>
 
+      {canEdit ? (
       <form action={updateCategoryAction} className="mt-5 grid gap-4">
         <input type="hidden" name="slug" value={category.slug} />
         <input type="hidden" name="returnTo" value="/admin/categories" />
@@ -440,8 +447,13 @@ function SelectedCategoryPanel({
           </button>
         </div>
       </form>
+      ) : (
+        <div className="mt-5 rounded-md border border-[var(--line)] p-4 text-sm text-[var(--muted)]">
+          This role can view catalog details but cannot edit categories.
+        </div>
+      )}
 
-      {category.isActive ? (
+      {canEdit && category.isActive ? (
         <form action={deleteCategoryAction} className="mt-3">
           <input type="hidden" name="slug" value={category.slug} />
           <input type="hidden" name="returnTo" value="/admin/categories" />
@@ -456,8 +468,10 @@ function SelectedCategoryPanel({
 
 export function CategoryManagement({
   categories,
+  canEdit = true,
 }: {
   categories: MarketplaceCategory[];
+  canEdit?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -541,11 +555,17 @@ export function CategoryManagement({
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
         <div className="grid gap-4">
-          <CategoryForm
-            key={presetParent?.version ?? "category-root-form"}
-            categories={categories}
-            presetParentSlug={presetParent?.slug}
-          />
+          {canEdit ? (
+            <CategoryForm
+              key={presetParent?.version ?? "category-root-form"}
+              categories={categories}
+              presetParentSlug={presetParent?.slug}
+            />
+          ) : (
+            <div className="rounded-md border border-[var(--line)] bg-white p-4 text-sm text-[var(--muted)] shadow-sm">
+              This role can view categories but cannot create or change them.
+            </div>
+          )}
 
           <div className="rounded-md border border-[var(--line)] bg-white p-4 shadow-sm">
             <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -644,6 +664,7 @@ export function CategoryManagement({
                     onSelect={(category) => setSelectedSlug(category.slug)}
                     onToggle={toggleExpanded}
                     onAddSubcategory={startSubcategory}
+                    canEdit={canEdit}
                   />
                 ))
               ) : (
@@ -660,6 +681,7 @@ export function CategoryManagement({
             category={selectedCategory}
             categories={categories}
             onAddSubcategory={startSubcategory}
+            canEdit={canEdit}
           />
         </div>
       </div>

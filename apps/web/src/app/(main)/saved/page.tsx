@@ -1,6 +1,6 @@
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { requireSessionContext } from "@/lib/auth-dal";
-import { fetchListings } from "@/lib/marketplace-api";
+import { fetchMySavedListings } from "@/lib/marketplace-api";
 
 const fallbackSavedSearches = [
   "2BR apartment in Marina under AED 9k",
@@ -9,8 +9,8 @@ const fallbackSavedSearches = [
 ];
 
 export default async function SavedPage() {
-  await requireSessionContext("/saved");
-  const savedListings = await fetchListings({ take: 6 });
+  const { accessToken } = await requireSessionContext("/saved");
+  const savedListings = await fetchMySavedListings(accessToken);
 
   return (
     <div className="page">
@@ -25,11 +25,21 @@ export default async function SavedPage() {
             before reaching out to sellers.
           </p>
 
-          <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {savedListings.map((listing) => (
-              <ListingCard key={listing.id} listing={listing} compact />
-            ))}
-          </div>
+          {savedListings.length ? (
+            <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {savedListings.map((listing) => (
+                <ListingCard key={listing.id} listing={listing} compact />
+              ))}
+            </div>
+          ) : (
+            <div className="panel mt-8">
+              <h2 className="text-xl font-black">No saved listings yet.</h2>
+              <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                Save active listings from their detail page to build a shortlist
+                you can compare later.
+              </p>
+            </div>
+          )}
         </div>
 
         <aside className="space-y-5">

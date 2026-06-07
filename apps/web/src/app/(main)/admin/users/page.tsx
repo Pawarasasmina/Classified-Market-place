@@ -1,66 +1,204 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AdminUserCard } from "@/components/marketplace/admin-user-card";
+import { updateAdminUserAction } from "@/app/(main)/actions";
+import {
+  assignableUserRoles,
+  hasAdminPermission,
+  humanizeAdminRole,
+} from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
-import { fetchAdminUsers } from "@/lib/marketplace-api";
+import {
+  fetchAdminSellerRatingSummaries,
+  fetchAdminUsers,
+} from "@/lib/marketplace-api";
+import type { ApiSellerPriorityTier } from "@/lib/marketplace";
+
+const sellerTiers: ApiSellerPriorityTier[] = [
+  "NONE",
+  "AUTHORIZED",
+  "VERIFIED",
+  "VIP",
+];
 
 export default async function AdminUsersPage() {
   const { accessToken, user } = await requireSessionContext("/admin/users");
 
-  if (user.role.toUpperCase() !== "ADMIN") {
+  if (!hasAdminPermission(user.role, "USERS_READ")) {
     redirect("/");
   }
 
-  const users = await fetchAdminUsers(accessToken);
-  const admins = users.filter((item) => item.role.toUpperCase() === "ADMIN").length;
-  const verifiedUsers = users.filter(
-    (item) => item.emailVerified || item.phoneVerified
+  const canEditUsers = hasAdminPermission(user.role, "USERS_WRITE");
+  const [users, summaries] = await Promise.all([
+    fetchAdminUsers(accessToken),
+    fetchAdminSellerRatingSummaries(accessToken),
+  ]);
+  const sellerSummaries = new Map(
+    summaries.map((summary) => [summary.sellerId, summary]),
+  );
+  const prioritizedCount = users.filter(
+    (item) => (item.sellerPriorityTier ?? "NONE") !== "NONE",
   ).length;
-  const listingTotal = users.reduce(
-    (total, item) => total + item.adminStats.totalListings,
-    0
-  );
-  const bookingTotal = users.reduce(
-    (total, item) => total + item.adminStats.bookingCount,
-    0
-  );
 
   return (
-    <div className="admin-dashboard page">
-      <section className="admin-hero">
-        <div className="admin-hero-copy">
-          <span className="admin-kicker">Admin users</span>
-          <h1>User Management</h1>
-          <p>Review accounts, update access, and open each user&apos;s listings or bookings.</p>
+    <div className="page admin-dashboard grid gap-6">
+      <div className="panel flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
+            Seller trust
+          </p>
+          <h1 className="mt-1 text-2xl font-bold">Users</h1>
+          <p className="mt-2 text-[var(--muted)]">
+            Assign authorized, verified, and VIP priority tiers for customer
+            search results.
+          </p>
         </div>
-        <div className="admin-hero-actions">
-          <Link href="/admin" className="admin-panel-link">
-            Dashboard
-          </Link>
-        </div>
-      </section>
+        <Link
+          href="/admin"
+          className="action-secondary px-4 py-2 text-sm font-semibold"
+        >
+          Back to admin
+        </Link>
+      </div>
 
-      <section className="admin-stat-grid" aria-label="User summary">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
           ["Users", users.length],
-          ["Admins", admins],
-          ["Verified", verifiedUsers],
-          ["Listings", listingTotal],
-          ["Bookings", bookingTotal],
+          ["Seller tiers", prioritizedCount],
+          ["Rated sellers", summaries.length],
+          [
+            "Verified contacts",
+            users.filter((item) => item.emailVerified || item.phoneVerified)
+              .length,
+          ],
         ].map(([label, value]) => (
           <div key={label} className="admin-stat-card">
-            <span>{label}</span>
-            <strong>{value}</strong>
-            <small>Current total</small>
+            <p className="text-sm text-[var(--muted)]">{label}</p>
+            <p className="mt-2 text-3xl font-bold">{value}</p>
           </div>
         ))}
       </section>
 
-      <section className="admin-user-grid">
-        {users.map((item) => (
-          <AdminUserCard key={item.id} user={item} returnTo="/admin/users" />
-        ))}
-      </section>
+      <div className="admin-table-wrap">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Role</th>
+              <th>Tier</th>
+              <th>Customer rating</th>
+              <th>Reviews</th>
+              <th>Verified</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((item) => (
+              <tr key={item.id}>
+                <td>
+                  <div className="grid gap-1">
+                    <span className="font-semibold">{item.displayName}</span>
+                    <span className="text-sm text-[var(--muted)]">
+                      {item.email}
+                    </span>
+                  </div>
+                </td>
+                <td>{item.role}</td>
+                <td>{humanizeAdminRole(item.sellerPriorityTier ?? "NONE")}</td>
+                <td>
+                  {sellerSummaries.get(item.id)?.ratingCount
+                    ? `${sellerSummaries.get(item.id)?.averageRating?.toFixed(1)} / 5 (${sellerSummaries.get(item.id)?.ratingCount})`
+                    : "No ratings"}
+                </td>
+                <td>
+                  {sellerSummaries.get(item.id)?.reviewCount ? (
+                    <Link
+                      href={`/sellers/${item.id}?view=customer`}
+                      className="font-semibold text-[var(--brand-strong)]"
+                    >
+                      {sellerSummaries.get(item.id)?.reviewCount} view
+                    </Link>
+                  ) : (
+                    "0"
+                  )}
+                </td>
+                <td>
+                  {item.emailVerified || item.phoneVerified ? "Yes" : "No"}
+                </td>
+                <td>
+                  {canEditUsers ? (
+                    <form
+                      action={updateAdminUserAction}
+                      className="grid min-w-[280px] gap-2"
+                    >
+                      <input type="hidden" name="userId" value={item.id} />
+                      <input type="hidden" name="name" value={item.displayName} />
+                      <input
+                        type="hidden"
+                        name="phone"
+                        value={item.phone ?? ""}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <select
+                          name="role"
+                          defaultValue={item.role.toUpperCase()}
+                          className="surface-input"
+                        >
+                          {assignableUserRoles.map((role) => (
+                            <option key={role} value={role}>
+                              {humanizeAdminRole(role)}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          name="sellerPriorityTier"
+                          defaultValue={item.sellerPriorityTier ?? "NONE"}
+                          className="surface-input"
+                        >
+                          {sellerTiers.map((tier) => (
+                            <option key={tier} value={tier}>
+                              {humanizeAdminRole(tier)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-sm font-semibold">
+                        <label className="flex items-center gap-2">
+                          <input
+                            name="isEmailVerified"
+                            type="checkbox"
+                            value="true"
+                            defaultChecked={item.emailVerified}
+                          />
+                          Email
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input
+                            name="isPhoneVerified"
+                            type="checkbox"
+                            value="true"
+                            defaultChecked={item.phoneVerified}
+                          />
+                          Phone
+                        </label>
+                      </div>
+                      <button className="admin-table-action">Save</button>
+                    </form>
+                  ) : (
+                    <span className="text-sm text-[var(--muted)]">
+                      View only
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {users.length === 0 ? (
+          <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
+            No users are available.
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

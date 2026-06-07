@@ -11,7 +11,6 @@ type MessagesPageProps = {
 };
 
 export default async function MessagesPage(props: MessagesPageProps) {
-  const { accessToken, user } = await requireVerifiedSession("/messages");
   const searchParams = await props.searchParams;
   const nextParams = new URLSearchParams();
 
@@ -30,7 +29,7 @@ export default async function MessagesPage(props: MessagesPageProps) {
   const nextPath = nextParams.size
     ? `/messages?${nextParams.toString()}`
     : "/messages";
-  const { accessToken, user } = await requireSessionContext(nextPath);
+  const { accessToken, user } = await requireVerifiedSession(nextPath);
 
   return (
     <div className="page grid gap-6">
