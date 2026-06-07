@@ -176,6 +176,10 @@ export type ApiTransactionType =
   | "LISTING_FEE"
   | "WALLET_TOP_UP"
   | "ADMIN_ADJUSTMENT"
+  | "ADMIN_CREDIT"
+  | "ADMIN_DEBIT"
+  | "LISTING_FEE_REFUND"
+  | "SELLER_LEVEL_UPGRADE"
   | "REFUND";
 
 export type ApiBoost = {
@@ -1492,8 +1496,16 @@ function humanizeLabel(value: string) {
 function toAttributeFieldType(
   value: string | null | undefined,
 ): AttributeFieldType {
-  if (value === "number" || value === "select" || value === "toggle") {
+  if (
+    value === "number" ||
+    value === "select" ||
+    value === "toggle"
+  ) {
     return value;
+  }
+
+  if (value === "yes-no") {
+    return "toggle";
   }
 
   return "text";

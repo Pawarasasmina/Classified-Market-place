@@ -35,6 +35,16 @@ function toJsonValue(value: Record<string, unknown> | undefined) {
   return value as Prisma.InputJsonValue | undefined;
 }
 
+function cloneSchemaDefinition(
+  value: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+}
+
 @Injectable()
 export class CategoriesService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
@@ -52,7 +62,8 @@ export class CategoriesService implements OnModuleInit {
         update: {
           name: category.name,
           description: category.description,
-          schemaDefinition: toJsonValue(category.schemaDefinition),
+          // Preserve admin-managed schema definitions once a category exists.
+          schemaDefinition: undefined,
           listingExpiryDays: category.listingExpiryDays ?? 30,
           sortOrder: category.sortOrder ?? 0,
           isActive: true,
@@ -85,7 +96,8 @@ export class CategoriesService implements OnModuleInit {
         update: {
           name: category.name,
           description: category.description,
-          schemaDefinition: toJsonValue(category.schemaDefinition),
+          // Preserve admin-managed schema definitions once a category exists.
+          schemaDefinition: undefined,
           parentId: parent.id,
           listingExpiryDays: category.listingExpiryDays ?? 30,
           sortOrder: category.sortOrder ?? 0,
@@ -134,13 +146,19 @@ export class CategoriesService implements OnModuleInit {
     }
 
     const parentId = await this.resolveParentId(dto.parentSlug);
+    const inheritedSchemaDefinition =
+      parentId && !dto.schemaDefinition
+        ? await this.getInheritedSchemaDefinition(parentId)
+        : undefined;
 
     return this.prisma.category.create({
       data: {
         name: dto.name.trim(),
         slug,
         description: dto.description,
-        schemaDefinition: toJsonValue(dto.schemaDefinition),
+        schemaDefinition: toJsonValue(
+          dto.schemaDefinition ?? inheritedSchemaDefinition,
+        ),
         parentId,
         listingExpiryDays: dto.listingExpiryDays ?? 30,
         sortOrder: dto.sortOrder ?? 0,
@@ -167,13 +185,20 @@ export class CategoriesService implements OnModuleInit {
       throw new BadRequestException('A category cannot be its own parent');
     }
 
+    const inheritedSchemaDefinition =
+      parentId && dto.schemaDefinition === undefined
+        ? await this.getInheritedSchemaDefinition(parentId)
+        : undefined;
+
     return this.prisma.category.update({
       where: { id: category.id },
       data: {
         name: dto.name?.trim(),
         slug: nextSlug,
         description: dto.description,
-        schemaDefinition: toJsonValue(dto.schemaDefinition),
+        schemaDefinition: toJsonValue(
+          dto.schemaDefinition ?? inheritedSchemaDefinition,
+        ),
         parentId,
         listingExpiryDays: dto.listingExpiryDays,
         sortOrder: dto.sortOrder,
@@ -211,5 +236,17 @@ export class CategoriesService implements OnModuleInit {
     }
 
     return parent.id;
+  }
+
+  private async getInheritedSchemaDefinition(parentId: string) {
+    const parent = await this.prisma.category.findUnique({
+      where: { id: parentId },
+      select: { schemaDefinition: true },
+    });
+
+    return cloneSchemaDefinition(
+      (parent?.schemaDefinition as Record<string, unknown> | null | undefined) ??
+        undefined,
+    );
   }
 }

@@ -666,6 +666,16 @@ export async function createCategory(
     description?: string;
     parentSlug?: string;
     listingExpiryDays?: number;
+    schemaDefinition?: {
+      fields: Array<{
+        key: string;
+        label: string;
+        type: "text" | "number" | "select" | "toggle";
+        options?: string[];
+        required?: boolean;
+        placeholder?: string;
+      }>;
+    } | null;
   },
 ) {
   const category = await apiRequest<ApiCategory>("/categories/admin", {
@@ -686,6 +696,16 @@ export async function updateCategory(
     parentSlug?: string;
     isActive?: boolean;
     listingExpiryDays?: number;
+    schemaDefinition?: {
+      fields: Array<{
+        key: string;
+        label: string;
+        type: "text" | "number" | "select" | "toggle";
+        options?: string[];
+        required?: boolean;
+        placeholder?: string;
+      }>;
+    } | null;
   },
 ) {
   const category = await apiRequest<ApiCategory>(`/categories/admin/${slug}`, {
@@ -1440,6 +1460,7 @@ export async function changePassword(
   payload: {
     currentPassword?: string;
     newPassword: string;
+    confirmPassword?: string;
   },
 ) {
   return apiRequest<{ message: string }>("/users/me/password", {
@@ -1469,6 +1490,7 @@ export async function registerUser(payload: {
   email: string;
   phone?: string;
   password: string;
+  confirmPassword?: string;
   termsAccepted: boolean;
 }) {
   const response = await apiRequest<RegisterResponse>("/auth/register", {
@@ -1570,9 +1592,11 @@ export async function resendEmailVerification(accessToken: string) {
 
 export type AuthSession = {
   id: string;
+  deviceName: string | null;
   userAgent: string | null;
   ipAddress: string | null;
   createdAt: string;
+  lastUsedAt: string;
   expiresAt: string;
 };
 

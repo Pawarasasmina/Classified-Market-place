@@ -53,6 +53,12 @@ type ListingCategory = {
 };
 
 type ListingLifecycleData = {
+  submittedAt?: Date | null;
+  approvedAt?: Date | null;
+  rejectedAt?: Date | null;
+  reviewedAt?: Date | null;
+  reviewedById?: string | null;
+  rejectionReason?: string | null;
   publishedAt?: Date | null;
   expiresAt?: Date | null;
   soldAt?: Date | null;
@@ -586,6 +592,10 @@ export class ListingsService implements OnModuleInit {
 
     if (status === ListingStatus.ACTIVE) {
       return {
+        approvedAt: now,
+        reviewedAt: now,
+        rejectedAt: null,
+        rejectionReason: null,
         publishedAt: now,
         expiresAt: addDays(now, category.listingExpiryDays),
         soldAt: null,
@@ -605,8 +615,40 @@ export class ListingsService implements OnModuleInit {
       };
     }
 
-    if (status === ListingStatus.DRAFT || status === ListingStatus.PENDING) {
+    if (status === ListingStatus.REJECTED) {
       return {
+        rejectedAt: now,
+        reviewedAt: now,
+        approvedAt: null,
+        publishedAt: null,
+        expiresAt: null,
+        soldAt: null,
+      };
+    }
+
+    if (status === ListingStatus.PENDING) {
+      return {
+        submittedAt: now,
+        approvedAt: null,
+        rejectedAt: null,
+        reviewedAt: null,
+        reviewedById: null,
+        rejectionReason: null,
+        publishedAt: null,
+        expiresAt: null,
+        soldAt: null,
+        removedAt: null,
+      };
+    }
+
+    if (status === ListingStatus.DRAFT) {
+      return {
+        submittedAt: null,
+        approvedAt: null,
+        rejectedAt: null,
+        reviewedAt: null,
+        reviewedById: null,
+        rejectionReason: null,
         publishedAt: null,
         expiresAt: null,
         soldAt: null,
@@ -1771,6 +1813,14 @@ export class ListingsService implements OnModuleInit {
       data: {
         status: dto.status,
         ...this.getLifecycleDataForStatus(dto.status, listing.category),
+        reviewedById: user.id,
+        reviewedAt: new Date(),
+        approvedAt:
+          dto.status === ListingStatus.ACTIVE ? new Date() : undefined,
+        rejectedAt:
+          dto.status === ListingStatus.REJECTED ? new Date() : undefined,
+        rejectionReason:
+          dto.status === ListingStatus.REJECTED ? dto.reason ?? null : null,
       },
       include: listingInclude,
     });

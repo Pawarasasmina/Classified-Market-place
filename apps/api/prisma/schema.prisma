@@ -19,6 +19,13 @@ enum ListingStatus {
   REMOVED
 }
 
+enum PhoneVerificationStatus {
+  NOT_REQUESTED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
 enum MessageType {
   TEXT
   IMAGE
@@ -65,6 +72,10 @@ enum TransactionType {
   LISTING_FEE
   WALLET_TOP_UP
   ADMIN_ADJUSTMENT
+  ADMIN_CREDIT
+  ADMIN_DEBIT
+  LISTING_FEE_REFUND
+  SELLER_LEVEL_UPGRADE
   REFUND
 }
 
@@ -112,6 +123,35 @@ enum SellerReviewStatus {
   HIDDEN
 }
 
+enum SellerProfileStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum VerifiedSellerStatus {
+  NOT_REQUESTED
+  REQUESTED
+  VERIFIED
+  REJECTED
+}
+
+enum SellerDocumentSubmissionStatus {
+  REQUESTED
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum SellerPrivilegeTierCode {
+  FREE
+  PREMIUM
+  VERIFIED
+  VIP
+}
+
 enum ListingPriorityRuleTarget {
   BOOSTED_LISTING
   BOOST_PACKAGE
@@ -136,8 +176,13 @@ model User {
   location                 String?
   emailVerified            Boolean                   @default(false) @map("isEmailVerified")
   phoneVerified            Boolean                   @default(false) @map("isPhoneVerified")
+  phoneVerificationStatus  PhoneVerificationStatus   @default(NOT_REQUESTED)
+  phoneVerificationRequestedAt DateTime?
+  phoneVerifiedAt          DateTime?
   failedLoginAttempts      Int                       @default(0)
+  lastFailedLoginAt        DateTime?
   lockedUntil              DateTime?
+  lastLoginAt              DateTime?
   termsAcceptedAt          DateTime?
   deactivatedAt            DateTime?
   role                     String                    @default("USER")
@@ -171,6 +216,13 @@ model User {
   savedListings            SavedListing[]
   listingViews             ListingView[]
   auditLogs                AuditLog[]                @relation("ActorAuditLogs")
+  reviewedListings         Listing[]                 @relation("ListingReviewedBy")
+  sellerProfile            SellerProfile?
+  reviewedSellerProfiles   SellerProfile[]           @relation("SellerProfileReviewedBy")
+  submittedSellerDocuments SellerDocumentSubmission[] @relation("SellerDocumentSubmittedBy")
+  reviewedSellerDocuments  SellerDocumentSubmission[] @relation("SellerDocumentReviewedBy")
+  sellerBadgeAssignments   SellerBadgeAssignment[]   @relation("SellerBadgeOwner")
+  assignedSellerBadges     SellerBadgeAssignment[]   @relation("SellerBadgeAssignedBy")
 }
 
 model Category {
@@ -190,8 +242,165 @@ model Category {
   listings          Listing[]
   boostPackages     BoostPackageCategory[]
   priorityRules     ListingPriorityRule[]
+  privilegeQuotas   SellerPrivilegeCategoryQuota[]
 
   @@index([parentId])
+}
+
+model SellerProfile {
+  id                    String               @id @default(uuid())
+  userId                String               @unique
+  status                SellerProfileStatus  @default(DRAFT)
+  verifiedSellerStatus  VerifiedSellerStatus @default(NOT_REQUESTED)
+  privilegeTierId       String?
+  formDefinition        Json?
+  formAnswers           Json?
+  requestMetadata       Json?
+  reviewMetadata        Json?
+  reviewNotes           String?              @db.Text
+  requestedAt           DateTime?
+  submittedAt           DateTime?
+  approvedAt            DateTime?
+  rejectedAt            DateTime?
+  reviewedAt            DateTime?
+  reviewedById          String?
+  rejectionReason       String?              @db.Text
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy            User?                @relation("SellerProfileReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  privilegeTier         SellerPrivilegeTier? @relation(fields: [privilegeTierId], references: [id], onDelete: SetNull)
+  documentRequests      SellerDocumentRequest[]
+  documentSubmissions   SellerDocumentSubmission[]
+  badgeAssignments      SellerBadgeAssignment[]
+
+  @@index([status, createdAt])
+  @@index([verifiedSellerStatus, createdAt])
+  @@index([reviewedById, reviewedAt])
+  @@index([privilegeTierId])
+}
+
+model SellerDocumentRequest {
+  id              String                     @id @default(uuid())
+  sellerProfileId String
+  label           String
+  slug            String
+  description     String?
+  isRequired      Boolean                    @default(true)
+  formDefinition  Json?
+  requestedAt     DateTime                   @default(now())
+  dueAt           DateTime?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  sellerProfile   SellerProfile              @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  submissions     SellerDocumentSubmission[]
+
+  @@unique([sellerProfileId, slug])
+  @@index([requestedAt])
+}
+
+model SellerDocumentSubmission {
+  id              String                         @id @default(uuid())
+  sellerProfileId String
+  requestId       String?
+  submittedById   String
+  status          SellerDocumentSubmissionStatus @default(SUBMITTED)
+  answers         Json?
+  files           Json?
+  reviewMetadata  Json?
+  reviewNotes     String?                        @db.Text
+  rejectionReason String?                        @db.Text
+  submittedAt     DateTime                       @default(now())
+  reviewedAt      DateTime?
+  reviewedById    String?
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+  sellerProfile   SellerProfile                  @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  request         SellerDocumentRequest?         @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  submittedBy     User                           @relation("SellerDocumentSubmittedBy", fields: [submittedById], references: [id], onDelete: Cascade)
+  reviewedBy      User?                          @relation("SellerDocumentReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([sellerProfileId, submittedAt])
+  @@index([requestId, submittedAt])
+  @@index([status, submittedAt])
+  @@index([reviewedById, reviewedAt])
+}
+
+model SellerPrivilegeTier {
+  id                     String                        @id @default(uuid())
+  code                   SellerPrivilegeTierCode       @unique
+  name                   String
+  slug                   String                        @unique
+  description            String?
+  monthlyFreeListingLimit Int                          @default(0)
+  activeListingLimit     Int?
+  pendingListingLimit    Int?
+  paidListingFee         Decimal                       @default(0) @db.Decimal(12, 2)
+  sellerLevelUpgradeFee  Decimal                       @default(0) @db.Decimal(12, 2)
+  currency               String                        @default("AED")
+  isActive               Boolean                       @default(true)
+  sortOrder              Int                           @default(0)
+  createdAt              DateTime                      @default(now())
+  updatedAt              DateTime                      @updatedAt
+  sellerProfiles         SellerProfile[]
+  categoryQuotas         SellerPrivilegeCategoryQuota[]
+
+  @@index([isActive, sortOrder])
+}
+
+model SellerPrivilegeCategoryQuota {
+  id                    String               @id @default(uuid())
+  sellerPrivilegeTierId String
+  categoryId            String
+  monthlyFreeListingLimit Int?
+  activeListingLimit    Int?
+  pendingListingLimit   Int?
+  paidListingFee        Decimal?             @db.Decimal(12, 2)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  sellerPrivilegeTier   SellerPrivilegeTier  @relation(fields: [sellerPrivilegeTierId], references: [id], onDelete: Cascade)
+  category              Category             @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([sellerPrivilegeTierId, categoryId])
+  @@index([categoryId])
+}
+
+model SellerBadgeType {
+  id              String                  @id @default(uuid())
+  label           String
+  slug            String                  @unique
+  description     String?
+  icon            String?
+  style           Json?
+  backgroundColor String?
+  textColor       String?
+  isActive        Boolean                 @default(true)
+  isHidden        Boolean                 @default(false)
+  sortOrder       Int                     @default(0)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  assignments     SellerBadgeAssignment[]
+
+  @@index([isActive, isHidden, sortOrder])
+}
+
+model SellerBadgeAssignment {
+  id              String           @id @default(uuid())
+  userId          String
+  sellerProfileId String?
+  badgeTypeId     String
+  assignedById    String?
+  metadata        Json?
+  assignedAt      DateTime         @default(now())
+  expiresAt       DateTime?
+  user            User             @relation("SellerBadgeOwner", fields: [userId], references: [id], onDelete: Cascade)
+  sellerProfile   SellerProfile?   @relation(fields: [sellerProfileId], references: [id], onDelete: SetNull)
+  badgeType       SellerBadgeType  @relation(fields: [badgeTypeId], references: [id], onDelete: Cascade)
+  assignedBy      User?            @relation("SellerBadgeAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, badgeTypeId])
+  @@index([badgeTypeId, assignedAt])
+  @@index([sellerProfileId, assignedAt])
 }
 
 model Listing {
@@ -205,10 +414,18 @@ model Listing {
   status                 ListingStatus      @default(DRAFT)
   listingPaymentMode     ListingPaymentMode @default(FREE)
   attributes             Json?
+  submittedAt            DateTime?
+  approvedAt             DateTime?
+  rejectedAt             DateTime?
+  reviewedAt             DateTime?
+  reviewedById           String?
+  rejectionReason        String?            @db.Text
   publishedAt            DateTime?
   expiresAt              DateTime?
   soldAt                 DateTime?
   removedAt              DateTime?
+  boostedUntil           DateTime?
+  boostPriority          Int?
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
   sellerId               String
@@ -221,6 +438,7 @@ model Listing {
   adminPriorityExpiresAt DateTime?
   seller                 User               @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   category               Category           @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  reviewedBy             User?              @relation("ListingReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
   images                 ListingImage[]
   conversations          Conversation[]
   sharedMessages         Message[]          @relation("SharedListingMessages")
@@ -239,6 +457,8 @@ model Listing {
   @@index([categoryId])
   @@index([status])
   @@index([expiresAt])
+  @@index([reviewedById, reviewedAt])
+  @@index([status, boostedUntil, boostPriority])
   @@index([status, paidPriorityEnabled])
   @@index([status, adminPriorityPromoted, adminPriorityStartsAt, adminPriorityExpiresAt])
   @@index([status, adminPriorityPinned, adminPriorityStartsAt, adminPriorityExpiresAt])
@@ -383,10 +603,13 @@ model MessageHidden {
 model RefreshToken {
   id        String    @id @default(uuid())
   tokenHash String    @unique
+  deviceName String?
   userAgent String?
   ipAddress String?
   expiresAt DateTime
   revokedAt DateTime?
+  revokedReason String?
+  lastUsedAt DateTime  @default(now())
   createdAt DateTime  @default(now())
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -361,7 +361,14 @@ export class UsersService {
         avatarUrl: updateUserDto.avatarUrl,
         bio: updateUserDto.bio,
         location: updateUserDto.location,
-        ...(phoneChanged ? { phoneVerified: false } : {}),
+        ...(phoneChanged
+          ? {
+              phoneVerified: false,
+              phoneVerificationStatus: 'NOT_REQUESTED',
+              phoneVerificationRequestedAt: null,
+              phoneVerifiedAt: null,
+            }
+          : {}),
       },
     });
 
@@ -375,6 +382,13 @@ export class UsersService {
 
     if (!existingUser) {
       throw new NotFoundException('User not found');
+    }
+
+    if (
+      changePasswordDto.confirmPassword &&
+      changePasswordDto.confirmPassword !== changePasswordDto.newPassword
+    ) {
+      throw new BadRequestException('Passwords do not match');
     }
 
     if (existingUser.passwordHash) {
@@ -403,12 +417,32 @@ export class UsersService {
       }
     }
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        passwordHash: await bcryptLib.hash(changePasswordDto.newPassword, 10),
-      },
-    });
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          passwordHash: await bcryptLib.hash(changePasswordDto.newPassword, 10),
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+        },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: {
+          revokedAt: new Date(),
+          revokedReason: 'password_changed',
+        },
+      }),
+      this.prisma.authAuditLog.create({
+        data: {
+          userId,
+          email: existingUser.email,
+          event: existingUser.passwordHash
+            ? 'password_changed'
+            : 'password_set',
+        },
+      }),
+    ]);
 
     return { message: 'Password updated successfully' };
   }

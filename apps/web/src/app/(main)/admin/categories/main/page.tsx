@@ -5,8 +5,10 @@ import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminCategories } from "@/lib/marketplace-api";
 
-export default async function AdminCategoriesPage() {
-  const { accessToken, user } = await requireSessionContext("/admin/categories");
+export default async function AdminMainCategoriesPage() {
+  const { accessToken, user } = await requireSessionContext(
+    "/admin/categories/main",
+  );
 
   if (!hasAdminPermission(user.role, "CATEGORIES_READ")) {
     redirect("/");
@@ -22,37 +24,25 @@ export default async function AdminCategoriesPage() {
           <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
             Admin dashboard
           </p>
-          <h1 className="mt-1 text-2xl font-bold">Category Management</h1>
+          <h1 className="mt-1 text-2xl font-bold">Main Categories</h1>
           <p className="mt-2 text-[var(--muted)]">
-            Manage categories, subcategories, and deeper category levels.
+            Focus on top-level category groups and their inherited question sets.
           </p>
         </div>
         <Link
-          href="/admin"
+          href="/admin/categories"
           className="rounded-md border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
         >
-          Back to admin
-        </Link>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <Link
-          href="/admin/categories/main"
-          className="rounded-md border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
-        >
-          Main categories
-        </Link>
-        <Link
-          href="/admin/categories/subcategories"
-          className="rounded-md border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
-        >
-          Subcategories
+          All categories
         </Link>
       </div>
 
       <CategoryManagement
         categories={categories}
         canEdit={canEditCategories}
+        returnTo="/admin/categories/main"
+        initialTypeFilter="main"
+        initialCreateMode="main"
       />
     </div>
   );

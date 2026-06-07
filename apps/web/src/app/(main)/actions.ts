@@ -530,6 +530,70 @@ function cleanNullable(value: FormDataEntryValue | null) {
   return trimmed ? trimmed : null;
 }
 
+function parseCategorySchemaDefinition(formData: FormData) {
+  const rawValue = cleanOptional(String(formData.get("schemaDefinition") ?? ""));
+
+  if (!rawValue) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as {
+      fields?: Array<{
+        key?: unknown;
+        label?: unknown;
+        type?: unknown;
+        options?: unknown;
+        required?: unknown;
+        placeholder?: unknown;
+      }>;
+    };
+
+    const fields: Array<{
+      key: string;
+      label: string;
+      type: "text" | "number" | "select" | "toggle";
+      options?: string[];
+      required?: boolean;
+      placeholder?: string;
+    }> = [];
+
+    if (Array.isArray(parsed.fields)) {
+      for (const field of parsed.fields) {
+        const key = cleanOptional(String(field.key ?? ""));
+        const label = cleanOptional(String(field.label ?? ""));
+        const type = String(field.type ?? "text");
+        const placeholder = cleanOptional(String(field.placeholder ?? ""));
+        const options = Array.isArray(field.options)
+          ? field.options
+              .map((option) => cleanOptional(String(option ?? "")))
+              .filter((option): option is string => Boolean(option))
+          : undefined;
+
+        if (!key || !label) {
+          continue;
+        }
+
+        fields.push({
+          key,
+          label,
+          type:
+            type === "number" || type === "select" || type === "toggle"
+              ? type
+              : "text",
+          options: type === "select" ? options : undefined,
+          required: field.required === true,
+          placeholder,
+        });
+      }
+    }
+
+    return { fields };
+  } catch {
+    return undefined;
+  }
+}
+
 function withQueryParam(path: string, params: Record<string, string>) {
   const separator = path.includes("?") ? "&" : "?";
   return `${path}${separator}${new URLSearchParams(params).toString()}`;
@@ -635,6 +699,7 @@ export async function registerAction(
       email: parsed.data.email,
       phone: parsed.data.phone || undefined,
       password: parsed.data.password,
+      confirmPassword: parsed.data.confirmPassword,
       termsAccepted: parsed.data.termsAccepted,
     });
     const params = new URLSearchParams({
@@ -1790,6 +1855,7 @@ export async function createCategoryAction(
       description: cleanOptional(parsed.data.description),
       parentSlug: cleanOptional(parsed.data.parentSlug),
       listingExpiryDays: parsed.data.listingExpiryDays,
+      schemaDefinition: parseCategorySchemaDefinition(formData),
     });
   } catch (error) {
     return {
@@ -1826,6 +1892,7 @@ export async function updateCategoryAction(formData: FormData) {
       listingExpiryDays: Number.isFinite(listingExpiryDays)
         ? listingExpiryDays
         : undefined,
+      schemaDefinition: parseCategorySchemaDefinition(formData),
     });
   }
 
@@ -1983,6 +2050,7 @@ export async function changePasswordAction(
     const response = await changePassword(accessToken, {
       currentPassword: parsed.data.currentPassword,
       newPassword: parsed.data.newPassword,
+      confirmPassword: parsed.data.confirmPassword,
     });
 
     return {

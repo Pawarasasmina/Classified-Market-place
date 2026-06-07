@@ -23,6 +23,11 @@ export class RegisterDto {
   @MinLength(8)
   password!: string;
 
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  confirmPassword?: string;
+
   @IsBoolean()
   termsAccepted!: boolean;
 }

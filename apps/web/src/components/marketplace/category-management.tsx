@@ -5,6 +5,7 @@ import {
   deleteCategoryAction,
   updateCategoryAction,
 } from "@/app/(main)/actions";
+import { CategorySchemaEditor } from "@/components/marketplace/category-schema-editor";
 import { type MarketplaceCategory } from "@/lib/marketplace";
 import { CategoryForm } from "./category-form";
 import { CategoryIcon } from "./category-icon";
@@ -325,11 +326,13 @@ function SelectedCategoryPanel({
   categories,
   onAddSubcategory,
   canEdit,
+  returnTo,
 }: {
   category?: MarketplaceCategory;
   categories: MarketplaceCategory[];
   onAddSubcategory: (category: MarketplaceCategory) => void;
   canEdit: boolean;
+  returnTo: string;
 }) {
   if (!category) {
     return (
@@ -368,7 +371,7 @@ function SelectedCategoryPanel({
       {canEdit ? (
       <form action={updateCategoryAction} className="mt-5 grid gap-4">
         <input type="hidden" name="slug" value={category.slug} />
-        <input type="hidden" name="returnTo" value="/admin/categories" />
+        <input type="hidden" name="returnTo" value={returnTo} />
         <label className="grid gap-2">
           <span className="text-sm font-semibold text-[var(--foreground)]">
             Name
@@ -434,6 +437,17 @@ function SelectedCategoryPanel({
           />
         </label>
 
+        <CategorySchemaEditor
+          key={`edit-schema-${category.slug}`}
+          initialFields={category.schema}
+          inheritedFields={
+            category.parentSlug
+              ? (categories.find((item) => item.slug === category.parentSlug)?.schema ??
+                [])
+              : []
+          }
+        />
+
         <div className="grid gap-2 sm:grid-cols-2">
           <button className="action-primary px-4 py-2 text-sm font-semibold">
             Save
@@ -456,7 +470,7 @@ function SelectedCategoryPanel({
       {canEdit && category.isActive ? (
         <form action={deleteCategoryAction} className="mt-3">
           <input type="hidden" name="slug" value={category.slug} />
-          <input type="hidden" name="returnTo" value="/admin/categories" />
+          <input type="hidden" name="returnTo" value={returnTo} />
           <button className="w-full rounded-md border border-[#e7b6a9] px-4 py-2 text-sm font-semibold text-[#9f321e] hover:bg-[#fff3ef]">
             Disable category
           </button>
@@ -469,13 +483,19 @@ function SelectedCategoryPanel({
 export function CategoryManagement({
   categories,
   canEdit = true,
+  returnTo = "/admin/categories",
+  initialTypeFilter = "all",
+  initialCreateMode = "main",
 }: {
   categories: MarketplaceCategory[];
   canEdit?: boolean;
+  returnTo?: string;
+  initialTypeFilter?: TypeFilter;
+  initialCreateMode?: "main" | "sub";
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialTypeFilter);
   const [selectedSlug, setSelectedSlug] = useState(categories[0]?.slug ?? "");
   const [expandedSlugs, setExpandedSlugs] = useState<Set<string>>(() => {
     const tree = buildCategoryTree(categories);
@@ -560,6 +580,8 @@ export function CategoryManagement({
               key={presetParent?.version ?? "category-root-form"}
               categories={categories}
               presetParentSlug={presetParent?.slug}
+              returnTo={returnTo}
+              initialMode={initialCreateMode}
             />
           ) : (
             <div className="rounded-md border border-[var(--line)] bg-white p-4 text-sm text-[var(--muted)] shadow-sm">
@@ -682,6 +704,7 @@ export function CategoryManagement({
             categories={categories}
             onAddSubcategory={startSubcategory}
             canEdit={canEdit}
+            returnTo={returnTo}
           />
         </div>
       </div>
