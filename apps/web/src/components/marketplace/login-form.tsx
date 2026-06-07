@@ -93,6 +93,12 @@ export function LoginForm({
                 Create account
               </Link>
               <Link
+                href={`/register${nextPath !== "/" ? `?next=${encodeURIComponent(nextPath)}` : ""}#seller-signup`}
+                className="action-secondary px-4 py-3 text-sm font-bold"
+              >
+                Create seller account
+              </Link>
+              <Link
                 href={nextPath === "/login" ? "/" : nextPath}
                 className="action-secondary px-4 py-3 text-sm font-bold"
               >

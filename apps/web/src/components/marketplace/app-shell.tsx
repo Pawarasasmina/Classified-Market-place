@@ -28,6 +28,7 @@ const customerNavLinks = [
   { href: "/messages", label: "Messages" },
   { href: "/notifications", label: "Notifications" },
   { href: "/transactions", label: "Purchases" },
+  { href: "/wallet", label: "Wallet" },
   { href: "/reports", label: "Reports" },
   { href: "/my-listings", label: "My Listings" },
   { href: "/profile", label: "Profile" },
@@ -43,6 +44,41 @@ const adminNavLinks: Array<{
     href: "/admin/categories",
     label: "Categories",
     permission: "CATEGORIES_READ",
+  },
+  {
+    href: "/admin/listings",
+    label: "Listings",
+    permission: "LISTINGS_READ",
+  },
+  {
+    href: "/admin/sellers",
+    label: "Sellers",
+    permission: "USERS_READ",
+  },
+  {
+    href: "/admin/sellers/approvals",
+    label: "Approvals",
+    permission: "USERS_READ",
+  },
+  {
+    href: "/admin/sellers/verified",
+    label: "Verified",
+    permission: "USERS_READ",
+  },
+  {
+    href: "/admin/sellers/badges",
+    label: "Badges",
+    permission: "USERS_READ",
+  },
+  {
+    href: "/admin/sellers/form",
+    label: "Seller Form",
+    permission: "USERS_WRITE",
+  },
+  {
+    href: "/admin/sellers/privileges",
+    label: "Privileges",
+    permission: "USERS_READ",
   },
   {
     href: "/admin/boost-packages",
@@ -87,6 +123,11 @@ const adminNavLinks: Array<{
     href: "/admin/reports/wallet-payments",
     label: "Wallet Payments",
     permission: "REPORTS_READ",
+  },
+  {
+    href: "/admin/wallet",
+    label: "Wallet Ops",
+    permission: "WALLETS_WRITE",
   },
   {
     href: "/admin/reports/sellers",
@@ -304,6 +345,16 @@ function isAdminUser(user: SessionUser | null) {
   return hasAnyAdminPermission(user?.role);
 }
 
+function getCustomerNavLinks(user: SessionUser | null) {
+  return customerNavLinks.filter((link) => {
+    if (link.href !== "/my-listings") {
+      return true;
+    }
+
+    return Boolean(user?.sellerProfile);
+  });
+}
+
 function adminWorkspaceRoute(pathname: string) {
   return (
     pathname.startsWith("/admin") ||
@@ -361,7 +412,7 @@ export function MarketplaceShell({
       )
     : adminLogin
       ? []
-      : customerNavLinks;
+      : getCustomerNavLinks(user);
 
   useEffect(() => {
     const root = document.documentElement;

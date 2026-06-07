@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { rolesForPermission } from '../common/admin-permissions';
@@ -7,6 +14,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { CompleteWalletTopUpDto } from './dto/complete-wallet-top-up.dto';
 import { CreateWalletTopUpDto } from './dto/create-wallet-top-up.dto';
 import { CreditWalletDto } from './dto/credit-wallet.dto';
+import { DebitWalletDto } from './dto/debit-wallet.dto';
 import { WalletsService } from './wallets.service';
 
 @Controller()
@@ -47,5 +55,23 @@ export class WalletsController {
     @Body() dto: CreditWalletDto,
   ) {
     return this.walletsService.creditWallet(userId, dto, admin.id);
+  }
+
+  @Get('admin/wallets/:userId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...rolesForPermission('WALLETS_WRITE'))
+  getWalletForAdmin(@Param('userId') userId: string) {
+    return this.walletsService.getWalletForAdmin(userId);
+  }
+
+  @Post('admin/wallets/:userId/debit')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...rolesForPermission('WALLETS_WRITE'))
+  debitWallet(
+    @CurrentUser() admin: { id: string },
+    @Param('userId') userId: string,
+    @Body() dto: DebitWalletDto,
+  ) {
+    return this.walletsService.debitWallet(userId, dto, admin.id);
   }
 }

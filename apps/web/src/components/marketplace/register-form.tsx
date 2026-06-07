@@ -6,15 +6,23 @@ import { registerAction } from "@/app/(main)/actions";
 import { GoogleAuthForm } from "@/components/marketplace/google-auth-form";
 import { PasswordField } from "@/components/marketplace/password-field";
 import { PasswordStrengthMeter } from "@/components/marketplace/password-strength-meter";
-import { type FormActionState } from "@/lib/marketplace";
+import { SellerFormFields } from "@/components/marketplace/seller-form-fields";
+import { type ApiSellerFormField, type FormActionState } from "@/lib/marketplace";
 
 const initialState: FormActionState = {
   message: null,
 };
 
-export function RegisterForm({ nextPath }: { nextPath: string }) {
+export function RegisterForm({
+  nextPath,
+  sellerFields,
+}: {
+  nextPath: string;
+  sellerFields: ApiSellerFormField[];
+}) {
   const [state, formAction, pending] = useActionState(registerAction, initialState);
   const [password, setPassword] = useState("");
+  const [accountType, setAccountType] = useState<"CUSTOMER" | "SELLER">("CUSTOMER");
 
   return (
     <div className="grid gap-6">
@@ -22,6 +30,32 @@ export function RegisterForm({ nextPath }: { nextPath: string }) {
 
       <form action={formAction} className="panel">
         <input type="hidden" name="next" value={nextPath} />
+        <input type="hidden" name="accountType" value={accountType} />
+
+        <div className="mb-5 grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setAccountType("CUSTOMER")}
+            className={`rounded-md border px-4 py-3 text-left text-sm font-bold ${
+              accountType === "CUSTOMER"
+                ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand-strong)]"
+                : "border-[var(--line)] bg-[var(--surface-strong)] text-[var(--muted)]"
+            }`}
+          >
+            Customer account
+          </button>
+          <button
+            type="button"
+            onClick={() => setAccountType("SELLER")}
+            className={`rounded-md border px-4 py-3 text-left text-sm font-bold ${
+              accountType === "SELLER"
+                ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand-strong)]"
+                : "border-[var(--line)] bg-[var(--surface-strong)] text-[var(--muted)]"
+            }`}
+          >
+            Seller account
+          </button>
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="space-y-2 sm:col-span-2">
@@ -114,6 +148,19 @@ export function RegisterForm({ nextPath }: { nextPath: string }) {
           ) : null}
         </div>
 
+        {accountType === "SELLER" && sellerFields.length ? (
+          <div
+            id="seller-signup"
+            className="mt-6 grid gap-4 border-t border-[var(--line)] pt-6"
+          >
+            <div>
+              <p className="section-eyebrow">Seller onboarding</p>
+              <h2 className="mt-2 text-xl font-black">Tell buyers about your seller profile</h2>
+            </div>
+            <SellerFormFields fields={sellerFields} />
+          </div>
+        ) : null}
+
         {state.message ? (
           <p className="mt-4 rounded-md border border-[rgba(185,56,32,0.18)] bg-[rgba(255,243,240,0.95)] px-4 py-3 text-sm text-[#8f2e1c]">
             {state.message}
@@ -128,11 +175,11 @@ export function RegisterForm({ nextPath }: { nextPath: string }) {
           >
             {pending ? "Creating account..." : "Create account"}
           </button>
-          <Link
-            href={`/login${nextPath !== "/my-listings" ? `?next=${encodeURIComponent(nextPath)}` : ""}`}
-            className="action-secondary px-5 py-3 text-sm font-bold"
-          >
-            Already have an account
+              <Link
+                href={`/login${nextPath !== "/" ? `?next=${encodeURIComponent(nextPath)}` : ""}`}
+                className="action-secondary px-5 py-3 text-sm font-bold"
+              >
+                Already have an account
           </Link>
           <Link href="/" className="action-secondary px-5 py-3 text-sm font-bold">
             Continue as guest

@@ -1,4 +1,10 @@
 export type AttributeFieldType = "text" | "number" | "select" | "toggle";
+export type SellerFieldType =
+  | "text"
+  | "textarea"
+  | "select"
+  | "toggle"
+  | "file";
 
 export type AttributeField = {
   key: string;
@@ -16,6 +22,77 @@ export type ApiCategoryField = {
   options?: string[] | null;
   required?: boolean | null;
   placeholder?: string | null;
+};
+
+export type ApiSellerProfileStatus =
+  | "DRAFT"
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "SUSPENDED";
+
+export type ApiVerifiedSellerStatus =
+  | "NOT_REQUESTED"
+  | "REQUESTED"
+  | "VERIFIED"
+  | "REJECTED";
+
+export type ApiSellerFormField = {
+  key: string;
+  label: string;
+  type: SellerFieldType;
+  required?: boolean;
+  placeholder?: string;
+  helpText?: string;
+  options?: string[];
+  sortOrder?: number;
+};
+
+export type ApiSellerBadgeType = {
+  id: string;
+  label: string;
+  slug: string;
+  description?: string | null;
+  icon?: string | null;
+  style?: Record<string, unknown> | null;
+  backgroundColor?: string | null;
+  textColor?: string | null;
+  isActive: boolean;
+  isHidden: boolean;
+  sortOrder: number;
+};
+
+export type ApiSellerBadgeAssignment = {
+  id: string;
+  assignedAt: string;
+  expiresAt?: string | null;
+  metadata?: Record<string, unknown> | null;
+  badgeType: ApiSellerBadgeType;
+};
+
+export type ApiSellerPrivilegeTier = {
+  id: string;
+  code: "FREE" | "PREMIUM" | "VERIFIED" | "VIP";
+  name: string;
+  slug: string;
+  description?: string | null;
+  monthlyFreeListingLimit: number;
+  activeListingLimit?: number | null;
+  pendingListingLimit?: number | null;
+  paidListingFee: number | string;
+  sellerLevelUpgradeFee: number | string;
+  currency: string;
+  isActive: boolean;
+  sortOrder: number;
+  categoryQuotas?: Array<{
+    id: string;
+    categoryId: string;
+    monthlyFreeListingLimit?: number | null;
+    activeListingLimit?: number | null;
+    pendingListingLimit?: number | null;
+    paidListingFee?: number | string | null;
+    category?: Pick<ApiCategory, "id" | "name" | "slug" | "parentId">;
+  }>;
 };
 
 export type ApiCategory = {
@@ -53,6 +130,13 @@ export type ApiUser = {
   phoneVerified: boolean;
   emailVerified: boolean;
   reputationScore: number;
+  sellerProfile?: {
+    id: string;
+    status: ApiSellerProfileStatus;
+    verifiedSellerStatus: ApiVerifiedSellerStatus;
+    privilegeTier?: ApiSellerPrivilegeTier | null;
+    badgeAssignments?: ApiSellerBadgeAssignment[];
+  } | null;
   averageRating?: number | null;
   ratingCount?: number;
   reviewCount?: number;
@@ -62,6 +146,89 @@ export type ApiUser = {
 };
 
 export type ApiSellerPriorityTier = "NONE" | "AUTHORIZED" | "VERIFIED" | "VIP";
+
+export type ApiSellerProfile = {
+  id: string;
+  userId: string;
+  status: ApiSellerProfileStatus;
+  verifiedSellerStatus: ApiVerifiedSellerStatus;
+  user: ApiUser;
+  privilegeTier?: ApiSellerPrivilegeTier | null;
+  formDefinition?: {
+    fields?: ApiSellerFormField[];
+  } | null;
+  formAnswers?: Record<string, unknown> | null;
+  requestMetadata?: Record<string, unknown> | null;
+  reviewMetadata?: Record<string, unknown> | null;
+  reviewNotes?: string | null;
+  rejectionReason?: string | null;
+  requestedAt?: string | null;
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  reviewedAt?: string | null;
+  missingRequiredFields?: string[];
+  unresolvedRequiredDocuments?: string[];
+  badges?: ApiSellerBadgeAssignment[];
+  stats?: {
+    totalListings: number;
+    activeListings: number;
+    pendingListings: number;
+    soldListings: number;
+    conversations: number;
+    offers: number;
+  };
+  documentRequests?: Array<{
+    id: string;
+    label: string;
+    slug: string;
+    description?: string | null;
+    isRequired: boolean;
+    dueAt?: string | null;
+  }>;
+  documentSubmissions?: Array<{
+    id: string;
+    requestId?: string | null;
+    status: "REQUESTED" | "SUBMITTED" | "APPROVED" | "REJECTED";
+    answers?: Record<string, unknown> | null;
+    files?: Array<Record<string, unknown>> | null;
+    reviewNotes?: string | null;
+    rejectionReason?: string | null;
+    submittedAt: string;
+    reviewedAt?: string | null;
+  }>;
+};
+
+export type ApiSellerProfileEnvelope = {
+  sellerProfile: ApiSellerProfile | null;
+  formDefinition: {
+    fields: ApiSellerFormField[];
+  };
+};
+
+export type ApiPublicSellerProfile = {
+  id: string;
+  userId: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  location?: string | null;
+  joinedAt: string;
+  sellerPriorityTier: ApiSellerPriorityTier;
+  profileStatus?: ApiSellerProfileStatus | null;
+  verifiedSellerStatus?: ApiVerifiedSellerStatus | null;
+  badges: ApiSellerBadgeAssignment[];
+  stats: {
+    totalListings: number;
+    activeListings: number;
+    pendingListings: number;
+    soldListings: number;
+    conversations: number;
+    offers: number;
+  };
+  formAnswers?: Record<string, unknown> | null;
+  reviewNotes?: string | null;
+};
 
 export type ApiListingStatus =
   | "PENDING"
@@ -224,13 +391,16 @@ export type ApiWalletAccount = {
   userId: string;
   balance: number | string;
   currency: string;
+  user?: Pick<ApiUser, "id" | "displayName" | "email" | "role">;
   ledger?: Array<{
     id: string;
     type: string;
     amount: number | string;
     currency: string;
     balanceAfter: number | string;
+    metadata?: Record<string, unknown> | null;
     createdAt: string;
+    transaction?: ApiTransaction | null;
   }>;
 };
 
@@ -1059,10 +1229,18 @@ export type ApiListing = {
   status: ApiListingStatus;
   listingPaymentMode?: ApiListingPaymentMode;
   attributes?: Record<string, unknown> | null;
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewedById?: string | null;
   publishedAt?: string | null;
   expiresAt?: string | null;
   soldAt?: string | null;
   removedAt?: string | null;
+  rejectionReason?: string | null;
+  boostedUntil?: string | null;
+  boostPriority?: number | null;
   createdAt: string;
   updatedAt: string;
   sellerId: string;
@@ -1103,6 +1281,10 @@ export type SessionUser = {
   emailVerified: boolean;
   reputationScore: number;
   sellerPriorityTier: ApiSellerPriorityTier;
+  sellerProfile?: ApiUser["sellerProfile"] | null;
+  sellerProfileStatus?: ApiSellerProfileStatus | null;
+  verifiedSellerStatus?: ApiVerifiedSellerStatus | null;
+  sellerBadges: ApiSellerBadgeAssignment[];
   createdAt: string;
 };
 
@@ -1143,16 +1325,26 @@ export type MarketplaceListing = {
     | "Sold"
     | "Removed"
     | "Draft";
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewedById?: string | null;
   publishedAt?: string | null;
   expiresAt?: string | null;
   soldAt?: string | null;
   removedAt?: string | null;
+  rejectionReason?: string | null;
+  boostedUntil?: string | null;
+  boostPriority?: number | null;
   postedLabel: string;
   description: string;
   featureBullets: string[];
   sellerId: string;
   sellerDisplayName?: string;
   sellerVerified?: boolean;
+  sellerVerifiedSellerStatus?: ApiVerifiedSellerStatus | null;
+  sellerBadges: ApiSellerBadgeAssignment[];
   sellerPriorityTier: ApiSellerPriorityTier;
   sellerJoinedLabel?: string;
   sellerTotalListings?: number;
@@ -1263,8 +1455,16 @@ export type MarketplaceSeller = {
   bio?: string | null;
   location?: string | null;
   verified: boolean;
+  profileStatus?: ApiSellerProfileStatus | null;
+  verifiedSellerStatus?: ApiVerifiedSellerStatus | null;
+  badges: ApiSellerBadgeAssignment[];
   joinedLabel: string;
   totalListings: number;
+  activeListings?: number;
+  pendingListings?: number;
+  soldListings?: number;
+  conversations?: number;
+  offers?: number;
   averageRating: number | null;
   ratingCount: number;
   reviewCount: number;
@@ -1763,6 +1963,10 @@ export function mapSessionUser(user: ApiUser): SessionUser {
     emailVerified: user.emailVerified,
     reputationScore: user.reputationScore,
     sellerPriorityTier: user.sellerPriorityTier ?? "NONE",
+    sellerProfile: user.sellerProfile ?? null,
+    sellerProfileStatus: user.sellerProfile?.status ?? null,
+    verifiedSellerStatus: user.sellerProfile?.verifiedSellerStatus ?? null,
+    sellerBadges: user.sellerProfile?.badgeAssignments ?? [],
     createdAt: user.createdAt,
   };
 }
@@ -1866,10 +2070,18 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
         ? attributes.condition
         : humanizeListingStatus(listing.status),
     status: humanizeListingStatus(listing.status),
+    submittedAt: listing.submittedAt ?? null,
+    approvedAt: listing.approvedAt ?? null,
+    rejectedAt: listing.rejectedAt ?? null,
+    reviewedAt: listing.reviewedAt ?? null,
+    reviewedById: listing.reviewedById ?? null,
     publishedAt: listing.publishedAt ?? null,
     expiresAt: listing.expiresAt ?? null,
     soldAt: listing.soldAt ?? null,
     removedAt: listing.removedAt ?? null,
+    rejectionReason: listing.rejectionReason ?? null,
+    boostedUntil: listing.boostedUntil ?? null,
+    boostPriority: listing.boostPriority ?? null,
     postedLabel: formatRelativeTime(listing.createdAt),
     description: listing.description,
     featureBullets:
@@ -1879,8 +2091,13 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
     sellerId: listing.sellerId,
     sellerDisplayName: listing.seller?.displayName,
     sellerVerified: Boolean(
-      listing.seller?.phoneVerified || listing.seller?.emailVerified,
+      listing.seller?.sellerProfile?.verifiedSellerStatus === "VERIFIED" ||
+        listing.seller?.phoneVerified ||
+        listing.seller?.emailVerified,
     ),
+    sellerVerifiedSellerStatus:
+      listing.seller?.sellerProfile?.verifiedSellerStatus ?? null,
+    sellerBadges: listing.seller?.sellerProfile?.badgeAssignments ?? [],
     sellerPriorityTier: listing.seller?.sellerPriorityTier ?? "NONE",
     sellerJoinedLabel: listing.seller
       ? formatJoinedLabel(listing.seller.createdAt)
@@ -2009,21 +2226,29 @@ export function mapAuditLog(log: ApiAuditLog): MarketplaceAuditLog {
 }
 
 export function mapSeller(
-  user: ApiUser,
+  user: ApiPublicSellerProfile,
   ratingSummary?: ApiSellerRatingSummary,
 ): MarketplaceSeller {
   return {
-    id: user.id,
+    id: user.userId,
     name: user.displayName,
     avatarUrl: user.avatarUrl,
     bio: user.bio,
     location: user.location,
-    verified: user.phoneVerified || user.emailVerified,
-    joinedLabel: formatJoinedLabel(user.createdAt),
-    totalListings: user.listings?.length ?? 0,
+    verified: user.verifiedSellerStatus === "VERIFIED",
+    profileStatus: user.profileStatus ?? null,
+    verifiedSellerStatus: user.verifiedSellerStatus ?? null,
+    badges: user.badges ?? [],
+    joinedLabel: formatJoinedLabel(user.joinedAt),
+    totalListings: user.stats.totalListings,
+    activeListings: user.stats.activeListings,
+    pendingListings: user.stats.pendingListings,
+    soldListings: user.stats.soldListings,
+    conversations: user.stats.conversations,
+    offers: user.stats.offers,
     averageRating: ratingSummary?.averageRating ?? null,
     ratingCount: ratingSummary?.ratingCount ?? 0,
     reviewCount: ratingSummary?.reviewCount ?? 0,
-    reputationScore: ratingSummary?.reputationScore ?? user.reputationScore,
+    reputationScore: ratingSummary?.reputationScore ?? 0,
   };
 }

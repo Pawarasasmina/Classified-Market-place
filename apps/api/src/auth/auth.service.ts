@@ -13,6 +13,7 @@ import { createHash, randomBytes, randomInt } from 'crypto';
 import type { Prisma } from '@prisma/client';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SellerProfilesService } from '../seller-profiles/seller-profiles.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { LoginDto } from './dto/login.dto';
@@ -118,6 +119,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
+    private readonly sellerProfilesService: SellerProfilesService,
   ) {}
 
   private async signAccessToken(user: AuthUser) {
@@ -566,6 +568,14 @@ export class AuthService {
         role: 'USER',
       },
     });
+
+    if (registerDto.accountType === 'SELLER') {
+      await this.sellerProfilesService.registerSellerProfile(user.id, user.role, {
+        formAnswers: registerDto.sellerFormAnswers,
+        requestMetadata: registerDto.sellerRequestMetadata,
+      });
+    }
+
     const emailVerificationPreviewUrl = await this.createEmailVerificationLink(
       user.id,
     );
@@ -582,7 +592,10 @@ export class AuthService {
     await this.auditAuthEvent('register_success', context, {
       userId: user.id,
       email,
-      metadata: { emailSent },
+      metadata: {
+        emailSent,
+        accountType: registerDto.accountType ?? 'CUSTOMER',
+      },
     });
 
     return {

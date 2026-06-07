@@ -7,18 +7,24 @@ import {
   PhoneVerificationPanel,
   ProfileForm,
 } from "@/components/marketplace/profile-form";
+import { SellerOnboardingPanel } from "@/components/marketplace/seller-onboarding-panel";
 import { SellerRatingSummary } from "@/components/marketplace/seller-rating-summary";
 import { requireSessionContext } from "@/lib/auth-dal";
 import {
   fetchMyListings,
+  fetchMySellerProfile,
   fetchSellerRatingSummary,
 } from "@/lib/marketplace-api";
 
 export default async function ProfilePage() {
   const { accessToken, user } = await requireSessionContext("/profile");
-  const [listings, ratingSummary] = await Promise.all([
+  const [listings, ratingSummary, sellerProfileEnvelope] = await Promise.all([
     fetchMyListings(accessToken),
     fetchSellerRatingSummary(user.id),
+    fetchMySellerProfile(accessToken).catch(() => ({
+      sellerProfile: null,
+      formDefinition: { fields: [] },
+    })),
   ]);
 
   return (
@@ -41,6 +47,9 @@ export default async function ProfilePage() {
             <p className="text-sm text-[var(--muted)]">{user.email}</p>
             <p className="mt-1 text-xs font-bold uppercase tracking-wide text-[var(--accent)]">
               {user.role}
+            </p>
+            <p className="mt-1 text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
+              Seller profile: {user.sellerProfileStatus ?? "Not started"}
             </p>
           </div>
         </div>
@@ -126,6 +135,13 @@ export default async function ProfilePage() {
           verified={user.phoneVerified}
         />
         <EmailVerificationPanel verified={user.emailVerified} />
+        {sellerProfileEnvelope.sellerProfile?.status !== "APPROVED" ? (
+          <SellerOnboardingPanel
+            envelope={sellerProfileEnvelope}
+            returnTo="/profile"
+            title="Switch to seller"
+          />
+        ) : null}
         <ChangePasswordForm />
         <DeactivateAccountForm />
       </section>

@@ -89,6 +89,14 @@ export function ListingCard({
                 ? `${listing.sellerDisplayName}${listing.sellerVerified ? " / verified" : ""}`
                 : "Marketplace seller"}
             </span>
+            {listing.sellerBadges.length ? (
+              <span className="mt-1 block truncate text-xs font-bold text-[var(--foreground)]">
+                {listing.sellerBadges
+                  .slice(0, 2)
+                  .map((badge) => badge.badgeType.label)
+                  .join(" / ")}
+              </span>
+            ) : null}
             <span className="mt-1 block truncate text-xs font-bold text-[var(--accent-strong)]">
               Seller rating: {sellerRatingLabel}
             </span>

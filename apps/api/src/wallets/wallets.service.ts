@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma, TransactionStatus, TransactionType } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -6,8 +11,27 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CompleteWalletTopUpDto } from './dto/complete-wallet-top-up.dto';
 import { CreateWalletTopUpDto } from './dto/create-wallet-top-up.dto';
 import { CreditWalletDto } from './dto/credit-wallet.dto';
+import { DebitWalletDto } from './dto/debit-wallet.dto';
 
 const defaultWalletCurrency = 'AED';
+
+const walletAdminInclude = {
+  ledger: {
+    orderBy: { createdAt: 'desc' as const },
+    take: 50,
+    include: {
+      transaction: true,
+    },
+  },
+  user: {
+    select: {
+      id: true,
+      displayName: true,
+      email: true,
+      role: true,
+    },
+  },
+} satisfies Prisma.WalletAccountInclude;
 
 function normalizeCurrency(value: string | undefined) {
   return (value ?? defaultWalletCurrency).trim().toUpperCase();
@@ -35,8 +59,39 @@ export class WalletsService {
         ledger: {
           orderBy: { createdAt: 'desc' },
           take: 20,
+          include: {
+            transaction: true,
+          },
         },
       },
+    });
+  }
+
+  async getWalletForAdmin(userId: string) {
+    const wallet = await this.prisma.walletAccount.findUnique({
+      where: { userId },
+      include: walletAdminInclude,
+    });
+
+    if (wallet) {
+      return wallet;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.prisma.walletAccount.create({
+      data: {
+        userId,
+        currency: defaultWalletCurrency,
+      },
+      include: walletAdminInclude,
     });
   }
 
@@ -65,6 +120,21 @@ export class WalletsService {
       }
 
       const nextBalance = new Prisma.Decimal(wallet.balance).plus(amount);
+      const transaction = await tx.transaction.create({
+        data: {
+          userId,
+          type: TransactionType.ADMIN_CREDIT,
+          status: TransactionStatus.SUCCEEDED,
+          amount,
+          currency,
+          provider: 'wallet',
+          providerRef: `admin-credit:${userId}:${Date.now()}`,
+          metadata: {
+            note: dto.note,
+            actorId: actorId ?? null,
+          },
+        },
+      });
 
       const updatedWallet = await tx.walletAccount.update({
         where: { id: wallet.id },
@@ -76,12 +146,14 @@ export class WalletsService {
       const ledger = await tx.walletLedger.create({
         data: {
           walletId: wallet.id,
-        type: 'ADMIN_CREDIT',
+          transactionId: transaction.id,
+          type: 'ADMIN_CREDIT',
           amount,
           currency,
           balanceAfter: nextBalance,
           metadata: {
             note: dto.note,
+            actorId: actorId ?? null,
           },
         },
       });
@@ -93,7 +165,7 @@ export class WalletsService {
       await this.notifications?.notifyWalletTopUp({
         userId,
         actorId,
-        transactionId: null,
+        transactionId: result.ledger.transactionId ?? null,
         walletId: result.wallet.id,
         ledgerId: result.ledger.id,
         amount,
@@ -106,6 +178,78 @@ export class WalletsService {
         `Could not persist wallet top-up notification for ${result.wallet.id}`,
       );
     }
+
+    return result.wallet;
+  }
+
+  async debitWallet(
+    userId: string,
+    dto: DebitWalletDto,
+    actorId?: string | null,
+  ) {
+    const amount = new Prisma.Decimal(dto.amount);
+    const currency = normalizeCurrency(dto.currency);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.walletAccount.findUnique({
+        where: { userId },
+      });
+
+      if (!wallet) {
+        throw new NotFoundException('Wallet not found');
+      }
+
+      if (wallet.currency !== currency) {
+        throw new BadRequestException(
+          'Wallet currency does not match debit currency',
+        );
+      }
+
+      if (new Prisma.Decimal(wallet.balance).lt(amount)) {
+        throw new BadRequestException('Insufficient wallet balance');
+      }
+
+      const nextBalance = new Prisma.Decimal(wallet.balance).minus(amount);
+      const transaction = await tx.transaction.create({
+        data: {
+          userId,
+          type: TransactionType.ADMIN_DEBIT,
+          status: TransactionStatus.SUCCEEDED,
+          amount,
+          currency,
+          provider: 'wallet',
+          providerRef: `admin-debit:${userId}:${Date.now()}`,
+          metadata: {
+            note: dto.note,
+            actorId: actorId ?? null,
+          },
+        },
+      });
+
+      const updatedWallet = await tx.walletAccount.update({
+        where: { id: wallet.id },
+        data: {
+          balance: nextBalance,
+        },
+      });
+
+      const ledger = await tx.walletLedger.create({
+        data: {
+          walletId: wallet.id,
+          transactionId: transaction.id,
+          type: 'ADMIN_DEBIT',
+          amount: amount.mul(-1),
+          currency,
+          balanceAfter: nextBalance,
+          metadata: {
+            note: dto.note,
+            actorId: actorId ?? null,
+          },
+        },
+      });
+
+      return { ledger, wallet: updatedWallet };
+    });
 
     return result.wallet;
   }

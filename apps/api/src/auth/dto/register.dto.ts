@@ -1,6 +1,8 @@
 import {
   IsBoolean,
   IsEmail,
+  IsIn,
+  IsObject,
   IsOptional,
   IsPhoneNumber,
   IsString,
@@ -8,6 +10,10 @@ import {
 } from 'class-validator';
 
 export class RegisterDto {
+  @IsOptional()
+  @IsIn(['CUSTOMER', 'SELLER'])
+  accountType?: 'CUSTOMER' | 'SELLER';
+
   @IsString()
   @MinLength(2)
   displayName!: string;
@@ -27,6 +33,14 @@ export class RegisterDto {
   @IsString()
   @MinLength(8)
   confirmPassword?: string;
+
+  @IsOptional()
+  @IsObject()
+  sellerFormAnswers?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsObject()
+  sellerRequestMetadata?: Record<string, unknown>;
 
   @IsBoolean()
   termsAccepted!: boolean;

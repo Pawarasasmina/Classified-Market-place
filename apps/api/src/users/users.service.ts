@@ -58,6 +58,17 @@ const safeUserSelect = {
   reputationScore: true,
   createdAt: true,
   updatedAt: true,
+  sellerProfile: {
+    include: {
+      privilegeTier: true,
+      badgeAssignments: {
+        include: {
+          badgeType: true,
+        },
+        orderBy: [{ assignedAt: 'desc' as const }],
+      },
+    },
+  },
 };
 
 const listingInclude = {
@@ -161,6 +172,7 @@ export class UsersService {
   async getCurrentUser(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      select: safeUserSelect,
     });
 
     if (!user) {
@@ -174,6 +186,17 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
+        sellerProfile: {
+          include: {
+            privilegeTier: true,
+            badgeAssignments: {
+              include: {
+                badgeType: true,
+              },
+              orderBy: [{ assignedAt: 'desc' }],
+            },
+          },
+        },
         listings: {
           where: {
             status: ListingStatus.ACTIVE,
@@ -219,6 +242,7 @@ export class UsersService {
 
   async findAllForAdmin() {
     const users = await this.prisma.user.findMany({
+      select: safeUserSelect,
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
@@ -235,6 +259,7 @@ export class UsersService {
   async findOneForAdmin(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      select: safeUserSelect,
     });
 
     if (!user) {

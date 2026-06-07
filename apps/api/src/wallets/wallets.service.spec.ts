@@ -7,6 +7,9 @@ describe('WalletsService', () => {
       upsert: jest.Mock;
       update: jest.Mock;
     };
+    transaction: {
+      create: jest.Mock;
+    };
     walletLedger: {
       create: jest.Mock;
     };
@@ -14,10 +17,15 @@ describe('WalletsService', () => {
   let prisma: {
     walletAccount: {
       upsert: jest.Mock;
+      findUnique?: jest.Mock;
+      create?: jest.Mock;
     };
     transaction: {
       create: jest.Mock;
       update: jest.Mock;
+    };
+    user: {
+      findUnique: jest.Mock;
     };
     $transaction: jest.Mock;
   };
@@ -46,10 +54,24 @@ describe('WalletsService', () => {
           currency: 'AED',
         }),
       },
+      transaction: {
+        create: jest.fn().mockResolvedValue({
+          id: 'transaction-2',
+          userId: 'seller-1',
+          type: TransactionType.ADMIN_CREDIT,
+          status: TransactionStatus.SUCCEEDED,
+          amount: new Prisma.Decimal(100),
+          currency: 'AED',
+          provider: 'wallet',
+          providerRef: 'admin-credit:seller-1:1',
+          metadata: null,
+        }),
+      },
       walletLedger: {
         create: jest.fn().mockResolvedValue({
           id: 'ledger-1',
           walletId: 'wallet-1',
+          transactionId: 'transaction-2',
           type: 'ADMIN_CREDIT',
           amount: new Prisma.Decimal(100),
           currency: 'AED',
@@ -65,6 +87,9 @@ describe('WalletsService', () => {
           balance: new Prisma.Decimal(25),
           currency: 'AED',
         }),
+      },
+      user: {
+        findUnique: jest.fn(),
       },
       transaction: {
         create: jest.fn().mockResolvedValue({
@@ -135,16 +160,16 @@ describe('WalletsService', () => {
           walletId: 'wallet-1',
           type: 'ADMIN_CREDIT',
           currency: 'AED',
-          metadata: {
+          metadata: expect.objectContaining({
             note: 'Manual seller top-up',
-          },
+          }),
         }),
       }),
     );
     expect(notifications.notifyWalletTopUp).toHaveBeenCalledWith({
       userId: 'seller-1',
       actorId: 'admin-1',
-      transactionId: null,
+      transactionId: 'transaction-2',
       walletId: 'wallet-1',
       ledgerId: 'ledger-1',
       amount: expect.any(Prisma.Decimal),

@@ -56,6 +56,23 @@ export default async function SellerPage(props: SellerPageProps) {
                 {seller.verified ? "Verified seller" : "Marketplace seller"} -{" "}
                 {seller.totalListings} listings
               </p>
+              {seller.badges.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {seller.badges.map((badge) => (
+                    <span
+                      key={badge.id}
+                      className="rounded-md px-3 py-2 text-xs font-black"
+                      style={{
+                        background:
+                          badge.badgeType.backgroundColor ?? "rgba(255,255,255,0.12)",
+                        color: badge.badgeType.textColor ?? "#ffffff",
+                      }}
+                    >
+                      {badge.badgeType.label}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               <SellerRatingSummary
                 averageRating={seller.averageRating}
                 ratingCount={seller.ratingCount}

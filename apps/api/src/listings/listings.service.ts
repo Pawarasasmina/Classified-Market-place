@@ -24,6 +24,7 @@ import { MediaService } from '../media/media.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SellerProfilesService } from '../seller-profiles/seller-profiles.service';
 import { CompleteListingPaymentDto } from './dto/complete-listing-payment.dto';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { CreatePriorityRuleDto } from './dto/create-priority-rule.dto';
@@ -50,6 +51,16 @@ type ListingCategory = {
   id: string;
   slug: string;
   listingExpiryDays: number;
+  parentId?: string | null;
+  schemaDefinition?: Prisma.JsonValue | null;
+};
+
+type CategorySchemaField = {
+  key: string;
+  label: string;
+  type: 'text' | 'number' | 'select' | 'toggle';
+  required?: boolean;
+  options?: string[];
 };
 
 type ListingLifecycleData = {
@@ -96,6 +107,17 @@ const safeSellerSelect = {
   reputationScore: true,
   createdAt: true,
   updatedAt: true,
+  sellerProfile: {
+    include: {
+      privilegeTier: true,
+      badgeAssignments: {
+        include: {
+          badgeType: true,
+        },
+        orderBy: [{ assignedAt: 'desc' as const }],
+      },
+    },
+  },
 };
 
 const listingInclude = {
@@ -244,6 +266,8 @@ type ListingQuotaPolicy = {
   freeListingAllowance: number;
   listingFeeAmount: Prisma.Decimal;
   listingFeeCurrency: string;
+  activeListingLimit?: number | null;
+  pendingListingLimit?: number | null;
 };
 
 const defaultPriorityRules = [
@@ -351,6 +375,78 @@ function readSettingObject(
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value
     : {};
+}
+
+function normalizeCategorySchemaFields(
+  schemaDefinition: Prisma.JsonValue | null | undefined,
+) {
+  if (
+    !schemaDefinition ||
+    typeof schemaDefinition !== 'object' ||
+    Array.isArray(schemaDefinition)
+  ) {
+    return [] as CategorySchemaField[];
+  }
+
+  const fields = (schemaDefinition as Record<string, unknown>).fields;
+
+  if (!Array.isArray(fields)) {
+    return [] as CategorySchemaField[];
+  }
+
+  return fields.flatMap((field) => {
+    if (!field || typeof field !== 'object' || Array.isArray(field)) {
+      return [];
+    }
+
+    const rawField = field as Record<string, unknown>;
+    const key =
+      typeof rawField.key === 'string' ? rawField.key.trim() : undefined;
+    const label =
+      typeof rawField.label === 'string' ? rawField.label.trim() : undefined;
+    const type =
+      rawField.type === 'number' ||
+      rawField.type === 'select' ||
+      rawField.type === 'toggle'
+        ? rawField.type
+        : 'text';
+
+    if (!key || !label) {
+      return [];
+    }
+
+    return [
+      {
+        key,
+        label,
+        type,
+        required: rawField.required === true,
+        options: Array.isArray(rawField.options)
+          ? rawField.options
+              .map((option) =>
+                typeof option === 'string' ? option.trim() : undefined,
+              )
+              .filter((option): option is string => Boolean(option))
+          : undefined,
+      } satisfies CategorySchemaField,
+    ];
+  });
+}
+
+function hasMeaningfulAttributeValue(value: unknown, type: CategorySchemaField['type']) {
+  if (type === 'toggle') {
+    return typeof value === 'boolean';
+  }
+
+  if (type === 'number') {
+    return typeof value === 'number' && Number.isFinite(value);
+  }
+
+  if (type === 'select' || type === 'text') {
+    return typeof value === 'string' && value.trim().length > 0;
+  }
+
+  return value != null;
 }
 
 function isMissingAnalyticsStorageError(error: unknown) {
@@ -568,6 +664,7 @@ export class ListingsService implements OnModuleInit {
     private readonly mediaService?: MediaService,
     private readonly notifications?: NotificationsService,
     private readonly paymentsService?: PaymentsService,
+    private readonly sellerProfilesService?: SellerProfilesService,
   ) {}
 
   private async expireDueListings() {
@@ -669,6 +766,90 @@ export class ListingsService implements OnModuleInit {
     }
 
     return category;
+  }
+
+  private async assertCategoryAllowsDirectListings(category: ListingCategory) {
+    const activeChildCount = await this.prisma.category.count({
+      where: {
+        parentId: category.id,
+        isActive: true,
+      },
+    });
+
+    if (activeChildCount > 0) {
+      throw new BadRequestException(
+        'Choose a subcategory before submitting this listing',
+      );
+    }
+  }
+
+  private validateListingAttributesForCategory(
+    category: ListingCategory,
+    attributes: Record<string, unknown> | undefined,
+  ) {
+    const schemaFields = normalizeCategorySchemaFields(category.schemaDefinition);
+
+    if (!schemaFields.length) {
+      return;
+    }
+
+    const safeAttributes = attributes ?? {};
+    const errors: string[] = [];
+
+    for (const field of schemaFields) {
+      const value = safeAttributes[field.key];
+
+      if (
+        field.required &&
+        !hasMeaningfulAttributeValue(value, field.type)
+      ) {
+        errors.push(`${field.label} is required`);
+        continue;
+      }
+
+      if (value == null) {
+        continue;
+      }
+
+      if (field.type === 'number') {
+        if (typeof value !== 'number' || !Number.isFinite(value)) {
+          errors.push(`${field.label} must be a valid number`);
+        }
+        continue;
+      }
+
+      if (field.type === 'toggle') {
+        if (typeof value !== 'boolean') {
+          errors.push(`${field.label} must be yes or no`);
+        }
+        continue;
+      }
+
+      if (typeof value !== 'string' || !value.trim()) {
+        errors.push(`${field.label} must be a valid value`);
+        continue;
+      }
+
+      if (
+        field.type === 'select' &&
+        field.options?.length &&
+        !field.options.includes(value.trim())
+      ) {
+        errors.push(`${field.label} must match one of the allowed options`);
+      }
+    }
+
+    if (errors.length) {
+      throw new BadRequestException(errors[0]);
+    }
+  }
+
+  private async validateListingSubmission(
+    category: ListingCategory,
+    attributes: Record<string, unknown> | undefined,
+  ) {
+    await this.assertCategoryAllowsDirectListings(category);
+    this.validateListingAttributesForCategory(category, attributes);
   }
 
   private async resolveDraftCategory(categorySlug?: string) {
@@ -810,14 +991,26 @@ export class ListingsService implements OnModuleInit {
   }
 
   async create(user: ActingUser, createListingDto: CreateListingDto) {
+    const isAdmin = isAdminRole(user.role);
+
+    if (!isAdmin) {
+      await this.requireSellerProfilesService().assertApprovedSeller(user.id);
+    }
+
     const category = await this.resolveCategory(createListingDto.categorySlug);
+    await this.validateListingSubmission(category, createListingDto.attributes);
     const clientDraftKey = createListingDto.clientDraftKey?.trim() || undefined;
     const images = await this.prepareListingImages(
       user.id,
       createListingDto.images,
     );
-    const isAdmin = isAdminRole(user.role);
-    const quotaPolicy = await this.getListingQuotaPolicy();
+    const quotaPolicy = isAdmin
+      ? await this.getListingQuotaPolicy()
+      : await this.getListingQuotaPolicy(user.id, category.id);
+
+    if (!isAdmin) {
+      await this.assertSellerListingCapacity(user.id, quotaPolicy);
+    }
     const paymentMode = isAdmin
       ? (createListingDto.listingPaymentMode ?? ListingPaymentMode.FREE)
       : await this.resolveListingPaymentMode(
@@ -905,7 +1098,6 @@ export class ListingsService implements OnModuleInit {
             user,
             listingData,
             policy: quotaPolicy,
-            listingTitle: createListingDto.title,
           })
         : await this.prisma.listing.create({
             data: listingData,
@@ -918,6 +1110,10 @@ export class ListingsService implements OnModuleInit {
   }
 
   async saveDraft(user: ActingUser, draftDto: SaveListingDraftDto) {
+    if (!isAdminRole(user.role)) {
+      await this.requireSellerProfilesService().assertApprovedSeller(user.id);
+    }
+
     const clientDraftKey = draftDto.clientDraftKey.trim();
 
     if (!clientDraftKey) {
@@ -1034,7 +1230,7 @@ export class ListingsService implements OnModuleInit {
   }
 
   async getMyListingQuota(userId: string) {
-    const policy = await this.getListingQuotaPolicy();
+    const policy = await this.getListingQuotaPolicy(userId);
     const used = await this.countUsedFreeListings(userId);
     const remaining = Math.max(policy.freeListingAllowance - used, 0);
 
@@ -1115,38 +1311,75 @@ export class ListingsService implements OnModuleInit {
       throw new ForbiddenException('You can only publish your own drafts');
     }
 
+    if (!isAdmin) {
+      await this.requireSellerProfilesService().assertApprovedSeller(user.id);
+    }
+
     if (listing.status !== ListingStatus.DRAFT) {
       throw new BadRequestException('Only draft listings can be published');
     }
 
     const category = await this.resolveCategory(createListingDto.categorySlug);
+    await this.validateListingSubmission(category, createListingDto.attributes);
+    const quotaPolicy = isAdmin
+      ? await this.getListingQuotaPolicy()
+      : await this.getListingQuotaPolicy(user.id, category.id);
+    if (!isAdmin) {
+      await this.assertSellerListingCapacity(user.id, quotaPolicy, listing.id);
+    }
     const images = await this.prepareListingImages(
       user.id,
       createListingDto.images,
       listing.images ?? [],
     );
     const status = isAdmin ? ListingStatus.ACTIVE : ListingStatus.PENDING;
+    const paymentMode = isAdmin
+      ? (createListingDto.listingPaymentMode ?? listing.listingPaymentMode)
+      : await this.resolveListingPaymentMode(
+          user.id,
+          createListingDto.listingPaymentMode,
+          quotaPolicy,
+        );
 
-    const updatedDraft = await this.prisma.listing.update({
-      where: { id },
-      data: {
-        title: createListingDto.title,
-        description: createListingDto.description,
-        price: new Prisma.Decimal(createListingDto.price),
-        currency: createListingDto.currency ?? 'AED',
-        location: createListingDto.location,
-        status,
-        ...this.getLifecycleDataForStatus(status, category),
-        attributes: toJsonValue(createListingDto.attributes),
-        categoryId: category.id,
-        images: {
-          deleteMany: {},
-          create:
-            images?.map((image) => this.toListingImageCreate(image)) ?? [],
-        },
+    const updateData: Prisma.ListingUpdateArgs['data'] = {
+      title: createListingDto.title,
+      description: createListingDto.description,
+      price: new Prisma.Decimal(createListingDto.price),
+      currency: createListingDto.currency ?? 'AED',
+      location: createListingDto.location,
+      status,
+      listingPaymentMode: paymentMode,
+      ...this.getLifecycleDataForStatus(status, category),
+      attributes: toJsonValue(createListingDto.attributes),
+      categoryId: category.id,
+      images: {
+        deleteMany: {},
+        create:
+          images?.map((image) => this.toListingImageCreate(image)) ?? [],
       },
-      include: listingInclude,
-    });
+    };
+    const updatedDraft =
+      paymentMode === ListingPaymentMode.PAID && !isAdmin
+        ? await this.prisma.$transaction(async (tx) => {
+            const draft = await tx.listing.update({
+              where: { id },
+              data: updateData,
+              include: listingInclude,
+            });
+
+            await this.ensurePaidListingFeeCollected(tx, {
+              userId: user.id,
+              listingId: draft.id,
+              policy: quotaPolicy,
+            });
+
+            return draft;
+          })
+        : await this.prisma.listing.update({
+            where: { id },
+            data: updateData,
+            include: listingInclude,
+          });
 
     await this.attachPreparedImagesToListing(updatedDraft.id, images);
 
@@ -1440,9 +1673,7 @@ export class ListingsService implements OnModuleInit {
 
     if (
       !listing ||
-      listing.status === ListingStatus.DELETED ||
-      listing.status === ListingStatus.REMOVED ||
-      listing.status === ListingStatus.DRAFT
+      listing.status !== ListingStatus.ACTIVE
     ) {
       throw new NotFoundException('Listing not found');
     }
@@ -1560,6 +1791,10 @@ export class ListingsService implements OnModuleInit {
       updateListingDto.images,
       listing.images ?? [],
     );
+    const mergedAttributes =
+      updateListingDto.attributes === undefined
+        ? ((listing.attributes as Record<string, unknown> | null) ?? undefined)
+        : updateListingDto.attributes;
     const ownerLifecycleStatus =
       updateListingDto.status === ListingStatus.SOLD ||
       updateListingDto.status === ListingStatus.REMOVED ||
@@ -1572,6 +1807,19 @@ export class ListingsService implements OnModuleInit {
       ? updateListingDto.status
       : (ownerLifecycleStatus ??
         (shouldResubmitForModeration ? ListingStatus.PENDING : undefined));
+    const lifecycleTargetCategory =
+      lifecycleCategory ??
+      (await this.prisma.category.findUnique({
+        where: { id: categoryId },
+      })) ??
+      (await this.resolveDraftCategory());
+
+    if (shouldResubmitForModeration) {
+      await this.validateListingSubmission(
+        lifecycleTargetCategory,
+        mergedAttributes,
+      );
+    }
 
     const updatedListing = await this.prisma.listing.update({
       where: { id },
@@ -1588,14 +1836,10 @@ export class ListingsService implements OnModuleInit {
         ...(nextStatus
           ? this.getLifecycleDataForStatus(
               nextStatus,
-              lifecycleCategory ??
-                (await this.prisma.category.findUnique({
-                  where: { id: categoryId },
-                })) ??
-                (await this.resolveDraftCategory()),
+              lifecycleTargetCategory,
             )
           : {}),
-        attributes: toJsonValue(updateListingDto.attributes),
+        attributes: toJsonValue(mergedAttributes),
         categoryId,
         images:
           images === undefined
@@ -1808,21 +2052,33 @@ export class ListingsService implements OnModuleInit {
       throw new NotFoundException('Listing not found');
     }
 
-    const updatedListing = await this.prisma.listing.update({
-      where: { id },
-      data: {
-        status: dto.status,
-        ...this.getLifecycleDataForStatus(dto.status, listing.category),
-        reviewedById: user.id,
-        reviewedAt: new Date(),
-        approvedAt:
-          dto.status === ListingStatus.ACTIVE ? new Date() : undefined,
-        rejectedAt:
-          dto.status === ListingStatus.REJECTED ? new Date() : undefined,
-        rejectionReason:
-          dto.status === ListingStatus.REJECTED ? dto.reason ?? null : null,
-      },
-      include: listingInclude,
+    const updatedListing = await this.prisma.$transaction(async (tx) => {
+      const nextListing = await tx.listing.update({
+        where: { id },
+        data: {
+          status: dto.status,
+          ...this.getLifecycleDataForStatus(dto.status, listing.category),
+          reviewedById: user.id,
+          reviewedAt: new Date(),
+          approvedAt:
+            dto.status === ListingStatus.ACTIVE ? new Date() : undefined,
+          rejectedAt:
+            dto.status === ListingStatus.REJECTED ? new Date() : undefined,
+          rejectionReason:
+            dto.status === ListingStatus.REJECTED ? dto.reason ?? null : null,
+        },
+        include: listingInclude,
+      });
+
+      if (dto.status === ListingStatus.REJECTED) {
+        await this.refundListingFeeToWalletIfEligible(
+          tx,
+          nextListing.id,
+          nextListing.sellerId,
+        );
+      }
+
+      return nextListing;
     });
 
     if (listing.status !== updatedListing.status) {
@@ -1994,78 +2250,226 @@ export class ListingsService implements OnModuleInit {
     user,
     listingData,
     policy,
-    listingTitle,
   }: {
     user: ActingUser;
     listingData: Prisma.ListingCreateArgs['data'];
     policy: ListingQuotaPolicy;
-    listingTitle: string;
   }) {
-    const { listing, transaction } = await this.prisma.$transaction(
-      async (tx) => {
-        const createdListing = await tx.listing.create({
-          data: listingData,
-          include: listingInclude,
-        });
-        const createdTransaction = await tx.transaction.create({
-          data: {
-            userId: user.id,
-            listingId: createdListing.id,
-            type: TransactionType.LISTING_FEE,
-            status: TransactionStatus.PENDING,
-            amount: policy.listingFeeAmount,
-            currency: policy.listingFeeCurrency,
-            provider: 'dev',
-            metadata: {
-              reason: 'free_listing_quota_exhausted',
-              freeListingAllowance: policy.freeListingAllowance,
-            },
-          },
-        });
-
-        return {
-          listing: createdListing,
-          transaction: createdTransaction,
-        };
-      },
-    );
-
-    const paymentIntent =
-      await this.requirePaymentsService().createListingFeePaymentIntent({
-        transactionId: transaction.id,
-        userId: user.id,
-        listingId: listing.id,
-        listingTitle,
-        amount: new Prisma.Decimal(transaction.amount),
-        currency: transaction.currency,
-        metadata: {
-          reason: 'free_listing_quota_exhausted',
-          freeListingAllowance: policy.freeListingAllowance,
-        },
+    return this.prisma.$transaction(async (tx) => {
+      const createdListing = await tx.listing.create({
+        data: listingData,
+        include: listingInclude,
       });
 
-    await this.prisma.transaction.update({
-      where: { id: transaction.id },
+      await this.collectListingFeeFromWallet(tx, {
+        userId: user.id,
+        listingId: createdListing.id,
+        policy,
+      });
+
+      return createdListing;
+    });
+  }
+
+  private async ensurePaidListingFeeCollected(
+    tx: Prisma.TransactionClient,
+    input: {
+      userId: string;
+      listingId: string;
+      policy: ListingQuotaPolicy;
+    },
+  ) {
+    const existingPaidFee = await tx.transaction.findFirst({
+      where: {
+        listingId: input.listingId,
+        userId: input.userId,
+        type: TransactionType.LISTING_FEE,
+        status: {
+          in: [TransactionStatus.SUCCEEDED, TransactionStatus.REFUNDED],
+        },
+      },
+      select: { id: true },
+    });
+
+    if (existingPaidFee) {
+      return existingPaidFee;
+    }
+
+    return this.collectListingFeeFromWallet(tx, input);
+  }
+
+  private async collectListingFeeFromWallet(
+    tx: Prisma.TransactionClient,
+    input: {
+      userId: string;
+      listingId: string;
+      policy: ListingQuotaPolicy;
+    },
+  ) {
+    const { userId, listingId, policy } = input;
+    const wallet = await tx.walletAccount.upsert({
+      where: { userId },
+      update: {},
+      create: {
+        userId,
+        currency: policy.listingFeeCurrency,
+      },
+    });
+
+    if (wallet.currency !== policy.listingFeeCurrency) {
+      throw new BadRequestException(
+        'Wallet currency does not match listing fee currency',
+      );
+    }
+
+    if (new Prisma.Decimal(wallet.balance).lt(policy.listingFeeAmount)) {
+      throw new BadRequestException(
+        'Insufficient wallet balance for the listing fee',
+      );
+    }
+
+    const nextBalance = new Prisma.Decimal(wallet.balance).minus(
+      policy.listingFeeAmount,
+    );
+    const paidAt = new Date();
+    const transaction = await tx.transaction.create({
       data: {
-        provider: paymentIntent.provider,
-        providerRef: paymentIntent.providerRef,
+        userId,
+        listingId,
+        type: TransactionType.LISTING_FEE,
+        status: TransactionStatus.SUCCEEDED,
+        amount: policy.listingFeeAmount,
+        currency: policy.listingFeeCurrency,
+        provider: 'wallet',
+        providerRef: `wallet:${userId}:${listingId}:${paidAt.getTime()}`,
         metadata: {
           reason: 'free_listing_quota_exhausted',
           freeListingAllowance: policy.freeListingAllowance,
-          checkoutUrl: paymentIntent.checkoutUrl,
-          paymentProviderMetadata: (paymentIntent.metadata ??
-            {}) as Prisma.InputJsonObject,
+          paidAt: paidAt.toISOString(),
+          walletPaidAt: paidAt.toISOString(),
         },
       },
     });
 
-    return {
-      ...listing,
-      payment: {
-        ...paymentIntent,
-        transactionId: transaction.id,
+    await tx.walletAccount.update({
+      where: { id: wallet.id },
+      data: {
+        balance: nextBalance,
       },
-    };
+    });
+    await tx.walletLedger.create({
+      data: {
+        walletId: wallet.id,
+        transactionId: transaction.id,
+        type: 'LISTING_FEE',
+        amount: policy.listingFeeAmount.mul(-1),
+        currency: policy.listingFeeCurrency,
+        balanceAfter: nextBalance,
+        metadata: {
+          listingId,
+          reason: 'free_listing_quota_exhausted',
+          freeListingAllowance: policy.freeListingAllowance,
+        },
+      },
+    });
+
+    return transaction;
+  }
+
+  private async refundListingFeeToWalletIfEligible(
+    tx: Prisma.TransactionClient,
+    listingId: string,
+    userId: string,
+  ) {
+    const feeTransaction = await tx.transaction.findFirst({
+      where: {
+        listingId,
+        userId,
+        type: TransactionType.LISTING_FEE,
+        status: TransactionStatus.SUCCEEDED,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!feeTransaction) {
+      return null;
+    }
+
+    const metadata = readSettingObject(feeTransaction.metadata);
+
+    if (metadata.refundedAt || metadata.refundTransactionId) {
+      return null;
+    }
+
+    const wallet = await tx.walletAccount.upsert({
+      where: { userId },
+      update: {},
+      create: {
+        userId,
+        currency: feeTransaction.currency,
+      },
+    });
+
+    if (wallet.currency !== feeTransaction.currency) {
+      throw new BadRequestException(
+        'Wallet currency does not match listing refund currency',
+      );
+    }
+
+    const nextBalance = new Prisma.Decimal(wallet.balance).plus(
+      feeTransaction.amount,
+    );
+    const refundedAt = new Date();
+    const refundTransaction = await tx.transaction.create({
+      data: {
+        userId,
+        listingId,
+        type: TransactionType.LISTING_FEE_REFUND,
+        status: TransactionStatus.SUCCEEDED,
+        amount: feeTransaction.amount,
+        currency: feeTransaction.currency,
+        provider: 'wallet',
+        providerRef: `wallet-refund:${userId}:${listingId}:${refundedAt.getTime()}`,
+        metadata: {
+          sourceTransactionId: feeTransaction.id,
+          refundedAt: refundedAt.toISOString(),
+        },
+      },
+    });
+
+    await tx.walletAccount.update({
+      where: { id: wallet.id },
+      data: {
+        balance: nextBalance,
+      },
+    });
+    await tx.walletLedger.create({
+      data: {
+        walletId: wallet.id,
+        transactionId: refundTransaction.id,
+        type: 'LISTING_FEE_REFUND',
+        amount: feeTransaction.amount,
+        currency: feeTransaction.currency,
+        balanceAfter: nextBalance,
+        metadata: {
+          listingId,
+          sourceTransactionId: feeTransaction.id,
+        },
+      },
+    });
+    await tx.transaction.update({
+      where: { id: feeTransaction.id },
+      data: {
+        status: TransactionStatus.REFUNDED,
+        metadata: {
+          ...metadata,
+          refundedAt: refundedAt.toISOString(),
+          refundTransactionId: refundTransaction.id,
+        },
+      },
+    });
+
+    return refundTransaction;
   }
 
   private async resolveListingPaymentMode(
@@ -2094,7 +2498,25 @@ export class ListingsService implements OnModuleInit {
     });
   }
 
-  private async getListingQuotaPolicy(): Promise<ListingQuotaPolicy> {
+  private async getListingQuotaPolicy(
+    sellerId?: string,
+    categoryId?: string,
+  ): Promise<ListingQuotaPolicy> {
+    if (sellerId && this.sellerProfilesService) {
+      const sellerPolicy = await this.sellerProfilesService.getSellerListingPolicy(
+        sellerId,
+        categoryId,
+      );
+
+      return {
+        freeListingAllowance: sellerPolicy.monthlyFreeListingLimit,
+        listingFeeAmount: new Prisma.Decimal(sellerPolicy.paidListingFee),
+        listingFeeCurrency: sellerPolicy.currency,
+        activeListingLimit: sellerPolicy.activeListingLimit,
+        pendingListingLimit: sellerPolicy.pendingListingLimit,
+      };
+    }
+
     const envAllowance = readPositiveInteger(
       process.env.FREE_LISTING_ALLOWANCE,
       defaultFreeListingAllowance,
@@ -2127,6 +2549,8 @@ export class ListingsService implements OnModuleInit {
           value.listingFeeCurrency,
           envFeeCurrency,
         ),
+        activeListingLimit: null,
+        pendingListingLimit: null,
       };
     } catch (error) {
       if (
@@ -2141,6 +2565,8 @@ export class ListingsService implements OnModuleInit {
           freeListingAllowance: envAllowance,
           listingFeeAmount: envFeeAmount,
           listingFeeCurrency: envFeeCurrency,
+          activeListingLimit: null,
+          pendingListingLimit: null,
         };
       }
 
@@ -2194,6 +2620,58 @@ export class ListingsService implements OnModuleInit {
     }
 
     return this.paymentsService;
+  }
+
+  private requireSellerProfilesService() {
+    if (!this.sellerProfilesService) {
+      throw new BadRequestException('Seller profiles are not configured');
+    }
+
+    return this.sellerProfilesService;
+  }
+
+  private async assertSellerListingCapacity(
+    sellerId: string,
+    policy: ListingQuotaPolicy & {
+      activeListingLimit?: number | null;
+      pendingListingLimit?: number | null;
+    },
+    ignoreListingId?: string,
+  ) {
+    const [activeCount, pendingCount] = await Promise.all([
+      this.prisma.listing.count({
+        where: {
+          sellerId,
+          status: ListingStatus.ACTIVE,
+          ...(ignoreListingId ? { id: { not: ignoreListingId } } : {}),
+        },
+      }),
+      this.prisma.listing.count({
+        where: {
+          sellerId,
+          status: ListingStatus.PENDING,
+          ...(ignoreListingId ? { id: { not: ignoreListingId } } : {}),
+        },
+      }),
+    ]);
+
+    if (
+      typeof policy.activeListingLimit === 'number' &&
+      activeCount >= policy.activeListingLimit
+    ) {
+      throw new ForbiddenException(
+        'Your seller tier has reached its active listing limit',
+      );
+    }
+
+    if (
+      typeof policy.pendingListingLimit === 'number' &&
+      pendingCount >= policy.pendingListingLimit
+    ) {
+      throw new ForbiddenException(
+        'Your seller tier has reached its pending listing limit',
+      );
+    }
   }
 
   private async attachSellerRatingSummary<T extends ListingWithSeller>(

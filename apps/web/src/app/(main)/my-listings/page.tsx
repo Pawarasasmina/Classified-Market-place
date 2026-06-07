@@ -5,12 +5,14 @@ import {
   updateListingStatusAction,
   walletTopUpAction,
 } from "@/app/(main)/actions";
+import { SellerOnboardingPanel } from "@/components/marketplace/seller-onboarding-panel";
 import { SellerRatingSummary } from "@/components/marketplace/seller-rating-summary";
 import { requireSessionContext } from "@/lib/auth-dal";
 import {
   fetchBoostPackages,
   fetchMyListingQuota,
   fetchMyListings,
+  fetchMySellerProfile,
   fetchMyTransactions,
   fetchMyWallet,
   fetchReceivedSellerRatings,
@@ -1273,6 +1275,31 @@ function getAvailablePackages(
 
 export default async function MyListingsPage() {
   const { accessToken, user } = await requireSessionContext("/my-listings");
+  const sellerProfileEnvelope = await fetchMySellerProfile(accessToken).catch(() => ({
+    sellerProfile: null,
+    formDefinition: { fields: [] },
+  }));
+
+  if (sellerProfileEnvelope.sellerProfile?.status !== "APPROVED") {
+    return (
+      <div className="page grid gap-6">
+        <div className="panel-dark p-6">
+          <p className="section-eyebrow">Seller dashboard</p>
+          <h1 className="mt-2 text-3xl font-black text-white">My listings</h1>
+          <p className="mt-2 text-[#d7d9ea]">
+            Finish seller onboarding and wait for approval before using your
+            listing dashboard.
+          </p>
+        </div>
+        <SellerOnboardingPanel
+          envelope={sellerProfileEnvelope}
+          returnTo="/my-listings"
+          title="Seller approval workflow"
+        />
+      </div>
+    );
+  }
+
   const [
     listings,
     boostPackages,
