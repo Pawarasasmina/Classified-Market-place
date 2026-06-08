@@ -7,7 +7,7 @@ type IconProps = {
   className?: string;
 };
 
-const storageKey = "smartmarket-color-profile";
+const defaultStorageKey = "smartmarket-color-profile";
 const profileChangeEvent = "smartmarket-color-profile-change";
 
 function applyProfile(profile: ColorProfile) {
@@ -15,11 +15,12 @@ function applyProfile(profile: ColorProfile) {
   document.documentElement.style.colorScheme = profile;
 }
 
-function readStoredProfile() {
+function readStoredProfile(storageKey: string, defaultProfile: ColorProfile) {
   try {
-    return window.localStorage.getItem(storageKey) === "light" ? "light" : "dark";
+    const stored = window.localStorage.getItem(storageKey);
+    return stored === "light" || stored === "dark" ? stored : defaultProfile;
   } catch {
-    return "dark";
+    return defaultProfile;
   }
 }
 
@@ -33,17 +34,17 @@ function getProfileSnapshot(): ColorProfile {
     : "dark";
 }
 
-function getServerProfileSnapshot(): ColorProfile {
-  return "dark";
-}
-
-function subscribeToProfileChanges(onStoreChange: () => void) {
+function subscribeToProfileChanges(
+  onStoreChange: () => void,
+  storageKey: string,
+  defaultProfile: ColorProfile,
+) {
   if (typeof window === "undefined") {
     return () => {};
   }
 
   const syncProfile = () => {
-    applyProfile(readStoredProfile());
+    applyProfile(readStoredProfile(storageKey, defaultProfile));
     onStoreChange();
   };
 
@@ -98,11 +99,18 @@ function MoonIcon({ className }: IconProps) {
   );
 }
 
-export function ColorProfileToggle() {
+export function ColorProfileToggle({
+  storageKey = defaultStorageKey,
+  defaultProfile = "light",
+}: {
+  storageKey?: string;
+  defaultProfile?: ColorProfile;
+}) {
   const profile = useSyncExternalStore(
-    subscribeToProfileChanges,
+    (onStoreChange) =>
+      subscribeToProfileChanges(onStoreChange, storageKey, defaultProfile),
     getProfileSnapshot,
-    getServerProfileSnapshot,
+    () => defaultProfile,
   );
   const dark = profile === "dark";
 

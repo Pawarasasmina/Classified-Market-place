@@ -972,6 +972,112 @@ html[data-color-profile="dark"] .text-\[var\(--foreground\)\] {
   background: rgba(112, 103, 255, 0.16);
 }
 
+html[data-color-profile="light"] .admin-shell {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #09090f;
+  --muted: #5d5870;
+  --line: rgba(9, 9, 15, 0.14);
+  --surface: #ffffff;
+  --surface-strong: #f6f3ff;
+  --ink: #09090f;
+  --ink-soft: #171421;
+  --brand: #6d46ff;
+  --brand-strong: #5432d5;
+  --brand-soft: #efeaff;
+  --accent: #111111;
+  --accent-strong: #000000;
+  --accent-soft: #f1edff;
+  --success: #1f7a5f;
+  --danger: #b93820;
+  --panel-background: linear-gradient(135deg, #ffffff 0%, #f7f3ff 100%);
+  --panel-foreground: #09090f;
+  --panel-muted: #5d5870;
+  --panel-line: rgba(109, 70, 255, 0.18);
+  --panel-button-bg: #ffffff;
+  --panel-button-text: #09090f;
+  --header-background: rgba(255, 255, 255, 0.94);
+  --header-line: rgba(9, 9, 15, 0.12);
+  --header-text: #09090f;
+  --header-muted: #625d76;
+  --header-badge-bg: #f6f3ff;
+  --header-button-bg: #ffffff;
+  --header-button-text: #09090f;
+  --nav-bg: #ffffff;
+  --nav-text: #23202e;
+  --nav-line: rgba(9, 9, 15, 0.12);
+  --nav-hover-bg: #f1edff;
+  background:
+    radial-gradient(circle at 16% 10%, rgba(109, 70, 255, 0.12), transparent 24rem),
+    radial-gradient(circle at 84% 24%, rgba(196, 139, 67, 0.08), transparent 25rem),
+    linear-gradient(180deg, rgba(109, 70, 255, 0.08) 0, rgba(255, 255, 255, 0) 28rem),
+    var(--background);
+}
+
+html[data-color-profile="light"] .admin-shell .marketplace-header {
+  background: var(--header-background);
+  color: var(--header-text);
+}
+
+html[data-color-profile="light"] .admin-shell .panel,
+html[data-color-profile="light"] .admin-shell .panel-dark {
+  border-color: var(--panel-line);
+  background: var(--panel-background);
+  color: var(--foreground);
+  box-shadow: 0 24px 60px rgba(64, 47, 122, 0.13);
+}
+
+html[data-color-profile="light"] .admin-shell .bg-white,
+html[data-color-profile="light"] .admin-shell .bg-\[\#fbfcfa\],
+html[data-color-profile="light"] .admin-shell .bg-\[\#f8faf8\] {
+  background: #ffffff !important;
+  color: var(--foreground) !important;
+}
+
+html[data-color-profile="light"] .admin-shell .hover\:bg-\[\#fbfcfa\]:hover {
+  background: #f6f3ff !important;
+}
+
+html[data-color-profile="light"] .admin-shell input,
+html[data-color-profile="light"] .admin-shell textarea,
+html[data-color-profile="light"] .admin-shell select {
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+html[data-color-profile="light"] .admin-dashboard-card,
+html[data-color-profile="light"] .admin-stat-card {
+  border-color: rgba(109, 70, 255, 0.18);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(246, 243, 255, 0.98));
+  box-shadow: 0 24px 60px rgba(64, 47, 122, 0.13);
+}
+
+html[data-color-profile="light"] .admin-dashboard-card:hover {
+  border-color: rgba(109, 70, 255, 0.34);
+  background: linear-gradient(145deg, #ffffff, #f1edff);
+}
+
+html[data-color-profile="light"] .admin-table-wrap {
+  border-color: rgba(109, 70, 255, 0.18);
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(64, 47, 122, 0.13);
+}
+
+html[data-color-profile="light"] .admin-table th {
+  background: #f6f3ff;
+  color: var(--brand-strong);
+}
+
+html[data-color-profile="light"] .admin-status-badge,
+html[data-color-profile="light"] .admin-table-action {
+  background: #f6f3ff;
+  color: var(--brand-strong);
+}
+
+html[data-color-profile="light"] .admin-table-action:hover {
+  background: var(--brand-soft);
+}
+
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;

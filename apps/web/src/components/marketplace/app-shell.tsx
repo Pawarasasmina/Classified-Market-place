@@ -164,6 +164,8 @@ const adminNavLinks: Array<{
   { href: "/profile", label: "Profile" },
 ];
 
+const customerColorProfileStorageKey = "smartmarket-color-profile";
+
 function CategoryChildLinks({
   nodes,
   customerPreview,
@@ -373,6 +375,24 @@ function withCustomerPreview(href: string, enabled: boolean) {
   return `${href}${separator}view=customer`;
 }
 
+function getStoredColorProfile(
+  storageKey: string,
+  defaultProfile: "light" | "dark",
+) {
+  try {
+    const stored = window.localStorage.getItem(storageKey);
+    return stored === "light" || stored === "dark" ? stored : defaultProfile;
+  } catch {
+    return defaultProfile;
+  }
+}
+
+function applyColorProfile(profile: "light" | "dark") {
+  const root = document.documentElement;
+  root.dataset.colorProfile = profile;
+  root.style.colorScheme = profile;
+}
+
 export function MarketplaceShell({
   children,
   user,
@@ -419,23 +439,20 @@ export function MarketplaceShell({
 
     if (adminExperience) {
       root.dataset.adminShell = "true";
-      root.dataset.colorProfile = "light";
-      root.style.colorScheme = "light";
+      applyColorProfile(
+        getStoredColorProfile(customerColorProfileStorageKey, "light"),
+      );
       return;
     }
 
     delete root.dataset.adminShell;
 
-    try {
-      const stored = window.localStorage.getItem("smartmarket-color-profile");
-      const profile = stored === "light" ? "light" : "dark";
-      root.dataset.colorProfile = profile;
-      root.style.colorScheme = profile;
-    } catch {
-      root.dataset.colorProfile = "dark";
-      root.style.colorScheme = "dark";
-    }
-  }, [adminExperience]);
+    applyColorProfile(
+      customerPreview
+        ? "light"
+        : getStoredColorProfile(customerColorProfileStorageKey, "light"),
+    );
+  }, [adminExperience, customerPreview]);
 
   useEffect(() => {
     if (shouldRedirectToAdmin) {
@@ -508,7 +525,17 @@ export function MarketplaceShell({
             </nav>
           ) : null}
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            {!adminExperience ? <ColorProfileToggle /> : null}
+            {adminExperience ? (
+              <ColorProfileToggle
+                storageKey={customerColorProfileStorageKey}
+                defaultProfile="light"
+              />
+            ) : !customerPreview ? (
+              <ColorProfileToggle
+                storageKey={customerColorProfileStorageKey}
+                defaultProfile="light"
+              />
+            ) : null}
             {user ? (
               <>
                 {accessToken ? (
