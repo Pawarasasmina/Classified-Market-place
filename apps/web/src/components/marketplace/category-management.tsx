@@ -325,21 +325,19 @@ function SelectedCategoryPanel({
   category,
   categories,
   onAddSubcategory,
+  onClose,
   canEdit,
   returnTo,
 }: {
   category?: MarketplaceCategory;
   categories: MarketplaceCategory[];
   onAddSubcategory: (category: MarketplaceCategory) => void;
+  onClose: () => void;
   canEdit: boolean;
   returnTo: string;
 }) {
   if (!category) {
-    return (
-      <aside className="rounded-md border border-dashed border-[var(--line)] bg-white p-5 text-sm text-[var(--muted)]">
-        Select a category from the tree.
-      </aside>
-    );
+    return null;
   }
 
   const blockedParentSlugs = getDescendantSlugs(category, categories);
@@ -349,134 +347,149 @@ function SelectedCategoryPanel({
   );
 
   return (
-    <aside className="rounded-md border border-[var(--line)] bg-white p-5 shadow-sm">
-      <div className="flex items-start gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[var(--accent-soft)] text-[var(--foreground)]">
-          <CategoryIcon slug={category.slug} className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-bold text-[var(--foreground)]">{category.name}</h3>
-            <StatusBadge active={category.isActive} />
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/35 px-4 py-8 backdrop-blur-[2px]">
+      <div className="max-h-[calc(100vh-4rem)] w-full max-w-4xl overflow-y-auto rounded-2xl border border-[var(--line)] bg-white p-5 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[var(--accent-soft)] text-[var(--foreground)]">
+              <CategoryIcon slug={category.slug} className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-bold text-[var(--foreground)]">
+                  {category.name}
+                </h3>
+                <StatusBadge active={category.isActive} />
+              </div>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                {getCategoryPath(category, categories)}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-[var(--muted)]">
+                Listings expire after {category.listingExpiryDays} days.
+              </p>
+            </div>
           </div>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            {getCategoryPath(category, categories)}
-          </p>
-          <p className="mt-1 text-xs font-semibold text-[var(--muted)]">
-            Listings expire after {category.listingExpiryDays} days.
-          </p>
-        </div>
-      </div>
-
-      {canEdit ? (
-      <form action={updateCategoryAction} className="mt-5 grid gap-4">
-        <input type="hidden" name="slug" value={category.slug} />
-        <input type="hidden" name="returnTo" value={returnTo} />
-        <label className="grid gap-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
-            Name
-          </span>
-          <input
-            name="name"
-            defaultValue={category.name}
-            className="rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
-          />
-        </label>
-        <label className="grid gap-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
-            Description
-          </span>
-          <textarea
-            name="description"
-            defaultValue={category.description}
-            rows={4}
-            className="resize-none rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
-          />
-        </label>
-        <label className="grid gap-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
-            Parent
-          </span>
-          <select
-            name="parentSlug"
-            defaultValue={category.parentSlug ?? ""}
-            className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
-          >
-            <option value="">Top-level</option>
-            {parentOptions.map((option) => (
-              <option key={option.slug} value={option.slug}>
-                {getCategoryPath(option, categories)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
-            Status
-          </span>
-          <select
-            name="isActive"
-            defaultValue={String(category.isActive)}
-            className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
-          >
-            <option value="true">Active</option>
-            <option value="false">Inactive</option>
-          </select>
-        </label>
-        <label className="grid gap-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
-            Listing expiry days
-          </span>
-          <input
-            name="listingExpiryDays"
-            type="number"
-            min="1"
-            max="365"
-            defaultValue={category.listingExpiryDays}
-            className="rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
-          />
-        </label>
-
-        <CategorySchemaEditor
-          key={`edit-schema-${category.slug}`}
-          initialFields={category.schema}
-          inheritedFields={
-            category.parentSlug
-              ? (categories.find((item) => item.slug === category.parentSlug)?.schema ??
-                [])
-              : []
-          }
-        />
-
-        <div className="grid gap-2 sm:grid-cols-2">
-          <button className="action-primary px-4 py-2 text-sm font-semibold">
-            Save
-          </button>
           <button
             type="button"
-            onClick={() => onAddSubcategory(category)}
-            className="rounded-md border border-[var(--line)] px-4 py-2 text-sm font-semibold text-[var(--brand-strong)] hover:border-[var(--brand)] hover:bg-[var(--brand-soft)]"
+            onClick={onClose}
+            className="rounded-md border border-[var(--line)] px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:border-[var(--brand)] hover:text-[var(--foreground)]"
           >
-            Add child
+            Close
           </button>
         </div>
-      </form>
-      ) : (
-        <div className="mt-5 rounded-md border border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-          This role can view catalog details but cannot edit categories.
-        </div>
-      )}
 
-      {canEdit && category.isActive ? (
-        <form action={deleteCategoryAction} className="mt-3">
-          <input type="hidden" name="slug" value={category.slug} />
-          <input type="hidden" name="returnTo" value={returnTo} />
-          <button className="w-full rounded-md border border-[#e7b6a9] px-4 py-2 text-sm font-semibold text-[#9f321e] hover:bg-[#fff3ef]">
-            Disable category
-          </button>
-        </form>
-      ) : null}
-    </aside>
+        {canEdit ? (
+          <form action={updateCategoryAction} className="mt-5 grid gap-4">
+            <input type="hidden" name="slug" value={category.slug} />
+            <input type="hidden" name="returnTo" value={returnTo} />
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold text-[var(--foreground)]">
+                  Name
+                </span>
+                <input
+                  name="name"
+                  defaultValue={category.name}
+                  className="rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold text-[var(--foreground)]">
+                  Parent
+                </span>
+                <select
+                  name="parentSlug"
+                  defaultValue={category.parentSlug ?? ""}
+                  className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+                >
+                  <option value="">Top-level</option>
+                  {parentOptions.map((option) => (
+                    <option key={option.slug} value={option.slug}>
+                      {getCategoryPath(option, categories)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2 md:col-span-2">
+                <span className="text-sm font-semibold text-[var(--foreground)]">
+                  Description
+                </span>
+                <textarea
+                  name="description"
+                  defaultValue={category.description}
+                  rows={4}
+                  className="resize-none rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold text-[var(--foreground)]">
+                  Status
+                </span>
+                <select
+                  name="isActive"
+                  defaultValue={String(category.isActive)}
+                  className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+                >
+                  <option value="true">Active</option>
+                  <option value="false">Inactive</option>
+                </select>
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold text-[var(--foreground)]">
+                  Listing expiry days
+                </span>
+                <input
+                  name="listingExpiryDays"
+                  type="number"
+                  min="1"
+                  max="365"
+                  defaultValue={category.listingExpiryDays}
+                  className="rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+                />
+              </label>
+            </div>
+
+            <CategorySchemaEditor
+              key={`edit-schema-${category.slug}`}
+              initialFields={category.schema}
+              inheritedFields={
+                category.parentSlug
+                  ? (categories.find((item) => item.slug === category.parentSlug)
+                      ?.schema ?? [])
+                  : []
+              }
+            />
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button className="action-primary px-4 py-2 text-sm font-semibold">
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => onAddSubcategory(category)}
+                className="rounded-md border border-[var(--line)] px-4 py-2 text-sm font-semibold text-[var(--brand-strong)] hover:border-[var(--brand)] hover:bg-[var(--brand-soft)]"
+              >
+                Add child
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="mt-5 rounded-md border border-[var(--line)] p-4 text-sm text-[var(--muted)]">
+            This role can view catalog details but cannot edit categories.
+          </div>
+        )}
+
+        {canEdit && category.isActive ? (
+          <form action={deleteCategoryAction} className="mt-3">
+            <input type="hidden" name="slug" value={category.slug} />
+            <input type="hidden" name="returnTo" value={returnTo} />
+            <button className="w-full rounded-md border border-[#e7b6a9] px-4 py-2 text-sm font-semibold text-[#9f321e] hover:bg-[#fff3ef]">
+              Disable category
+            </button>
+          </form>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -496,7 +509,7 @@ export function CategoryManagement({
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialTypeFilter);
-  const [selectedSlug, setSelectedSlug] = useState(categories[0]?.slug ?? "");
+  const [selectedSlug, setSelectedSlug] = useState("");
   const [expandedSlugs, setExpandedSlugs] = useState<Set<string>>(() => {
     const tree = buildCategoryTree(categories);
     return new Set(getExpandableSlugs(tree));
@@ -523,8 +536,7 @@ export function CategoryManagement({
     [expandedSlugs, filteredTree, forceExpanded]
   );
   const selectedCategory =
-    categories.find((category) => category.slug === selectedSlug) ??
-    categories[0];
+    categories.find((category) => category.slug === selectedSlug) ?? undefined;
   const treeDepth = maxDepth(categoryTree);
   const resultCount = countNodes(filteredTree);
 
@@ -573,8 +585,7 @@ export function CategoryManagement({
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
-        <div className="grid gap-4">
+      <div className="grid gap-4">
           {canEdit ? (
             <CategoryForm
               key={presetParent?.version ?? "category-root-form"}
@@ -696,18 +707,16 @@ export function CategoryManagement({
               )}
             </div>
           </div>
-        </div>
-
-        <div className="xl:sticky xl:top-4">
-          <SelectedCategoryPanel
-            category={selectedCategory}
-            categories={categories}
-            onAddSubcategory={startSubcategory}
-            canEdit={canEdit}
-            returnTo={returnTo}
-          />
-        </div>
       </div>
+
+      <SelectedCategoryPanel
+        category={selectedCategory}
+        categories={categories}
+        onAddSubcategory={startSubcategory}
+        onClose={() => setSelectedSlug("")}
+        canEdit={canEdit}
+        returnTo={returnTo}
+      />
     </section>
   );
 }

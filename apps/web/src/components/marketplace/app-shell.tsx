@@ -2,17 +2,22 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { logoutAction } from "@/app/(main)/actions";
 import { CategoryIcon } from "@/components/marketplace/category-icon";
 import { ColorProfileToggle } from "@/components/marketplace/color-profile-toggle";
 import { GoogleOneTapPrompt } from "@/components/marketplace/google-auth-form";
 import { NotificationBell } from "@/components/marketplace/notification-bell";
-import {
-  hasAdminPermission,
-  hasAnyAdminPermission,
-  type AdminPermission,
-} from "@/lib/admin-permissions";
+import { getAdminNavigationSections } from "@/lib/admin-navigation";
+import { hasAnyAdminPermission } from "@/lib/admin-permissions";
 import {
   buildMarketplaceCategoryTree,
   type MarketplaceCategoryNode,
@@ -31,136 +36,6 @@ const customerNavLinks = [
   { href: "/wallet", label: "Wallet" },
   { href: "/reports", label: "Reports" },
   { href: "/my-listings", label: "My Listings" },
-  { href: "/profile", label: "Profile" },
-];
-
-const adminNavLinks: Array<{
-  href: string;
-  label: string;
-  permission?: AdminPermission;
-}> = [
-  { href: "/admin", label: "Dashboard", permission: "ADMIN_DASHBOARD" },
-  {
-    href: "/admin/categories",
-    label: "Categories",
-    permission: "CATEGORIES_READ",
-  },
-  {
-    href: "/admin/listings",
-    label: "Listings",
-    permission: "LISTINGS_READ",
-  },
-  {
-    href: "/admin/sellers",
-    label: "Sellers",
-    permission: "USERS_READ",
-  },
-  {
-    href: "/admin/sellers/approvals",
-    label: "Approvals",
-    permission: "USERS_READ",
-  },
-  {
-    href: "/admin/sellers/verified",
-    label: "Verified",
-    permission: "USERS_READ",
-  },
-  {
-    href: "/admin/sellers/badges",
-    label: "Badges",
-    permission: "USERS_READ",
-  },
-  {
-    href: "/admin/sellers/form",
-    label: "Seller Form",
-    permission: "USERS_WRITE",
-  },
-  {
-    href: "/admin/sellers/privileges",
-    label: "Privileges",
-    permission: "USERS_READ",
-  },
-  {
-    href: "/admin/boost-packages",
-    label: "Boosts",
-    permission: "BOOSTS_WRITE",
-  },
-  { href: "/admin/boosts", label: "Active Boosts", permission: "BOOSTS_READ" },
-  {
-    href: "/admin/priority-rules",
-    label: "Priority",
-    permission: "LISTINGS_PRIORITY",
-  },
-  { href: "/admin/users", label: "Users", permission: "USERS_READ" },
-  {
-    href: "/admin#moderation",
-    label: "Moderation",
-    permission: "LISTINGS_MODERATE",
-  },
-  { href: "/admin/reviews", label: "Reviews", permission: "REVIEWS_READ" },
-  { href: "/admin/reports", label: "Monitoring", permission: "REPORTS_READ" },
-  {
-    href: "/admin/reports/active-listings",
-    label: "Active Listings",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/reports/paid-listings",
-    label: "Paid Listings",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/reports/category-income",
-    label: "Category Income",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/reports/boost-revenue",
-    label: "Boost Revenue",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/reports/wallet-payments",
-    label: "Wallet Payments",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/wallet",
-    label: "Wallet Ops",
-    permission: "WALLETS_WRITE",
-  },
-  {
-    href: "/admin/reports/sellers",
-    label: "Sellers",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/reports/top-sellers",
-    label: "Top Sellers",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/reports/seller-approvals",
-    label: "Approvals",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/listing-reports",
-    label: "Report Queue",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/transactions",
-    label: "Ledger",
-    permission: "TRANSACTIONS_READ",
-  },
-  {
-    href: "/admin/audit-logs",
-    label: "Audit Logs",
-    permission: "AUDIT_LOGS_READ",
-  },
-  { href: "/messages", label: "Support Inbox", permission: "SUPPORT_READ" },
-  { href: "/notifications", label: "Notifications" },
   { href: "/profile", label: "Profile" },
 ];
 
@@ -357,6 +232,232 @@ function getCustomerNavLinks(user: SessionUser | null) {
   });
 }
 
+function AdminSidebar({
+  pathname,
+  role,
+}: {
+  pathname: string;
+  role: string | null | undefined;
+}) {
+  const sections = useMemo(() => getAdminNavigationSections(role), [role]);
+  const activeSectionId =
+    sections.find((section) =>
+      section.items.some((item) => isActive(pathname, item.href)),
+    )?.id ?? sections[0]?.id ?? "";
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileSectionId, setMobileSectionId] = useState(activeSectionId);
+  const [desktopSectionId, setDesktopSectionId] = useState("");
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    setMobileSectionId(activeSectionId);
+  }, [activeSectionId]);
+
+  return (
+    <>
+      <div className="admin-sidebar-mobile">
+        <button
+          type="button"
+          onClick={() => setMobileOpen((current) => !current)}
+          className="admin-sidebar-mobile-toggle"
+          aria-expanded={mobileOpen}
+          aria-controls="admin-sidebar-mobile-panel"
+        >
+          <span>
+            <span className="admin-sidebar-mobile-label">
+              Admin navigation
+            </span>
+            <span className="admin-sidebar-mobile-detail">
+              Open admin pages
+            </span>
+          </span>
+          <span className="admin-sidebar-mobile-arrow">
+            {mobileOpen ? "Hide" : "Open"}
+          </span>
+        </button>
+        {mobileOpen ? (
+          <div
+            id="admin-sidebar-mobile-panel"
+            className="admin-sidebar-panel admin-sidebar-panel-mobile"
+          >
+            <AdminSidebarMobileSections
+              pathname={pathname}
+              sections={sections}
+              activeSectionId={mobileSectionId}
+              onToggleSection={(sectionId) =>
+                setMobileSectionId((current) =>
+                  current === sectionId ? "" : sectionId,
+                )
+              }
+            />
+          </div>
+        ) : null}
+      </div>
+      <aside
+        className="admin-sidebar-desktop"
+        onMouseLeave={() => setDesktopSectionId("")}
+        onPointerLeave={() => setDesktopSectionId("")}
+      >
+        <div className="admin-sidebar-desktop-shell">
+          <AdminSidebarDesktopSections
+            pathname={pathname}
+            sections={sections}
+            activeSectionId={desktopSectionId}
+            onFocusSection={setDesktopSectionId}
+          />
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function AdminSidebarDesktopSections({
+  pathname,
+  sections,
+  activeSectionId,
+  onFocusSection,
+}: {
+  pathname: string;
+  sections: ReturnType<typeof getAdminNavigationSections>;
+  activeSectionId: string;
+  onFocusSection: (sectionId: string) => void;
+}) {
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const [submenuTop, setSubmenuTop] = useState(0);
+  const activeSection =
+    sections.find((section) => section.id === activeSectionId) ?? null;
+
+  function handleOpenSection(
+    sectionId: string,
+    event: MouseEvent<HTMLButtonElement> | FocusEvent<HTMLButtonElement>,
+  ) {
+    const shellTop = shellRef.current?.getBoundingClientRect().top ?? 0;
+    const buttonTop = event.currentTarget.getBoundingClientRect().top;
+    setSubmenuTop(buttonTop - shellTop);
+    onFocusSection(sectionId);
+  }
+
+  return (
+    <div ref={shellRef} className="admin-sidebar-rail">
+      <div className="admin-sidebar-panel admin-sidebar-panel-desktop admin-sidebar-main-panel">
+        <div className="admin-sidebar-header">
+          <h2 className="admin-sidebar-title">Admin</h2>
+        </div>
+        <nav className="admin-sidebar-nav">
+          {sections.map((section) => {
+            const hasActiveItem = section.items.some((item) =>
+              isActive(pathname, item.href),
+            );
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onMouseEnter={(event) => handleOpenSection(section.id, event)}
+                onPointerEnter={(event) => handleOpenSection(section.id, event)}
+                onFocus={(event) => handleOpenSection(section.id, event)}
+                className={`admin-sidebar-main-link ${
+                  hasActiveItem ? "admin-sidebar-main-link-active" : ""
+                }`}
+              >
+                <span>{section.label}</span>
+                <span className="admin-sidebar-main-link-count">&gt;</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+      {activeSection ? (
+        <div className="admin-sidebar-submenu panel" style={{ top: submenuTop }}>
+          <div className="admin-sidebar-submenu-head">
+            <p className="admin-sidebar-group-label">{activeSection.label}</p>
+          </div>
+          <div className="admin-sidebar-group-links">
+            {activeSection.items.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`admin-sidebar-nav-link ${
+                  isActive(pathname, item.href)
+                    ? "admin-sidebar-nav-link-active"
+                    : ""
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AdminSidebarMobileSections({
+  pathname,
+  sections,
+  activeSectionId,
+  onToggleSection,
+}: {
+  pathname: string;
+  sections: ReturnType<typeof getAdminNavigationSections>;
+  activeSectionId: string;
+  onToggleSection: (sectionId: string) => void;
+}) {
+  return (
+    <div className="admin-sidebar-sections">
+      {sections.map((section) => {
+        const hasActiveItem = section.items.some((item) =>
+          isActive(pathname, item.href),
+        );
+        const expanded = activeSectionId === section.id;
+
+        return (
+          <section
+            key={section.id}
+            className={`admin-sidebar-section ${
+              hasActiveItem ? "admin-sidebar-section-active" : ""
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => onToggleSection(section.id)}
+              className="admin-sidebar-section-toggle"
+              aria-expanded={expanded}
+            >
+              <span className="admin-sidebar-section-head">
+                <span className="admin-sidebar-section-label">{section.label}</span>
+              </span>
+              <span className="admin-sidebar-mobile-count">
+                {expanded ? "Hide" : section.items.length}
+              </span>
+            </button>
+            {expanded ? (
+              <div className="admin-sidebar-group-links">
+                {section.items.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`admin-sidebar-nav-link ${
+                      isActive(pathname, item.href)
+                        ? "admin-sidebar-nav-link-active"
+                        : ""
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 function adminWorkspaceRoute(pathname: string) {
   return (
     pathname.startsWith("/admin") ||
@@ -426,10 +527,7 @@ export function MarketplaceShell({
     pathname !== "/login" &&
     pathname !== "/register";
   const navLinks = adminShell
-    ? adminNavLinks.filter(
-        (link) =>
-          !link.permission || hasAdminPermission(user?.role, link.permission),
-      )
+    ? []
     : adminLogin
       ? []
       : getCustomerNavLinks(user);
@@ -467,7 +565,11 @@ export function MarketplaceShell({
       }`}
     >
       {showOneTap ? <GoogleOneTapPrompt nextPath={oneTapNextPath} /> : null}
-      <header className="marketplace-header sticky top-0 z-40">
+      <header
+        className={`marketplace-header top-0 z-40 ${
+          adminExperience ? "fixed inset-x-0" : "sticky"
+        }`}
+      >
         <div className="mx-auto flex max-w-[92rem] flex-col gap-4 px-4 py-4 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-10">
           <Link
             href={
@@ -612,7 +714,18 @@ export function MarketplaceShell({
           </div>
         ) : null}
       </header>
-      <main>{children}</main>
+      <main className={adminExperience ? "pt-[7.5rem]" : undefined}>
+        {adminShell ? (
+          <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
+            <div className="admin-workspace">
+              <AdminSidebar pathname={pathname} role={user?.role} />
+              <div className="admin-workspace-content">{children}</div>
+            </div>
+          </div>
+        ) : (
+          children
+        )}
+      </main>
       {!adminExperience ? (
         <footer className="marketplace-footer">
           <div className="mx-auto grid max-w-[92rem] gap-6 px-4 py-8 text-sm sm:px-8 lg:grid-cols-[1fr_auto] lg:items-center lg:px-10">
