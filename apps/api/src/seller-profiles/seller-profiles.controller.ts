@@ -129,13 +129,6 @@ export class SellerProfilesController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...rolesForPermission('USERS_READ'))
-  @Get('admin/:id')
-  getSellerProfileForAdmin(@Param('id') id: string) {
-    return this.sellerProfilesService.getSellerProfileForAdmin(id);
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...rolesForPermission('USERS_WRITE'))
   @Patch('admin/:id/review')
   reviewSellerProfile(
@@ -252,6 +245,13 @@ export class SellerProfilesController {
   @Get('admin/badges')
   listSellerBadges() {
     return this.sellerProfilesService.listSellerBadges();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...rolesForPermission('USERS_READ'))
+  @Get('admin/:id')
+  getSellerProfileForAdmin(@Param('id') id: string) {
+    return this.sellerProfilesService.getSellerProfileForAdmin(id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
