@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   boostListingAction,
   deleteListingAction,
+  upgradeSellerPrivilegeAction,
   updateListingStatusAction,
   walletTopUpAction,
 } from "@/app/(main)/actions";
@@ -13,6 +14,7 @@ import {
   fetchMyListingQuota,
   fetchMyListings,
   fetchMySellerProfile,
+  fetchMySellerPrivileges,
   fetchMyTransactions,
   fetchMyWallet,
   fetchReceivedSellerRatings,
@@ -177,10 +179,10 @@ function getFreeListingBalanceDetail({
   }
 
   if (freeListingRemaining === 0) {
-    return `${freeListingUsed} active/pending used`;
+    return `${freeListingUsed} used this month`;
   }
 
-  return `${freeListingUsed} active/pending used`;
+  return `${freeListingUsed} used this month`;
 }
 
 function getListingPaymentTone(
@@ -1305,6 +1307,7 @@ export default async function MyListingsPage() {
     boostPackages,
     wallet,
     listingQuota,
+    privilegeTiers,
     ratingSummary,
     receivedRatings,
     listingFeeTransactions,
@@ -1313,6 +1316,7 @@ export default async function MyListingsPage() {
     fetchBoostPackages(),
     fetchMyWallet(accessToken),
     fetchMyListingQuota(accessToken),
+    fetchMySellerPrivileges(accessToken),
     fetchSellerRatingSummary(user.id),
     fetchReceivedSellerRatings(accessToken),
     fetchMyTransactions(accessToken, {
@@ -1320,6 +1324,16 @@ export default async function MyListingsPage() {
       type: "LISTING_FEE",
     }),
   ]);
+  const currentPrivilegeTierId =
+    sellerProfileEnvelope.sellerProfile?.privilegeTier?.id ?? null;
+  const currentPrivilegeSortOrder =
+    sellerProfileEnvelope.sellerProfile?.privilegeTier?.sortOrder ?? -1;
+  const upgradeOptions = privilegeTiers.filter(
+    (tier) =>
+      tier.isActive &&
+      tier.id !== currentPrivilegeTierId &&
+      tier.sortOrder > currentPrivilegeSortOrder,
+  );
   const activeCount = listings.filter(
     (listing) => listing.status === "Active",
   ).length;
@@ -1438,6 +1452,65 @@ export default async function MyListingsPage() {
 
       <SellerWalletBalance boostPackages={boostPackages} wallet={wallet} />
 
+      {upgradeOptions.length ? (
+        <section className="panel grid gap-4">
+          <div>
+            <p className="section-eyebrow">Seller tier upgrades</p>
+            <h2 className="mt-2 text-2xl font-black">Upgrade your seller privileges</h2>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              Move to a higher seller tier using your wallet balance. Your current
+              tier is {sellerProfileEnvelope.sellerProfile?.privilegeTier?.name ?? "Free"}.
+            </p>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-3">
+            {upgradeOptions.map((tier) => (
+              <form
+                key={tier.id}
+                action={upgradeSellerPrivilegeAction}
+                className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4"
+              >
+                <input type="hidden" name="returnTo" value="/my-listings" />
+                <input
+                  type="hidden"
+                  name="sellerPrivilegeTierId"
+                  value={tier.id}
+                />
+                <p className="text-sm font-black uppercase tracking-wide text-[var(--muted)]">
+                  {tier.code}
+                </p>
+                <h3 className="mt-2 text-xl font-black">{tier.name}</h3>
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  {tier.description ?? "Higher seller visibility and quota limits."}
+                </p>
+                <div className="mt-4 grid gap-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-bold text-[var(--muted)]">Upgrade fee</span>
+                    <span className="font-black">
+                      {formatPackagePrice(tier.sellerLevelUpgradeFee, tier.currency)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-bold text-[var(--muted)]">Free listings</span>
+                    <span className="font-black">{tier.monthlyFreeListingLimit}/month</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-bold text-[var(--muted)]">Active limit</span>
+                    <span className="font-black">{tier.activeListingLimit ?? "Flexible"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-bold text-[var(--muted)]">Pending limit</span>
+                    <span className="font-black">{tier.pendingListingLimit ?? "Flexible"}</span>
+                  </div>
+                </div>
+                <button className="action-primary mt-4 px-4 py-3 text-sm font-bold">
+                  Upgrade to {tier.name}
+                </button>
+              </form>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <SellerBoostOptions
         boostPackages={boostPackages}
         listings={listings}
@@ -1499,6 +1572,35 @@ export default async function MyListingsPage() {
                   <p className="mt-2 text-sm font-bold text-[var(--muted)]">
                     Listing payment: {paymentInfo.detail}
                   </p>
+                  {listing.status === "Pending" ? (
+                    <div className="mt-2 rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm font-semibold text-[var(--muted)]">
+                      Submitted
+                      {listing.submittedAt
+                        ? ` on ${formatReviewDate(listing.submittedAt)}`
+                        : ""}. Waiting for admin review.
+                    </div>
+                  ) : null}
+                  {listing.status === "Rejected" ? (
+                    <div className="mt-2 rounded-md border border-[rgba(217,93,57,0.24)] bg-[var(--brand-soft)] px-3 py-2 text-sm text-[var(--brand-strong)]">
+                      <p className="font-black">Rejected by moderation</p>
+                      <p className="mt-1">
+                        {listing.rejectionReason ??
+                          "This listing needs updates before it can be approved."}
+                      </p>
+                      {listing.reviewedAt ? (
+                        <p className="mt-1 text-xs font-semibold text-[var(--muted)]">
+                          Reviewed on {formatReviewDate(listing.reviewedAt)}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {listing.reviewedAt &&
+                  listing.status !== "Rejected" &&
+                  listing.status !== "Draft" ? (
+                    <p className="mt-2 text-xs font-semibold text-[var(--muted)]">
+                      Reviewed on {formatReviewDate(listing.reviewedAt)}
+                    </p>
+                  ) : null}
                   <div className="mt-3 grid gap-2 sm:grid-cols-4">
                     {[
                       ["Views", listing.viewCountValue.toLocaleString()],

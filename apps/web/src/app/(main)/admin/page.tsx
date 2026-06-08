@@ -162,6 +162,13 @@ const scopedDashboardLinks: Array<{
     permission: "TRANSACTIONS_READ",
   },
   {
+    href: "/admin/wallet",
+    eyebrow: "Wallets",
+    title: "Wallet Desk",
+    description: "Inspect seller balances and manual wallet adjustments.",
+    permission: "WALLETS_WRITE",
+  },
+  {
     href: "/admin/users",
     eyebrow: "Users",
     title: "Users",
@@ -511,10 +518,10 @@ export default async function AdminPage() {
       metricLabel: "paid",
     },
     {
-      href: "/admin/reports/wallet-payments",
+      href: "/admin/wallet",
       eyebrow: "Wallets",
-      title: "Wallet Payments Report",
-      description: "Track wallet balances, top-ups, debits, and spend.",
+      title: "Wallet Desk",
+      description: "Track balances, manual adjustments, top-ups, and spend.",
       metric: walletPaymentsReport.overview.fundedWallets,
       metricLabel: "funded",
     },

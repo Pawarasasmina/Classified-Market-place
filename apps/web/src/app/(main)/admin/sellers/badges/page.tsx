@@ -52,6 +52,67 @@ export default async function AdminSellerBadgesPage() {
                 Preview
               </span>
             </div>
+            <form action={upsertSellerBadgeTypeAction} className="grid gap-3">
+              <input type="hidden" name="returnTo" value="/admin/sellers/badges" />
+              <input type="hidden" name="id" value={badge.id} />
+              <input
+                name="label"
+                defaultValue={badge.label}
+                className="surface-input w-full text-sm"
+              />
+              <input
+                name="slug"
+                defaultValue={badge.slug}
+                className="surface-input w-full text-sm"
+              />
+              <input
+                name="icon"
+                defaultValue={badge.icon ?? ""}
+                className="surface-input w-full text-sm"
+              />
+              <input
+                name="backgroundColor"
+                defaultValue={badge.backgroundColor ?? ""}
+                className="surface-input w-full text-sm"
+              />
+              <input
+                name="textColor"
+                defaultValue={badge.textColor ?? ""}
+                className="surface-input w-full text-sm"
+              />
+              <textarea
+                name="description"
+                defaultValue={badge.description ?? ""}
+                rows={3}
+                className="surface-input min-h-20 w-full text-sm"
+              />
+              <div className="flex flex-wrap gap-3 text-sm font-semibold">
+                <label className="flex items-center gap-2">
+                  <input type="hidden" name="isActive" value="false" />
+                  <input
+                    type="checkbox"
+                    name="isActive"
+                    value="true"
+                    defaultChecked={badge.isActive}
+                    className="h-4 w-4 accent-[var(--brand)]"
+                  />
+                  Active
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="isHidden"
+                    value="true"
+                    defaultChecked={badge.isHidden}
+                    className="h-4 w-4 accent-[var(--brand)]"
+                  />
+                  Hidden
+                </label>
+              </div>
+              <button className="action-secondary px-4 py-3 text-sm font-bold">
+                Save badge settings
+              </button>
+            </form>
             <form action={assignSellerBadgeAction} className="grid gap-3">
               <input type="hidden" name="returnTo" value="/admin/sellers/badges" />
               <input type="hidden" name="badgeTypeId" value={badge.id} />

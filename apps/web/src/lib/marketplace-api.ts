@@ -1367,6 +1367,12 @@ export async function fetchMySellerProfile(accessToken: string) {
   });
 }
 
+export async function fetchMySellerPrivileges(accessToken: string) {
+  return apiRequest<ApiSellerPrivilegeTier[]>("/seller-profiles/me/privileges", {
+    accessToken,
+  });
+}
+
 export async function switchToSeller(accessToken: string) {
   return apiRequest<ApiSellerProfile>("/seller-profiles/me/switch", {
     method: "POST",
@@ -1426,6 +1432,18 @@ export async function requestVerifiedSeller(
     accessToken,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+  });
+}
+
+export async function upgradeMySellerPrivilege(
+  accessToken: string,
+  sellerPrivilegeTierId: string,
+) {
+  return apiRequest<ApiSellerProfile>("/seller-profiles/me/upgrade-tier", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sellerPrivilegeTierId }),
   });
 }
 
@@ -1996,6 +2014,17 @@ export type AuthSession = {
 export async function fetchAuthSessions(accessToken: string) {
   return apiRequest<AuthSession[]>("/auth/sessions", {
     accessToken,
+  });
+}
+
+export async function resendEmailVerificationForEmail(email: string) {
+  return apiRequest<{
+    message: string;
+    emailVerificationPreviewUrl?: string | null;
+  }>("/auth/resend-email-verification/request", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
   });
 }
 

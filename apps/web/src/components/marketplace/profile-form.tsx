@@ -328,6 +328,45 @@ export function EmailVerificationPanel({ verified }: { verified: boolean }) {
   );
 }
 
+export function PublicEmailVerificationPanel({
+  email,
+}: {
+  email: string;
+}) {
+  const [state, formAction, pending] = useActionState(
+    resendEmailVerificationAction,
+    initialState
+  );
+
+  return (
+    <form action={formAction} className="panel grid gap-4">
+      <input type="hidden" name="email" value={email} />
+      <div>
+        <p className="section-eyebrow">Email verification</p>
+        <h2 className="mt-2 text-2xl font-black">Need a new verification link?</h2>
+        <p className="mt-2 text-sm text-[var(--muted)]">
+          We can resend a fresh verification email
+          {email ? ` to ${email}` : ""}. Dev mode also shows the link directly.
+        </p>
+      </div>
+
+      <button
+        type="submit"
+        disabled={pending}
+        className="action-secondary w-fit px-5 py-3 text-sm font-bold disabled:opacity-60"
+      >
+        {pending ? "Sending..." : "Resend verification email"}
+      </button>
+
+      {state.message ? (
+        <p className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-semibold text-[var(--muted)]">
+          {state.message}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
 export function DeactivateAccountForm() {
   return (
     <form action={deactivateAccountAction} className="panel grid gap-4">

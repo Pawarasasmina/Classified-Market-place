@@ -28,6 +28,7 @@ import {
   deleteSellerReview,
   deleteSellerRating,
   googleLoginUser,
+  upgradeMySellerPrivilege,
   loginUser,
   logoutAllSessions,
   logoutSession,
@@ -39,6 +40,7 @@ import {
   requestPhoneOtp,
   requestVerifiedSeller,
   resendEmailVerification,
+  resendEmailVerificationForEmail,
   reviewSellerDocument,
   reviewSellerProfile,
   reviewVerifiedSeller,
@@ -723,6 +725,18 @@ export async function loginAction(
     redirectPath = getPostAuthPath(session.user, nextPath);
     revalidatePath("/", "layout");
   } catch (error) {
+    if (
+      error instanceof MarketplaceApiError &&
+      error.message.toLowerCase().includes("verify your email")
+    ) {
+      const params = new URLSearchParams({
+        next: nextPath,
+        email: parsed.data.email,
+      });
+
+      redirect(`/verify-email?${params.toString()}`);
+    }
+
     return {
       message: getActionMessage(error, "We could not sign you in."),
     };
@@ -1221,10 +1235,14 @@ export async function completeListingPaymentAction(formData: FormData) {
 }
 
 export async function walletTopUpAction(formData: FormData) {
+  const requestedReturnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/my-listings",
+  );
   const parsed = walletTopUpSchema.safeParse({
     amount: formData.get("amount"),
     currency: formData.get("currency") || "AED",
-    returnTo: formData.get("returnTo") || "/my-listings",
+    returnTo: requestedReturnTo,
   });
 
   if (parsed.success) {
@@ -1246,7 +1264,7 @@ export async function walletTopUpAction(formData: FormData) {
     redirect(withQueryParam(returnTo, { wallet: "top-up-success" }));
   }
 
-  redirect("/my-listings?wallet=top-up-invalid");
+  redirect(withQueryParam(requestedReturnTo, { wallet: "top-up-invalid" }));
 }
 
 export async function createBoostPackageAction(formData: FormData) {
@@ -2122,15 +2140,19 @@ export async function revokeSessionAction(formData: FormData) {
 
 export async function resendEmailVerificationAction(
   _previousState: FormActionState,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<FormActionState> {
   void _previousState;
-  void _formData;
-
-  const { accessToken } = await requireSessionContext("/verify-email");
+  const email = cleanOptional(String(formData.get("email") ?? ""));
 
   try {
-    const response = await resendEmailVerification(accessToken);
+    const response = email
+      ? await resendEmailVerificationForEmail(email)
+      : await (async () => {
+          const { accessToken } = await requireSessionContext("/verify-email");
+          return resendEmailVerification(accessToken);
+        })();
+
     return {
       message: response.emailVerificationPreviewUrl
         ? `${response.message} Dev verification link: ${response.emailVerificationPreviewUrl}`
@@ -2267,6 +2289,22 @@ export async function requestVerifiedSellerAction(formData: FormData) {
 
   revalidateSellerPaths();
   redirect(withQueryParam(returnTo, { verified: "requested" }));
+}
+
+export async function upgradeSellerPrivilegeAction(formData: FormData) {
+  const returnTo = getSafeNextPath(formData.get("returnTo"), "/my-listings");
+  const sellerPrivilegeTierId = String(
+    formData.get("sellerPrivilegeTierId") ?? "",
+  ).trim();
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  if (sellerPrivilegeTierId) {
+    await upgradeMySellerPrivilege(accessToken, sellerPrivilegeTierId);
+  }
+
+  revalidateSellerPaths();
+  revalidatePath("/wallet");
+  redirect(withQueryParam(returnTo, { tierUpgrade: "success" }));
 }
 
 export async function reviewSellerProfileAction(formData: FormData) {
@@ -2509,8 +2547,10 @@ export async function upsertSellerBadgeTypeAction(formData: FormData) {
       String(formData.get("backgroundColor") ?? ""),
     ),
     textColor: cleanOptional(String(formData.get("textColor") ?? "")),
-    isActive: formData.get("isActive") !== "false",
-    isHidden: formData.get("isHidden") === "true",
+    isActive: formData.has("isActive")
+      ? formData.getAll("isActive").includes("true")
+      : true,
+    isHidden: formData.getAll("isHidden").includes("true"),
     sortOrder: Number(formData.get("sortOrder") ?? 0),
   });
 

@@ -14,6 +14,8 @@ import {
   SellerPriorityTier,
   SellerPrivilegeTierCode,
   SellerProfileStatus,
+  TransactionStatus,
+  TransactionType,
   VerifiedSellerStatus,
 } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -915,6 +917,155 @@ export class SellerProfilesService implements OnModuleInit {
       },
       orderBy: { sortOrder: 'asc' },
     });
+  }
+
+  async upgradeMySellerPrivilege(userId: string, sellerPrivilegeTierId: string) {
+    await this.ensureDefaults();
+    const profile = await this.requireSellerProfileByUserId(userId);
+
+    if (profile.status !== SellerProfileStatus.APPROVED) {
+      throw new BadRequestException(
+        'Only approved sellers can upgrade seller privileges',
+      );
+    }
+
+    const [targetTier, currentTier] = await Promise.all([
+      this.prisma.sellerPrivilegeTier.findUnique({
+        where: { id: sellerPrivilegeTierId },
+      }),
+      profile.privilegeTierId
+        ? this.prisma.sellerPrivilegeTier.findUnique({
+            where: { id: profile.privilegeTierId },
+          })
+        : this.prisma.sellerPrivilegeTier.findUnique({
+            where: { code: SellerPrivilegeTierCode.FREE },
+          }),
+    ]);
+
+    if (!targetTier || !targetTier.isActive) {
+      throw new NotFoundException('Seller privilege tier not found');
+    }
+
+    if (!currentTier) {
+      throw new BadRequestException('Current seller privilege tier is missing');
+    }
+
+    if (targetTier.id === currentTier.id) {
+      throw new BadRequestException('You are already on this seller tier');
+    }
+
+    if (targetTier.sortOrder <= currentTier.sortOrder) {
+      throw new BadRequestException(
+        'Choose a higher seller privilege tier to upgrade',
+      );
+    }
+
+    const upgradeFee = new Prisma.Decimal(targetTier.sellerLevelUpgradeFee);
+    const upgradedProfile = await this.prisma.$transaction(async (tx) => {
+      if (upgradeFee.gt(0)) {
+        const wallet = await tx.walletAccount.upsert({
+          where: { userId },
+          update: {},
+          create: {
+            userId,
+            currency: targetTier.currency,
+          },
+        });
+
+        if (wallet.currency !== targetTier.currency) {
+          throw new BadRequestException(
+            'Wallet currency does not match the seller tier currency',
+          );
+        }
+
+        if (new Prisma.Decimal(wallet.balance).lt(upgradeFee)) {
+          throw new BadRequestException(
+            'Insufficient wallet balance for the seller tier upgrade',
+          );
+        }
+
+        const nextBalance = new Prisma.Decimal(wallet.balance).minus(upgradeFee);
+        const paidAt = new Date();
+        const transaction = await tx.transaction.create({
+          data: {
+            userId,
+            type: TransactionType.SELLER_LEVEL_UPGRADE,
+            status: TransactionStatus.SUCCEEDED,
+            amount: upgradeFee,
+            currency: targetTier.currency,
+            provider: 'wallet',
+            providerRef: `wallet-upgrade:${userId}:${targetTier.id}:${paidAt.getTime()}`,
+            metadata: {
+              previousTierId: currentTier.id,
+              previousTierCode: currentTier.code,
+              nextTierId: targetTier.id,
+              nextTierCode: targetTier.code,
+              paidAt: paidAt.toISOString(),
+              walletPaidAt: paidAt.toISOString(),
+            },
+          },
+        });
+
+        await tx.walletAccount.update({
+          where: { id: wallet.id },
+          data: {
+            balance: nextBalance,
+          },
+        });
+
+        await tx.walletLedger.create({
+          data: {
+            walletId: wallet.id,
+            transactionId: transaction.id,
+            type: 'SELLER_LEVEL_UPGRADE',
+            amount: upgradeFee.mul(-1),
+            currency: targetTier.currency,
+            balanceAfter: nextBalance,
+            metadata: {
+              previousTierId: currentTier.id,
+              previousTierCode: currentTier.code,
+              nextTierId: targetTier.id,
+              nextTierCode: targetTier.code,
+            },
+          },
+        });
+      }
+
+      return tx.sellerProfile.update({
+        where: { id: profile.id },
+        data: {
+          privilegeTierId: targetTier.id,
+          reviewMetadata: toJsonValue({
+            ...this.asRecord(profile.reviewMetadata),
+            upgradedAt: new Date().toISOString(),
+            upgradedFromTierId: currentTier.id,
+            upgradedToTierId: targetTier.id,
+          }),
+        },
+        include: sellerProfileInclude,
+      });
+    });
+
+    await this.syncLegacySellerPriorityTier(upgradedProfile.userId);
+
+    try {
+      await this.notifications.createNotification({
+        userId: upgradedProfile.userId,
+        actorId: upgradedProfile.userId,
+        type: NotificationType.SYSTEM,
+        title: 'Seller tier upgraded',
+        body: `Your seller tier is now ${targetTier.name}.`,
+        metadata: {
+          deepLink: '/my-listings',
+          sellerPrivilegeTierId: targetTier.id,
+          sellerPrivilegeTierCode: targetTier.code,
+        },
+      });
+    } catch {
+      // Keep wallet and privilege updates successful even if notification storage fails.
+    }
+
+    return this.mapSellerProfile(upgradedProfile);
   }
 
   async upsertSellerPrivilegeTier(dto: UpsertSellerPrivilegeTierDto) {

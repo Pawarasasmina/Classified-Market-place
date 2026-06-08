@@ -236,6 +236,11 @@ export class UpsertSellerPrivilegeQuotaDto {
   paidListingFee?: number | null;
 }
 
+export class UpgradeSellerPrivilegeDto {
+  @IsString()
+  sellerPrivilegeTierId!: string;
+}
+
 export class UpsertSellerBadgeTypeDto {
   @IsOptional()
   @IsString()

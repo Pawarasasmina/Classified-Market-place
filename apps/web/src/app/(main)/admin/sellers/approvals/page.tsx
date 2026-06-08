@@ -9,6 +9,26 @@ import {
   fetchAdminSellerProfiles,
 } from "@/lib/marketplace-api";
 
+function formatAnswerValue(value: unknown) {
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
+  if (typeof value === "number") {
+    return value.toLocaleString();
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return `${value.length} file${value.length === 1 ? "" : "s"} attached`;
+  }
+
+  return "Provided";
+}
+
 export default async function AdminSellerApprovalsPage() {
   const { accessToken } = await requireSessionContext("/admin/sellers/approvals");
   const [sellers, tiers] = await Promise.all([
@@ -52,6 +72,28 @@ export default async function AdminSellerApprovalsPage() {
               Offers: {seller.stats?.offers ?? 0}
             </div>
           </div>
+          {seller.formDefinition?.fields?.length ? (
+            <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4">
+              <p className="text-sm font-black uppercase tracking-wide text-[var(--muted)]">
+                Seller profile answers
+              </p>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                {seller.formDefinition.fields.map((field) => (
+                  <div
+                    key={field.key}
+                    className="rounded-md border border-[var(--line)] bg-white p-3"
+                  >
+                    <p className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
+                      {field.label}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">
+                      {formatAnswerValue(seller.formAnswers?.[field.key])}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <form action={reviewSellerProfileAction} className="grid gap-3 md:grid-cols-2">
             <input type="hidden" name="returnTo" value="/admin/sellers/approvals" />
             <input type="hidden" name="sellerProfileId" value={seller.id} />
@@ -116,6 +158,35 @@ export default async function AdminSellerApprovalsPage() {
               <div className="text-sm">
                 Submission {submission.requestId ?? submission.id} / {submission.status}
               </div>
+              {submission.answers && Object.keys(submission.answers).length ? (
+                <div className="grid gap-2 rounded-md border border-[var(--line)] bg-white p-3 text-sm">
+                  <p className="font-bold text-[var(--foreground)]">
+                    Submitted answers
+                  </p>
+                  {Object.entries(submission.answers).map(([key, value]) => (
+                    <div key={key}>
+                      <span className="font-semibold text-[var(--muted)]">
+                        {key}:
+                      </span>{" "}
+                      <span>{formatAnswerValue(value)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {submission.files?.length ? (
+                <div className="grid gap-2 rounded-md border border-[var(--line)] bg-white p-3 text-sm">
+                  <p className="font-bold text-[var(--foreground)]">Submitted files</p>
+                  {submission.files.map((file, index) => (
+                    <div key={`${submission.id}-file-${index}`}>
+                      <span className="font-semibold text-[var(--muted)]">
+                        {String(file.fieldKey ?? `file_${index + 1}`)}:
+                      </span>{" "}
+                      <span>{String(file.name ?? "Uploaded file")}</span>
+                      {file.mimeType ? ` / ${String(file.mimeType)}` : ""}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               <select name="status" defaultValue={submission.status} className="surface-input w-full text-sm">
                 <option value="APPROVED">APPROVED</option>
                 <option value="REJECTED">REJECTED</option>

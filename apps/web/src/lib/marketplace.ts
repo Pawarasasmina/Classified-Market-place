@@ -1256,6 +1256,7 @@ export type ApiListing = {
   seller?: ApiUser;
   images?: ApiListingImage[];
   boosts?: ApiBoost[];
+  activeBoost?: ApiBoost | null;
   analytics?: ApiListingAnalytics;
 };
 
@@ -1366,6 +1367,7 @@ export type MarketplaceListing = {
   boostedViewCount: number;
   boostCount: number;
   activeBoostCount: number;
+  activeBoost?: ApiBoost | null;
   boostedInquiryCount: number;
   boostConversionRate: number;
   isBoosted: boolean;
@@ -2025,6 +2027,7 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
   const preset = categoryPresets[listing.category?.slug ?? ""];
   const featureBullets = buildFeatureBullets(attributes);
   const activeBoosts = getActiveBoosts(listing.boosts);
+  const activeBoost = activeBoosts[0] ?? listing.activeBoost ?? null;
   const boostPlacements = [
     ...new Set(activeBoosts.map((boost) => boost.placement)),
   ];
@@ -2122,6 +2125,7 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
     boostedViewCount: analytics.boostedViewCount,
     boostCount: analytics.boostCount,
     activeBoostCount: analytics.activeBoostCount,
+    activeBoost,
     boostedInquiryCount: analytics.boostedInquiryCount,
     boostConversionRate: analytics.boostConversionRate,
     isBoosted: activeBoosts.length > 0,

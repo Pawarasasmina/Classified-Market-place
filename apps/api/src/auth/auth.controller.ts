@@ -7,6 +7,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RequestPhoneOtpDto } from './dto/request-phone-otp.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResendEmailVerificationDto } from './dto/resend-email-verification.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RevokeSessionDto } from './dto/revoke-session.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
@@ -81,6 +82,17 @@ export class AuthController {
   verifyEmail(@Body() verifyEmailDto: VerifyEmailDto, @Req() request: Request) {
     return this.authService.verifyEmail(
       verifyEmailDto,
+      this.getTokenContext(request),
+    );
+  }
+
+  @Post('resend-email-verification/request')
+  resendEmailVerificationForEmail(
+    @Body() resendEmailVerificationDto: ResendEmailVerificationDto,
+    @Req() request: Request,
+  ) {
+    return this.authService.resendEmailVerificationForEmail(
+      resendEmailVerificationDto,
       this.getTokenContext(request),
     );
   }

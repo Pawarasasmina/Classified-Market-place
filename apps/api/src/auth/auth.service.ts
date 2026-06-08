@@ -20,6 +20,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RequestPhoneOtpDto } from './dto/request-phone-otp.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResendEmailVerificationDto } from './dto/resend-email-verification.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RevokeSessionDto } from './dto/revoke-session.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
@@ -184,6 +185,7 @@ export class AuthService {
       data: {
         tokenHash: this.hashToken(refreshToken),
         userId: user.id,
+        rememberMe: options.rememberMe ?? false,
         expiresAt,
         deviceName: deriveDeviceName(context.userAgent),
         userAgent: context.userAgent,
@@ -834,7 +836,9 @@ export class AuthService {
       where: { id: storedToken.id },
       data: { revokedAt: new Date(), revokedReason: 'rotated' },
     });
-    const tokens = await this.issueTokens(storedToken.user, context);
+    const tokens = await this.issueTokens(storedToken.user, context, {
+      rememberMe: storedToken.rememberMe,
+    });
 
     await this.prisma.user.update({
       where: { id: storedToken.userId },
@@ -988,22 +992,70 @@ export class AuthService {
 
     this.rateLimitAuthAction('resend-email-verification', user.email, context, 5);
 
+    return this.sendVerificationForUser(user.id, user.email, context, 'email_verification_resent');
+  }
+
+  async resendEmailVerificationForEmail(
+    resendEmailVerificationDto: ResendEmailVerificationDto,
+    context: TokenContext = {},
+  ) {
+    const email = normalizeEmail(resendEmailVerificationDto.email);
+    this.rateLimitAuthAction(
+      'resend-email-verification-public',
+      email,
+      context,
+      5,
+    );
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (user && !user.deactivatedAt && !user.emailVerified) {
+      return this.sendVerificationForUser(
+        user.id,
+        user.email,
+        context,
+        'email_verification_resent_public',
+      );
+    }
+
+    await this.auditAuthEvent(
+      'email_verification_resent_public_unknown',
+      context,
+      {
+        email,
+      },
+    );
+
+    return {
+      message:
+        'If an account exists for that email and still needs verification, a new verification link is available.',
+      emailVerificationPreviewUrl: null,
+    };
+  }
+
+  private async sendVerificationForUser(
+    userId: string,
+    email: string,
+    context: TokenContext,
+    auditEvent: string,
+  ) {
     const emailVerificationPreviewUrl = await this.createEmailVerificationLink(
-      user.id,
+      userId,
     );
     const emailSent = await this.sendEmailVerificationEmail(
-      user.email,
+      email,
       emailVerificationPreviewUrl,
     );
     this.logAuthLinkPreview(
       'Email verification',
-      user.email,
+      email,
       emailVerificationPreviewUrl,
       emailSent,
     );
-    await this.auditAuthEvent('email_verification_resent', context, {
-      userId: user.id,
-      email: user.email,
+    await this.auditAuthEvent(auditEvent, context, {
+      userId,
+      email,
       metadata: { emailSent },
     });
 

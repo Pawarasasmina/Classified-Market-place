@@ -25,6 +25,7 @@ import {
   ReviewVerifiedSellerDto,
   SellerDocumentSubmissionDto,
   SubmitSellerProfileDto,
+  UpgradeSellerPrivilegeDto,
   UpdateSellerFormDefinitionDto,
   UpdateSellerProfileDto,
   UpsertSellerBadgeTypeDto,
@@ -93,6 +94,24 @@ export class SellerProfilesController {
     @Body() dto: RequestVerifiedSellerDto,
   ) {
     return this.sellerProfilesService.requestVerifiedSeller(user.id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me/privileges')
+  listMySellerPrivilegeTiers() {
+    return this.sellerProfilesService.listSellerPrivilegeTiers();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('me/upgrade-tier')
+  upgradeMySellerPrivilege(
+    @CurrentUser() user: { id: string },
+    @Body() dto: UpgradeSellerPrivilegeDto,
+  ) {
+    return this.sellerProfilesService.upgradeMySellerPrivilege(
+      user.id,
+      dto.sellerPrivilegeTierId,
+    );
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

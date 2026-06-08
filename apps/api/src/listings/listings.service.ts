@@ -257,11 +257,6 @@ const listingQuotaSettingKey = 'seller_listing_quota';
 const defaultFreeListingAllowance = 3;
 const defaultListingFeeAmount = 25;
 const defaultListingFeeCurrency = 'AED';
-const freeListingQuotaStatuses = [
-  ListingStatus.PENDING,
-  ListingStatus.ACTIVE,
-] as const;
-
 type ListingQuotaPolicy = {
   freeListingAllowance: number;
   listingFeeAmount: Prisma.Decimal;
@@ -375,6 +370,11 @@ function readSettingObject(
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value
     : {};
+}
+
+function getCurrentMonthStart() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 
 function normalizeCategorySchemaFields(
@@ -2493,7 +2493,14 @@ export class ListingsService implements OnModuleInit {
       where: {
         sellerId,
         listingPaymentMode: ListingPaymentMode.FREE,
-        status: { in: [...freeListingQuotaStatuses] },
+        createdAt: { gte: getCurrentMonthStart() },
+        status: {
+          notIn: [
+            ListingStatus.DRAFT,
+            ListingStatus.DELETED,
+            ListingStatus.REMOVED,
+          ],
+        },
       },
     });
   }

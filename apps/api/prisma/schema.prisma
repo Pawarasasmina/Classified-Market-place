@@ -606,6 +606,7 @@ model RefreshToken {
   deviceName String?
   userAgent String?
   ipAddress String?
+  rememberMe Boolean   @default(false)
   expiresAt DateTime
   revokedAt DateTime?
   revokedReason String?
