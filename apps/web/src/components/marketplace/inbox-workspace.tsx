@@ -1273,16 +1273,16 @@ export function InboxWorkspace({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
-      <aside className="panel h-fit min-w-0 overflow-hidden">
+    <div className="messages-workspace grid gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+      <aside className="panel messages-sidebar h-fit min-w-0 overflow-hidden">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="section-eyebrow">Inbox</p>
-            <h2 className="mt-2 text-xl font-black text-[var(--foreground)]">
+            <h2 className="mt-1.5 text-lg font-black text-[var(--foreground)]">
               Conversations
             </h2>
           </div>
-          <div className="flex rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-1 text-xs font-bold">
+          <div className="messages-segmented-control flex rounded-xl border border-[var(--line)] bg-[var(--surface-strong)] p-1 text-xs font-bold">
             <button
               type="button"
               onClick={() => setInboxView("active")}
@@ -1307,13 +1307,13 @@ export function InboxWorkspace({
             </button>
           </div>
         </div>
-        <div className="mt-5 grid gap-3">
+        <div className="mt-4 grid gap-2.5">
           {visibleConversations.map((conversation) => (
             <button
               key={conversation.id}
               type="button"
               onClick={() => void openConversation(conversation, inboxView)}
-              className={`w-full min-w-0 rounded-md border px-4 py-3 text-left text-sm transition ${
+              className={`messages-conversation-card w-full min-w-0 rounded-xl border px-3 py-3 text-left text-sm transition ${
                 conversation.id === activeConversationId
                   ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--foreground)]"
                   : "border-[var(--line)] bg-[var(--surface)] hover:border-[var(--brand)]"
@@ -1357,11 +1357,11 @@ export function InboxWorkspace({
             </button>
           ))}
           {isLoadingConversations ? (
-            <div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--surface-strong)] px-4 py-6 text-sm text-[var(--muted)]">
+            <div className="messages-placeholder rounded-xl border border-dashed border-[var(--line)] bg-[var(--surface-strong)] px-4 py-5 text-sm text-[var(--muted)]">
               Loading conversations...
             </div>
           ) : !visibleConversations.length ? (
-            <div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--surface-strong)] px-4 py-6 text-sm text-[var(--muted)]">
+            <div className="messages-placeholder rounded-xl border border-dashed border-[var(--line)] bg-[var(--surface-strong)] px-4 py-5 text-sm text-[var(--muted)]">
               {inboxView === "active"
                 ? "No active conversations yet."
                 : "No archived conversations yet."}
@@ -1390,15 +1390,15 @@ export function InboxWorkspace({
         ) : null}
       </aside>
 
-      <section className="panel min-w-0">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <section className="panel messages-chat-panel min-w-0">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="section-eyebrow">Chat</p>
-            <h2 className="mt-2 text-xl font-black text-[var(--foreground)]">
+            <h2 className="mt-1.5 text-lg font-black text-[var(--foreground)]">
               {activeConversation?.title ?? "Select a conversation"}
             </h2>
             {activeCounterpart ? (
-              <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
+              <p className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
                 <span
                   className={`inline-block h-2.5 w-2.5 rounded-full ${
                     activeCounterpart.online ? "bg-emerald-500" : "bg-slate-300"
@@ -1462,7 +1462,7 @@ export function InboxWorkspace({
         </div>
 
         {activeConversation?.listing ? (
-          <div className="mt-4 rounded-md border border-[var(--line)] bg-[var(--surface)] p-4">
+          <div className="mt-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3.5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-start gap-3">
                 {activeConversation.listing.primaryImageUrl ? (
@@ -1505,12 +1505,12 @@ export function InboxWorkspace({
         ) : null}
 
         {!activeConversation?.canSend && activeConversation?.sendDisabledReason ? (
-          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             {activeConversation.sendDisabledReason}
           </div>
         ) : null}
 
-        <div className="mt-5 h-[32rem] space-y-3 overflow-y-auto rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4">
+        <div className="messages-thread mt-4 h-[30rem] space-y-3 overflow-y-auto rounded-xl border border-[var(--line)] bg-[var(--surface-strong)] p-3.5">
           {messages.map((message) => {
             const mine = message.senderId === currentUserId;
             const isSystem = message.type === "SYSTEM";
@@ -1619,11 +1619,11 @@ export function InboxWorkspace({
             </div>
           ) : null}
           {isLoadingConversations ? (
-            <div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--surface)] px-4 py-8 text-sm text-[var(--muted)]">
+            <div className="messages-placeholder rounded-xl border border-dashed border-[var(--line)] bg-[var(--surface)] px-4 py-7 text-sm text-[var(--muted)]">
               Loading messages...
             </div>
           ) : !messages.length ? (
-            <div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--surface)] px-4 py-8 text-sm text-[var(--muted)]">
+            <div className="messages-placeholder rounded-xl border border-dashed border-[var(--line)] bg-[var(--surface)] px-4 py-7 text-sm text-[var(--muted)]">
               Open a listing and start a conversation.
             </div>
           ) : null}
@@ -1637,7 +1637,7 @@ export function InboxWorkspace({
           </p>
         ) : null}
 
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setComposerMode("TEXT")}
@@ -1707,7 +1707,7 @@ export function InboxWorkspace({
           </div>
         ) : null}
 
-        <div className="mt-4 flex gap-2">
+        <div className="messages-composer mt-3 flex gap-2">
           <input
             value={draft}
             onChange={(event) => handleDraftChange(event.target.value)}

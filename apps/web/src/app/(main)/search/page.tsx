@@ -87,16 +87,14 @@ export default async function SearchPage(props: SearchPageProps) {
   ].filter(Boolean) as string[];
 
   return (
-    <div className="page grid gap-7">
+    <div className="page search-page-layout grid gap-5">
       <section className="panel search-results-head">
         <div className="search-results-head-copy">
-          <p className="section-eyebrow">Search results</p>
           <h1 className="search-results-title">
             {selectedCategory?.name ?? "All listings"}
           </h1>
           <p className="search-results-meta">
             {listings.length} matching listing{listings.length === 1 ? "" : "s"}
-            {location ? ` in ${location}` : ""}
           </p>
         </div>
         {activeFilters.length ? (
@@ -107,20 +105,16 @@ export default async function SearchPage(props: SearchPageProps) {
               </span>
             ))}
           </div>
-        ) : (
-          <p className="search-results-meta">
-            Use filters to narrow down items faster.
-          </p>
-        )}
+        ) : null}
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
+      <div className="grid gap-5 lg:grid-cols-[16rem_1fr]">
         <aside className="filter-panel h-fit">
-          <form className="grid gap-4">
+          <form className="grid gap-3.5">
             <div className="search-filter-head">
               <div>
                 <p className="section-eyebrow">Filters</p>
-                <h2 className="mt-2 text-lg font-black text-white">
+                <h2 className="mt-1.5 text-base font-black text-white">
                   Refine results
                 </h2>
               </div>
@@ -203,12 +197,12 @@ export default async function SearchPage(props: SearchPageProps) {
                 <option value="price_desc">Price high to low</option>
               </select>
             </label>
-            <button className="action-primary px-4 py-3 text-sm font-bold">
+            <button className="action-primary px-4 py-2.5 text-sm font-bold">
               Apply filters
             </button>
           </form>
 
-          <div className="mt-5 border-t border-[var(--line)] pt-5">
+          <div className="mt-4 border-t border-[var(--line)] pt-4">
             <p className="field-label">Quick categories</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <a
