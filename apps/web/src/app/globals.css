@@ -279,6 +279,29 @@ select:focus {
   backdrop-filter: blur(20px);
 }
 
+.marketplace-header-shell {
+  display: grid;
+  gap: 1rem;
+}
+
+.marketplace-header-brand {
+  min-width: 0;
+}
+
+.marketplace-desktop-nav {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.marketplace-desktop-nav > * {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.marketplace-header-actions {
+  justify-content: flex-start;
+}
+
 .marketplace-brand-mark {
   border-radius: 1rem;
   background: linear-gradient(135deg, var(--brand), var(--ink));
@@ -305,6 +328,79 @@ select:focus {
 .marketplace-header-button:hover {
   border-color: var(--brand);
   background: var(--brand-soft);
+}
+
+.header-utility-button,
+.header-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  white-space: nowrap;
+}
+
+.header-menu-trigger-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.header-menu-chevron {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: 0 0 auto;
+  transition: transform 160ms ease;
+}
+
+.header-menu-chevron-open {
+  transform: rotate(180deg);
+}
+
+.header-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  left: 50%;
+  z-index: 60;
+  width: min(18rem, calc(100vw - 2rem));
+  transform: translateX(-50%);
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, var(--surface) 94%, white 6%);
+  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.16);
+  overflow: hidden;
+}
+
+.header-menu-panel-right {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.header-menu-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-radius: 0.95rem;
+  padding: 0.75rem 0.875rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.header-menu-link:hover {
+  background: var(--surface-strong);
+  color: var(--brand-strong);
+}
+
+.header-menu-link-active {
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.header-user-badge {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .color-profile-toggle {
@@ -767,6 +863,21 @@ html[data-color-profile="dark"] .text-\[var\(--foreground\)\] {
 
 .marketplace-header nav::-webkit-scrollbar {
   display: none;
+}
+
+@media (min-width: 1024px) {
+  .marketplace-header-shell {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .marketplace-header-brand {
+    max-width: 19rem;
+  }
+
+  .marketplace-header-actions {
+    justify-content: flex-end;
+  }
 }
 
 .admin-shell a,

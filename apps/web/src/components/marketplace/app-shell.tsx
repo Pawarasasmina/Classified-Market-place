@@ -40,6 +40,81 @@ const customerNavLinks = [
 ];
 
 const customerColorProfileStorageKey = "smartmarket-color-profile";
+const desktopPrimaryNavLinkHrefs = new Set([
+  "/",
+  "/categories",
+  "/search",
+  "/sell",
+  "/saved",
+  "/messages",
+]);
+
+function ChevronDownIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      className={className}
+    >
+      <path d="m5 7.5 5 5 5-5" />
+    </svg>
+  );
+}
+
+function HeaderMenu({
+  label,
+  active,
+  align = "center",
+  tone = "nav",
+  children,
+}: {
+  label: ReactNode;
+  active: boolean;
+  align?: "center" | "right";
+  tone?: "nav" | "utility";
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div
+      className="header-menu relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        onFocus={() => setOpen(true)}
+        className={
+          tone === "utility"
+            ? "marketplace-header-button header-utility-button px-3 py-2 font-semibold"
+            : `header-menu-trigger px-3 py-2 font-semibold ${
+                active ? "nav-link-active" : "nav-link"
+              }`
+        }
+        aria-expanded={open}
+      >
+        <span className="header-menu-trigger-label">{label}</span>
+        <ChevronDownIcon className={`header-menu-chevron ${open ? "header-menu-chevron-open" : ""}`} />
+      </button>
+      {open ? (
+        <div
+          className={`header-menu-panel ${
+            align === "right" ? "header-menu-panel-right" : ""
+          }`}
+        >
+          {children}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function CategoryChildLinks({
   nodes,
@@ -232,6 +307,23 @@ function getCustomerNavLinks(user: SessionUser | null) {
   });
 }
 
+function getDesktopPrimaryNavLinks(user: SessionUser | null) {
+  return getCustomerNavLinks(user).filter((link) =>
+    desktopPrimaryNavLinkHrefs.has(link.href),
+  );
+}
+
+function getDesktopSecondaryNavLinks(user: SessionUser | null) {
+  if (!user) {
+    return [];
+  }
+
+  return getCustomerNavLinks(user).filter(
+    (link) =>
+      !desktopPrimaryNavLinkHrefs.has(link.href) && link.href !== "/notifications",
+  );
+}
+
 function AdminSidebar({
   pathname,
   role,
@@ -244,24 +336,32 @@ function AdminSidebar({
     sections.find((section) =>
       section.items.some((item) => isActive(pathname, item.href)),
     )?.id ?? sections[0]?.id ?? "";
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [mobileSectionId, setMobileSectionId] = useState(activeSectionId);
+  const [mobileState, setMobileState] = useState({
+    open: false,
+    pathname,
+    sectionId: activeSectionId,
+  });
   const [desktopSectionId, setDesktopSectionId] = useState("");
-
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    setMobileSectionId(activeSectionId);
-  }, [activeSectionId]);
+  const mobileOpen =
+    mobileState.pathname === pathname ? mobileState.open : false;
+  const mobileSectionId =
+    mobileState.pathname === pathname &&
+    sections.some((section) => section.id === mobileState.sectionId)
+      ? mobileState.sectionId
+      : activeSectionId;
 
   return (
     <>
       <div className="admin-sidebar-mobile">
         <button
           type="button"
-          onClick={() => setMobileOpen((current) => !current)}
+          onClick={() =>
+            setMobileState({
+              open: !mobileOpen,
+              pathname,
+              sectionId: mobileSectionId,
+            })
+          }
           className="admin-sidebar-mobile-toggle"
           aria-expanded={mobileOpen}
           aria-controls="admin-sidebar-mobile-panel"
@@ -288,9 +388,11 @@ function AdminSidebar({
               sections={sections}
               activeSectionId={mobileSectionId}
               onToggleSection={(sectionId) =>
-                setMobileSectionId((current) =>
-                  current === sectionId ? "" : sectionId,
-                )
+                setMobileState({
+                  open: true,
+                  pathname,
+                  sectionId: mobileSectionId === sectionId ? "" : sectionId,
+                })
               }
             />
           </div>
@@ -531,6 +633,11 @@ export function MarketplaceShell({
     : adminLogin
       ? []
       : getCustomerNavLinks(user);
+  const desktopPrimaryNavLinks = getDesktopPrimaryNavLinks(user);
+  const desktopSecondaryNavLinks = getDesktopSecondaryNavLinks(user);
+  const hasDesktopSecondaryActive = desktopSecondaryNavLinks.some((link) =>
+    isActive(pathname, link.href),
+  );
 
   useEffect(() => {
     const root = document.documentElement;
@@ -570,19 +677,19 @@ export function MarketplaceShell({
           adminExperience ? "fixed inset-x-0" : "sticky"
         }`}
       >
-        <div className="mx-auto flex max-w-[92rem] flex-col gap-4 px-4 py-4 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-10">
+        <div className="marketplace-header-shell mx-auto max-w-[92rem] px-4 py-4 sm:px-8 lg:px-10">
           <Link
             href={
               adminExperience
                 ? "/admin"
                 : withCustomerPreview("/", customerPreview)
             }
-            className="flex items-center gap-3"
+            className="marketplace-header-brand flex items-center gap-3"
           >
             <span className="marketplace-brand-mark flex h-11 w-11 items-center justify-center text-sm font-black text-white">
               CM
             </span>
-            <span>
+            <span className="min-w-0">
               <span className="block text-sm font-black uppercase tracking-[0.22em]">
                 {adminExperience ? "Admin Console" : "Classified Marketplace"}
               </span>
@@ -596,9 +703,9 @@ export function MarketplaceShell({
             </span>
           </Link>
 
-          {navLinks.length ? (
-            <nav className="hidden flex-wrap gap-2 text-sm lg:flex">
-              {navLinks.map((link) =>
+          {desktopPrimaryNavLinks.length ? (
+            <nav className="marketplace-desktop-nav hidden min-w-0 items-center justify-center gap-2 text-sm lg:flex">
+              {desktopPrimaryNavLinks.map((link) =>
                 !adminShell && link.href === "/categories" ? (
                   <CustomerCategoryMenu
                     key={link.href}
@@ -624,9 +731,31 @@ export function MarketplaceShell({
                   </Link>
                 ),
               )}
+              {desktopSecondaryNavLinks.length ? (
+                <HeaderMenu
+                  label="More"
+                  active={hasDesktopSecondaryActive}
+                >
+                  <div className="grid gap-1 p-2">
+                    {desktopSecondaryNavLinks.map((link) => (
+                      <Link
+                        key={link.href}
+                        href={withCustomerPreview(link.href, customerPreview)}
+                        className={`header-menu-link ${
+                          isActive(pathname, link.href)
+                            ? "header-menu-link-active"
+                            : ""
+                        }`}
+                      >
+                        <span>{link.label}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </HeaderMenu>
+              ) : null}
             </nav>
           ) : null}
-          <div className="flex flex-wrap items-center gap-2 text-sm">
+          <div className="marketplace-header-actions flex flex-wrap items-center gap-2 text-sm">
             {adminExperience ? (
               <ColorProfileToggle
                 storageKey={customerColorProfileStorageKey}
@@ -646,9 +775,6 @@ export function MarketplaceShell({
                     apiBaseUrl={notificationsApiBaseUrl}
                   />
                 ) : null}
-                <span className="marketplace-header-badge rounded-md px-3 py-2 font-semibold">
-                  {user.displayName}
-                </span>
                 {adminShell ? (
                   <Link
                     href="/?view=customer"
@@ -666,11 +792,64 @@ export function MarketplaceShell({
                     Back to admin
                   </Link>
                 ) : null}
-                <form action={logoutAction}>
-                  <button className="marketplace-header-button px-3 py-2 font-semibold">
-                    Sign out
-                  </button>
-                </form>
+                <HeaderMenu
+                  label={
+                    <span className="flex items-center gap-2">
+                      <span className="marketplace-header-badge header-user-badge rounded-full px-3 py-1.5 font-semibold">
+                        {user.displayName}
+                      </span>
+                    </span>
+                  }
+                  active={
+                    isActive(pathname, "/profile") ||
+                    isActive(pathname, "/wallet") ||
+                    isActive(pathname, "/transactions") ||
+                    isActive(pathname, "/reports") ||
+                    isActive(pathname, "/notifications") ||
+                    isActive(pathname, "/my-listings")
+                  }
+                  align="right"
+                  tone="utility"
+                >
+                  <div className="grid gap-1 p-2">
+                    <div className="border-b border-[var(--line)] px-3 py-2">
+                      <p className="text-sm font-bold text-[var(--foreground)]">
+                        {user.displayName}
+                      </p>
+                      <p className="text-xs text-[var(--muted)]">
+                        Manage your marketplace activity
+                      </p>
+                    </div>
+                    {desktopSecondaryNavLinks.map((link) => (
+                      <Link
+                        key={link.href}
+                        href={withCustomerPreview(link.href, customerPreview)}
+                        className={`header-menu-link ${
+                          isActive(pathname, link.href)
+                            ? "header-menu-link-active"
+                            : ""
+                        }`}
+                      >
+                        <span>{link.label}</span>
+                      </Link>
+                    ))}
+                    <Link
+                      href={withCustomerPreview("/notifications", customerPreview)}
+                      className={`header-menu-link ${
+                        isActive(pathname, "/notifications")
+                          ? "header-menu-link-active"
+                          : ""
+                      }`}
+                    >
+                      <span>Notifications</span>
+                    </Link>
+                    <form action={logoutAction} className="pt-1">
+                      <button className="header-menu-link w-full text-left text-[var(--foreground)]">
+                        Sign out
+                      </button>
+                    </form>
+                  </div>
+                </HeaderMenu>
               </>
             ) : (
               <div className={`flex gap-2 ${adminLogin ? "hidden" : ""}`}>
