@@ -1128,6 +1128,62 @@ html[data-color-profile="light"] .section-header h2 {
   padding: 1.15rem;
 }
 
+.search-results-head {
+  display: grid;
+  gap: 1rem;
+  border-radius: 1.35rem;
+  padding: 1.1rem 1.2rem;
+  background: color-mix(in srgb, var(--surface) 96%, white 4%);
+}
+
+.search-results-head-copy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.search-results-title {
+  margin: 0;
+  font-size: clamp(1.4rem, 1.7vw, 2rem);
+  line-height: 1.15;
+  font-weight: 900;
+  color: var(--foreground);
+}
+
+.search-results-meta {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.search-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.search-filter-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.25rem;
+}
+
+.search-reset-link {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.search-reset-link:hover {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .filter-panel label span,
 .field-label {
   color: var(--muted);
@@ -1140,9 +1196,11 @@ html[data-color-profile="light"] .section-header h2 {
 .search-chip {
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(8, 13, 29, 0.52);
+  background: color-mix(in srgb, var(--surface-strong) 88%, white 12%);
   color: var(--muted);
-  padding: 0.55rem 0.85rem;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .schema-showcase {

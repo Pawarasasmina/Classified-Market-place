@@ -77,35 +77,60 @@ export default async function SearchPage(props: SearchPageProps) {
   const categoryTree = buildMarketplaceCategoryTree(categories);
   const flatCategories = flattenMarketplaceCategoryTree(categoryTree);
   const selectedCategory = categories.find((item) => item.slug === category);
+  const activeFilters = [
+    q ? `Keyword: ${q}` : null,
+    selectedCategory?.name ? `Category: ${selectedCategory.name}` : null,
+    location ? `Location: ${location}` : null,
+    minPrice ? `Min: ${minPrice}` : null,
+    maxPrice ? `Max: ${maxPrice}` : null,
+    sort !== "recommended" ? `Sort: ${sort.replaceAll("_", " ")}` : null,
+  ].filter(Boolean) as string[];
 
   return (
     <div className="page grid gap-7">
-      <section className="grid gap-5 xl:grid-cols-[1fr_19rem]">
-        <div className="hero-panel p-6">
-          <p className="section-eyebrow">Search API</p>
-          <h1 className="mt-3 max-w-4xl text-3xl font-black leading-tight text-white sm:text-4xl">
-            Browse live listings with real category filters and backend sorting.
+      <section className="panel search-results-head">
+        <div className="search-results-head-copy">
+          <p className="section-eyebrow">Search results</p>
+          <h1 className="search-results-title">
+            {selectedCategory?.name ?? "All listings"}
           </h1>
-          <p className="mt-4 max-w-4xl text-sm leading-7 text-[var(--muted)]">
-            Filter by keyword, category, location, and price. Recommended
-            surfaces promoted and trusted listings first; direct sorts honor the
-            field you choose and use priority only to break ties.
+          <p className="search-results-meta">
+            {listings.length} matching listing{listings.length === 1 ? "" : "s"}
+            {location ? ` in ${location}` : ""}
           </p>
         </div>
-        <aside className="hero-panel p-6">
-          <p className="section-eyebrow">Result summary</p>
-          <p className="mt-4 text-5xl font-black text-white">
-            {listings.length}
+        {activeFilters.length ? (
+          <div className="search-chip-row">
+            {activeFilters.map((label) => (
+              <span key={label} className="search-chip">
+                {label}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="search-results-meta">
+            Use filters to narrow down items faster.
           </p>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-            matching listings across the current page
-          </p>
-        </aside>
+        )}
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
         <aside className="filter-panel h-fit">
           <form className="grid gap-4">
+            <div className="search-filter-head">
+              <div>
+                <p className="section-eyebrow">Filters</p>
+                <h2 className="mt-2 text-lg font-black text-white">
+                  Refine results
+                </h2>
+              </div>
+              <a
+                href={buildSearchHref({ view })}
+                className="search-reset-link"
+              >
+                Reset
+              </a>
+            </div>
             {customerPreview ? (
               <input type="hidden" name="view" value="customer" />
             ) : null}
@@ -230,17 +255,6 @@ export default async function SearchPage(props: SearchPageProps) {
         </aside>
 
         <div className="grid gap-5">
-          <div className="hero-panel flex flex-wrap items-center gap-2 p-4 text-sm">
-            <span className="search-chip">Query: {q || "any"}</span>
-            <span className="search-chip">
-              Category: {selectedCategory?.name ?? "all"}
-            </span>
-            <span className="search-chip">Location: {location || "any"}</span>
-            <span className="search-chip">
-              Sort: {sort.replaceAll("_", " ")}
-            </span>
-          </div>
-
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {listings.length ? (
               listings.map((listing) => (
