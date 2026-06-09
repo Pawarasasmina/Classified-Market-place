@@ -1362,172 +1362,84 @@ export default async function MyListingsPage() {
   );
 
   return (
-    <div className="page grid gap-6">
-      <div className="panel-dark flex flex-wrap items-end justify-between gap-4 p-6">
-        <div>
-          <p className="section-eyebrow">Your selling activity</p>
-          <h1 className="mt-2 text-3xl font-black text-white">My listings</h1>
-          <p className="mt-2 text-[#d7d9ea]">
-            Manage the items you post from this account and track moderation
-            status.
+    <div className="page seller-dashboard-page grid gap-4">
+      <section className="panel seller-dashboard-hero">
+        <div className="seller-dashboard-hero__copy">
+          <p className="section-eyebrow">Seller workspace</p>
+          <div className="seller-dashboard-hero__title-row">
+            <h1 className="seller-dashboard-hero__title">My listings</h1>
+            <span className="seller-dashboard-hero__count">
+              {listings.length} total
+            </span>
+          </div>
+          <p className="seller-dashboard-hero__text">
+            Review previous listings, track performance, and manage selling
+            actions from one place.
           </p>
         </div>
-        <Link
-          href="/sell"
-          className="rounded-md bg-white px-4 py-3 text-sm font-bold text-[var(--foreground)]"
-        >
-          Create listing
-        </Link>
-      </div>
-
-      <SellerProfileStatus
-        activeCount={activeCount}
-        boostedCount={boostedCount}
-        listingsCount={listings.length}
-        ratingSummary={ratingSummary}
-        receivedReviewCount={receivedRatings.length}
-        user={user}
-      />
-
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {[
-          ["Views", totalViews.toLocaleString(), "Listing detail visits"],
-          ["Saves", totalSaves.toLocaleString(), "Buyer shortlists"],
-          [
-            "Inquiries",
-            totalInquiries.toLocaleString(),
-            "Listing conversations",
-          ],
-          ["Conversion", `${sellerConversionRate}%`, "Inquiries per view"],
-          [
-            "Boost views",
-            totalBoostedViews.toLocaleString(),
-            "Views while boosted",
-          ],
-        ].map(([label, value, detail]) => (
-          <div key={label} className="panel">
-            <p className="text-sm text-[var(--muted)]">{label}</p>
-            <p className="mt-2 text-3xl font-black">{value}</p>
-            <p className="mt-2 text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-              {detail}
-            </p>
+        <div className="seller-dashboard-hero__actions">
+          <div className="seller-dashboard-hero__meta">
+            <span>{activeCount} active</span>
+            <span>{boostedCount} boosted</span>
+            <span>{totalInquiries.toLocaleString()} inquiries</span>
           </div>
-        ))}
+          <Link href="/sell" className="action-primary px-4 py-2.5 text-sm font-semibold">
+            Create listing
+          </Link>
+        </div>
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <section className="seller-dashboard-stats">
         {[
-          ["Total", listings.length],
-          ["Active", activeCount],
-        ].map(([label, value]) => (
-          <div key={label} className="panel">
-            <p className="text-sm text-[var(--muted)]">{label}</p>
-            <p className="mt-2 text-3xl font-black">{value}</p>
+          ["Active listings", activeCount.toLocaleString(), "Live now"],
+          ["Total views", totalViews.toLocaleString(), "Across all listings"],
+          ["Saved by buyers", totalSaves.toLocaleString(), "Shortlisted items"],
+          ["Conversion", `${sellerConversionRate}%`, "Inquiry rate"],
+          [
+            "Free quota",
+            `${listingQuota.freeListingRemaining}/${listingQuota.freeListingAllowance}`,
+            getFreeListingBalanceDetail(listingQuota),
+          ],
+          ["Boosted reach", totalBoostedViews.toLocaleString(), "Views from boosts"],
+        ].map(([label, value, detail]) => (
+          <div key={label} className="seller-dashboard-stat">
+            <p className="seller-dashboard-stat__label">{label}</p>
+            <p className="seller-dashboard-stat__value">{value}</p>
+            <p className="seller-dashboard-stat__detail">{detail}</p>
           </div>
         ))}
-        <div className="panel">
-          <p className="text-sm text-[var(--muted)]">Free listings</p>
-          <p className="mt-2 text-3xl font-black">
-            {listingQuota.freeListingRemaining}/
-            {listingQuota.freeListingAllowance}
-          </p>
-          <p className="mt-2 text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-            {getFreeListingBalanceDetail(listingQuota)}
-          </p>
-        </div>
-        <div className="panel">
-          <p className="text-sm text-[var(--muted)]">Boosted</p>
-          <p className="mt-2 text-3xl font-black">{boostedCount}</p>
-        </div>
-        <div className="panel">
-          <p className="text-sm text-[var(--muted)]">Seller rating</p>
+        <div className="seller-dashboard-stat seller-dashboard-stat--rating">
+          <p className="seller-dashboard-stat__label">Seller rating</p>
           <SellerRatingSummary
             averageRating={ratingSummary.averageRating}
             ratingCount={ratingSummary.ratingCount}
             reviewCount={ratingSummary.reviewCount}
-            className="mt-2 text-lg font-black"
+            className="seller-dashboard-rating"
           />
+          <p className="seller-dashboard-stat__detail">
+            {receivedRatings.length} public reviews
+          </p>
         </div>
-      </div>
+      </section>
 
-      <SellerWalletBalance boostPackages={boostPackages} wallet={wallet} />
-
-      {upgradeOptions.length ? (
-        <section className="panel grid gap-4">
+      <section id="seller-listings" className="grid gap-3">
+        <div className="panel seller-listings-overview">
           <div>
-            <p className="section-eyebrow">Seller tier upgrades</p>
-            <h2 className="mt-2 text-2xl font-black">Upgrade your seller privileges</h2>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              Move to a higher seller tier using your wallet balance. Your current
-              tier is {sellerProfileEnvelope.sellerProfile?.privilegeTier?.name ?? "Free"}.
-            </p>
+            <p className="section-eyebrow">Previous and active listings</p>
+            <h2 className="seller-listings-overview__title">Your inventory</h2>
           </div>
-          <div className="grid gap-3 lg:grid-cols-3">
-            {upgradeOptions.map((tier) => (
-              <form
-                key={tier.id}
-                action={upgradeSellerPrivilegeAction}
-                className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4"
-              >
-                <input type="hidden" name="returnTo" value="/my-listings" />
-                <input
-                  type="hidden"
-                  name="sellerPrivilegeTierId"
-                  value={tier.id}
-                />
-                <p className="text-sm font-black uppercase tracking-wide text-[var(--muted)]">
-                  {tier.code}
-                </p>
-                <h3 className="mt-2 text-xl font-black">{tier.name}</h3>
-                <p className="mt-2 text-sm text-[var(--muted)]">
-                  {tier.description ?? "Higher seller visibility and quota limits."}
-                </p>
-                <div className="mt-4 grid gap-2 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-bold text-[var(--muted)]">Upgrade fee</span>
-                    <span className="font-black">
-                      {formatPackagePrice(tier.sellerLevelUpgradeFee, tier.currency)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-bold text-[var(--muted)]">Free listings</span>
-                    <span className="font-black">{tier.monthlyFreeListingLimit}/month</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-bold text-[var(--muted)]">Active limit</span>
-                    <span className="font-black">{tier.activeListingLimit ?? "Flexible"}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-bold text-[var(--muted)]">Pending limit</span>
-                    <span className="font-black">{tier.pendingListingLimit ?? "Flexible"}</span>
-                  </div>
-                </div>
-                <button className="action-primary mt-4 px-4 py-3 text-sm font-bold">
-                  Upgrade to {tier.name}
-                </button>
-              </form>
-            ))}
+          <div className="seller-listings-overview__chips">
+            <span className="seller-listings-overview__chip">
+              {listings.length} listings
+            </span>
+            <span className="seller-listings-overview__chip">
+              {activeCount} active
+            </span>
+            <span className="seller-listings-overview__chip">
+              {boostedCount} boosted
+            </span>
           </div>
-        </section>
-      ) : null}
-
-      <SellerBoostOptions
-        boostPackages={boostPackages}
-        listings={listings}
-        wallet={wallet}
-      />
-
-      <SellerListingPaymentStatus
-        listingFeeTransactions={latestListingFeeTransactions}
-        listings={listings}
-      />
-
-      <SellerRatingsAndReviews
-        ratingSummary={ratingSummary}
-        reviews={receivedRatings}
-      />
-
-      <div id="seller-listings" className="grid gap-3">
+        </div>
         {listings.length ? (
           listings.map((listing) => {
             const paymentInfo = getListingPaymentInfo(
@@ -1538,9 +1450,9 @@ export default async function MyListingsPage() {
             return (
               <section
                 key={listing.id}
-                className="panel grid gap-4 md:grid-cols-[9rem_1fr_minmax(14rem,18rem)] md:items-center"
+                className="panel seller-listing-row grid gap-4 md:grid-cols-[8.5rem_1fr_minmax(13rem,16rem)] md:items-start"
               >
-                <div className="h-32 overflow-hidden rounded-md bg-[var(--surface-strong)]">
+                <div className="seller-listing-row__media h-28 overflow-hidden rounded-md bg-[var(--surface-strong)]">
                   {listing.imageUrls[0] ? (
                     <img
                       src={listing.imageUrls[0]}
@@ -1551,17 +1463,19 @@ export default async function MyListingsPage() {
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="font-black">{listing.title}</h2>
-                    <span className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-2 py-1 text-xs font-bold">
+                    <h2 className="text-lg font-semibold leading-tight text-[var(--foreground)]">
+                      {listing.title}
+                    </h2>
+                    <span className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-2 py-1 text-[11px] font-semibold">
                       {listing.status}
                     </span>
                     <span
-                      className={`rounded-md border px-2 py-1 text-xs font-black ${paymentInfo.tone}`}
+                      className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${paymentInfo.tone}`}
                     >
                       {paymentInfo.label}
                     </span>
                     {listing.isBoosted ? (
-                      <span className="rounded-md border border-[var(--accent-strong)] bg-[var(--accent-soft)] px-2 py-1 text-xs font-black text-[var(--accent-strong)]">
+                      <span className="rounded-md border border-[var(--accent-strong)] bg-[var(--accent-soft)] px-2 py-1 text-[11px] font-semibold text-[var(--accent-strong)]">
                         {listing.boostLabel ?? "Boosted"}
                       </span>
                     ) : null}
@@ -1569,11 +1483,11 @@ export default async function MyListingsPage() {
                   <p className="mt-1 text-sm text-[var(--muted)]">
                     {listing.priceLabel} / {listing.location}
                   </p>
-                  <p className="mt-2 text-sm font-bold text-[var(--muted)]">
+                  <p className="mt-2 text-sm font-medium text-[var(--muted)]">
                     Listing payment: {paymentInfo.detail}
                   </p>
                   {listing.status === "Pending" ? (
-                    <div className="mt-2 rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm font-semibold text-[var(--muted)]">
+                    <div className="mt-2 rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm font-medium text-[var(--muted)]">
                       Submitted
                       {listing.submittedAt
                         ? ` on ${formatReviewDate(listing.submittedAt)}`
@@ -1582,7 +1496,7 @@ export default async function MyListingsPage() {
                   ) : null}
                   {listing.status === "Rejected" ? (
                     <div className="mt-2 rounded-md border border-[rgba(217,93,57,0.24)] bg-[var(--brand-soft)] px-3 py-2 text-sm text-[var(--brand-strong)]">
-                      <p className="font-black">Rejected by moderation</p>
+                      <p className="font-semibold">Rejected by moderation</p>
                       <p className="mt-1">
                         {listing.rejectionReason ??
                           "This listing needs updates before it can be approved."}
@@ -1612,15 +1526,15 @@ export default async function MyListingsPage() {
                         key={label}
                         className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2"
                       >
-                        <p className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
                           {label}
                         </p>
-                        <p className="mt-1 text-sm font-black">{value}</p>
+                        <p className="mt-1 text-sm font-semibold">{value}</p>
                       </div>
                     ))}
                   </div>
                   {listing.isBoosted ? (
-                    <p className="mt-2 text-sm font-bold text-[var(--success)]">
+                    <p className="mt-2 text-sm font-semibold text-[var(--success)]">
                       Boost active: {listing.boostLabel}
                       {listing.boostEndsLabel
                         ? ` / ${listing.boostEndsLabel}`
@@ -1637,27 +1551,27 @@ export default async function MyListingsPage() {
                     {listing.description}
                   </p>
                 </div>
-                <div className="grid gap-2">
+                <div className="grid gap-2 seller-listing-row__actions">
                   <Link
                     href={
                       listing.status === "Active"
                         ? `/listings/${listing.id}`
                         : `/listings/${listing.id}/edit`
                     }
-                    className="action-secondary px-3 py-2 text-center text-sm font-bold"
+                    className="action-secondary px-3 py-2 text-center text-sm font-semibold"
                   >
                     {listing.status === "Active" ? "View" : "Review"}
                   </Link>
                   <Link
                     href={`/listings/${listing.id}/edit`}
-                    className="action-secondary px-3 py-2 text-center text-sm font-bold"
+                    className="action-secondary px-3 py-2 text-center text-sm font-semibold"
                   >
                     Edit
                   </Link>
                   {paymentInfo.transaction?.status === "PENDING" ? (
                     <Link
                       href={`/listings/${listing.id}/checkout?transactionId=${paymentInfo.transaction.id}`}
-                      className="action-primary px-3 py-2 text-center text-sm font-black"
+                      className="action-primary px-3 py-2 text-center text-sm font-semibold"
                     >
                       Continue checkout
                     </Link>
@@ -1684,7 +1598,7 @@ export default async function MyListingsPage() {
                             <select
                               name="paymentMethod"
                               defaultValue="GATEWAY"
-                              className="surface-input rounded-md px-3 py-2 text-sm font-bold"
+                              className="surface-input rounded-md px-3 py-2 text-sm font-medium"
                             >
                               <option value="GATEWAY">Gateway</option>
                               <option value="WALLET">
@@ -1702,7 +1616,7 @@ export default async function MyListingsPage() {
                             <select
                               name="packageId"
                               defaultValue={availablePackages[0]?.id}
-                              className="surface-input rounded-md px-3 py-2 text-sm font-bold"
+                              className="surface-input rounded-md px-3 py-2 text-sm font-medium"
                             >
                               {availablePackages.map((boostPackage) => (
                                 <option
@@ -1719,18 +1633,18 @@ export default async function MyListingsPage() {
                               ))}
                             </select>
                           </label>
-                          <button className="action-primary px-3 py-2 text-sm font-black">
+                          <button className="action-primary px-3 py-2 text-sm font-semibold">
                             Boost listing
                           </button>
                         </form>
                       ) : (
-                        <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm font-bold text-[var(--muted)]">
+                        <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm font-medium text-[var(--muted)]">
                           No boost package for this category
                         </div>
                       );
                     })()
                   ) : listing.isBoosted ? (
-                    <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm font-bold text-[var(--success)]">
+                    <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm font-semibold text-[var(--success)]">
                       Active boost
                       {listing.boostEndsLabel ? (
                         <span className="block text-xs text-[var(--muted)]">
@@ -1749,7 +1663,7 @@ export default async function MyListingsPage() {
                           value={listing.id}
                         />
                         <input type="hidden" name="status" value="SOLD" />
-                        <button className="w-full rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-bold">
+                        <button className="w-full rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-medium">
                           Sold
                         </button>
                       </form>
@@ -1761,7 +1675,7 @@ export default async function MyListingsPage() {
                             value={listing.id}
                           />
                           <input type="hidden" name="status" value="PAUSED" />
-                          <button className="w-full rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-bold">
+                          <button className="w-full rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-medium">
                             Pause
                           </button>
                         </form>
@@ -1773,7 +1687,7 @@ export default async function MyListingsPage() {
                           value={listing.id}
                         />
                         <input type="hidden" name="status" value="REMOVED" />
-                        <button className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-bold text-red-700">
+                        <button className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700">
                           Remove
                         </button>
                       </form>
@@ -1781,7 +1695,7 @@ export default async function MyListingsPage() {
                   ) : null}
                   <form action={deleteListingAction}>
                     <input type="hidden" name="listingId" value={listing.id} />
-                    <button className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-bold text-red-700">
+                    <button className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700">
                       Delete
                     </button>
                   </form>
@@ -1790,15 +1704,125 @@ export default async function MyListingsPage() {
             );
           })
         ) : (
-          <div className="panel">
-            <h2 className="text-xl font-black">No listings yet.</h2>
+          <div className="panel seller-listings-empty">
+            <h2 className="text-lg font-semibold">No listings yet.</h2>
             <p className="mt-2 text-sm text-[var(--muted)]">
               Create your first listing to start appearing in marketplace search
               after review.
             </p>
           </div>
         )}
-      </div>
+      </section>
+
+      <section className="seller-dashboard-management grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <div className="grid gap-4">
+          <SellerProfileStatus
+            activeCount={activeCount}
+            boostedCount={boostedCount}
+            listingsCount={listings.length}
+            ratingSummary={ratingSummary}
+            receivedReviewCount={receivedRatings.length}
+            user={user}
+          />
+
+          <SellerListingPaymentStatus
+            listingFeeTransactions={latestListingFeeTransactions}
+            listings={listings}
+          />
+
+          <SellerRatingsAndReviews
+            ratingSummary={ratingSummary}
+            reviews={receivedRatings}
+          />
+        </div>
+
+        <div className="grid gap-4">
+          <SellerWalletBalance boostPackages={boostPackages} wallet={wallet} />
+
+          {upgradeOptions.length ? (
+            <section className="panel grid gap-4">
+              <div>
+                <p className="section-eyebrow">Seller tier upgrades</p>
+                <h2 className="text-xl font-semibold text-[var(--foreground)]">
+                  Upgrade your seller privileges
+                </h2>
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  Move to a higher seller tier using your wallet balance. Your
+                  current tier is{" "}
+                  {sellerProfileEnvelope.sellerProfile?.privilegeTier?.name ??
+                    "Free"}
+                  .
+                </p>
+              </div>
+              <div className="grid gap-3">
+                {upgradeOptions.map((tier) => (
+                  <form
+                    key={tier.id}
+                    action={upgradeSellerPrivilegeAction}
+                    className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4"
+                  >
+                    <input type="hidden" name="returnTo" value="/my-listings" />
+                    <input
+                      type="hidden"
+                      name="sellerPrivilegeTierId"
+                      value={tier.id}
+                    />
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+                          {tier.code}
+                        </p>
+                        <h3 className="mt-1 text-base font-semibold">
+                          {tier.name}
+                        </h3>
+                      </div>
+                      <span className="text-sm font-semibold">
+                        {formatPackagePrice(
+                          tier.sellerLevelUpgradeFee,
+                          tier.currency,
+                        )}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-[var(--muted)]">
+                      {tier.description ??
+                        "Higher seller visibility and quota limits."}
+                    </p>
+                    <div className="mt-3 grid gap-2 text-sm text-[var(--muted)]">
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Free listings</span>
+                        <span className="font-semibold text-[var(--foreground)]">
+                          {tier.monthlyFreeListingLimit}/month
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Active limit</span>
+                        <span className="font-semibold text-[var(--foreground)]">
+                          {tier.activeListingLimit ?? "Flexible"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Pending limit</span>
+                        <span className="font-semibold text-[var(--foreground)]">
+                          {tier.pendingListingLimit ?? "Flexible"}
+                        </span>
+                      </div>
+                    </div>
+                    <button className="action-primary mt-4 px-4 py-2.5 text-sm font-semibold">
+                      Upgrade to {tier.name}
+                    </button>
+                  </form>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <SellerBoostOptions
+            boostPackages={boostPackages}
+            listings={listings}
+            wallet={wallet}
+          />
+        </div>
+      </section>
     </div>
   );
 }
