@@ -60,19 +60,21 @@ export default async function TransactionsPage(props: TransactionsPageProps) {
     .reduce((sum, transaction) => sum + transaction.amountValue, 0);
 
   return (
-    <div className="page grid gap-6">
-      <div className="panel-dark flex flex-wrap items-end justify-between gap-4 p-6">
-        <div>
+    <div className="page grid gap-4">
+      <div className="panel flex flex-wrap items-center justify-between gap-3">
+        <div className="grid gap-1">
           <p className="section-eyebrow">Payment history</p>
-          <h1 className="mt-2 text-3xl font-black text-white">Purchases</h1>
-          <p className="mt-2 max-w-3xl text-[#d7d9ea]">
+          <h1 className="text-2xl font-extrabold text-[var(--foreground)]">
+            Purchases
+          </h1>
+          <p className="max-w-3xl text-sm text-[var(--muted)]">
             Review boost purchases, payment status, refunds, and linked listings
             for your account.
           </p>
         </div>
         <Link
           href="/my-listings"
-          className="rounded-md bg-white px-4 py-3 text-sm font-bold text-[var(--foreground)]"
+          className="action-secondary px-4 py-2.5 text-sm font-semibold"
         >
           Manage listings
         </Link>
@@ -87,15 +89,17 @@ export default async function TransactionsPage(props: TransactionsPageProps) {
           ],
           ["Spent", `AED ${totalSpend.toLocaleString()}`],
         ].map(([label, value]) => (
-          <div key={label} className="panel">
-            <p className="text-sm text-[var(--muted)]">{label}</p>
-            <p className="mt-2 text-3xl font-black">{value}</p>
+          <div key={label} className="panel rounded-[1rem] px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+              {label}
+            </p>
+            <p className="mt-2 text-2xl font-extrabold">{value}</p>
           </div>
         ))}
       </section>
 
-      <form className="panel grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
-        <label className="grid gap-2 text-sm font-bold">
+      <form className="panel grid gap-3 rounded-[1rem] md:grid-cols-[1fr_1fr_auto] md:items-end">
+        <label className="grid gap-1.5 text-sm font-semibold">
           Status
           <select
             name="status"
@@ -110,7 +114,7 @@ export default async function TransactionsPage(props: TransactionsPageProps) {
             ))}
           </select>
         </label>
-        <label className="grid gap-2 text-sm font-bold">
+        <label className="grid gap-1.5 text-sm font-semibold">
           Type
           <select
             name="type"
@@ -125,7 +129,7 @@ export default async function TransactionsPage(props: TransactionsPageProps) {
             ))}
           </select>
         </label>
-        <button className="action-primary px-4 py-3 text-sm font-black">
+        <button className="action-primary px-4 py-2.5 text-sm font-semibold">
           Filter
         </button>
       </form>
@@ -135,11 +139,13 @@ export default async function TransactionsPage(props: TransactionsPageProps) {
           transactions.map((transaction) => (
             <article
               key={transaction.id}
-              className="panel grid gap-4 md:grid-cols-[1fr_auto] md:items-center"
+              className="panel grid gap-3 rounded-[1rem] md:grid-cols-[1fr_auto] md:items-center"
             >
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="font-black">{transaction.typeLabel}</h2>
+                  <h2 className="text-base font-extrabold">
+                    {transaction.typeLabel}
+                  </h2>
                   <span className="admin-status-badge">
                     {transaction.statusLabel}
                   </span>
@@ -154,11 +160,11 @@ export default async function TransactionsPage(props: TransactionsPageProps) {
                 </p>
               </div>
               <div className="grid gap-2 text-left md:text-right">
-                <p className="text-2xl font-black">{transaction.amountLabel}</p>
+                <p className="text-xl font-extrabold">{transaction.amountLabel}</p>
                 {transaction.listingId ? (
                   <Link
                     href={`/listings/${transaction.listingId}`}
-                    className="action-secondary px-3 py-2 text-center text-sm font-black"
+                    className="action-secondary px-3 py-2 text-center text-sm font-semibold"
                   >
                     View listing
                   </Link>
@@ -167,8 +173,8 @@ export default async function TransactionsPage(props: TransactionsPageProps) {
             </article>
           ))
         ) : (
-          <div className="panel py-12 text-center">
-            <h2 className="text-xl font-black">No purchases yet</h2>
+          <div className="panel py-10 text-center">
+            <h2 className="text-lg font-extrabold">No purchases yet</h2>
             <p className="mt-2 text-sm text-[var(--muted)]">
               Boost payments and refunds will appear here.
             </p>

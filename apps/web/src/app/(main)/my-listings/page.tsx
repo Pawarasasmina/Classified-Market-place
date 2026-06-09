@@ -665,7 +665,7 @@ function SellerProfileStatus({
       <div>
         <p className="section-eyebrow">Seller profile status</p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <h2 className="text-2xl font-black">{tierLabel}</h2>
+          <h2 className="text-2xl font-bold">{tierLabel}</h2>
           <span
             className={`rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-1 text-xs font-black uppercase tracking-wide ${getSellerStatusTone(
               user.sellerPriorityTier,
@@ -683,17 +683,17 @@ function SellerProfileStatus({
         <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
           <div>
             <p className="text-[var(--muted)]">Profile readiness</p>
-            <p className="mt-1 text-2xl font-black">{completionPercent}%</p>
+            <p className="mt-1 text-2xl font-bold">{completionPercent}%</p>
           </div>
           <div>
             <p className="text-[var(--muted)]">Reputation score</p>
-            <p className="mt-1 text-2xl font-black">
+            <p className="mt-1 text-2xl font-bold">
               {ratingSummary.reputationScore}
             </p>
           </div>
           <div>
             <p className="text-[var(--muted)]">Listings</p>
-            <p className="mt-1 text-2xl font-black">{listingsCount}</p>
+            <p className="mt-1 text-2xl font-bold">{listingsCount}</p>
           </div>
         </div>
         <div className="mt-4">
@@ -782,8 +782,8 @@ function SellerWalletBalance({
     <section className="panel grid gap-5 lg:grid-cols-[1fr_1.35fr] lg:items-start">
       <div>
         <p className="section-eyebrow">Seller wallet</p>
-        <h2 className="mt-2 text-2xl font-black">Wallet balance</h2>
-        <p className="mt-3 text-4xl font-black">
+        <h2 className="mt-2 text-2xl font-bold">Wallet balance</h2>
+        <p className="mt-3 text-3xl font-bold">
           {formatPackagePrice(wallet.balance, wallet.currency)}
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -908,7 +908,7 @@ function SellerListingPaymentStatus({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="section-eyebrow">Listing payment status</p>
-          <h2 className="mt-2 text-2xl font-black">Payment overview</h2>
+          <h2 className="mt-2 text-2xl font-bold">Payment overview</h2>
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
             Track listing-fee payments, included listings, and payments that
             need attention.
@@ -935,7 +935,7 @@ function SellerListingPaymentStatus({
             className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-3"
           >
             <p className="text-sm text-[var(--muted)]">{label}</p>
-            <p className="mt-2 text-2xl font-black">{value}</p>
+            <p className="mt-2 text-2xl font-bold">{value}</p>
           </div>
         ))}
       </div>
@@ -1171,7 +1171,7 @@ function SellerBoostOptions({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="section-eyebrow">Boost options</p>
-          <h2 className="mt-2 text-2xl font-black">Available boost packages</h2>
+          <h2 className="mt-2 text-2xl font-bold">Available boost packages</h2>
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
             Compare active packages against your eligible listings and wallet
             balance.
@@ -1287,7 +1287,7 @@ export default async function MyListingsPage() {
       <div className="page grid gap-6">
         <div className="panel-dark p-6">
           <p className="section-eyebrow">Seller dashboard</p>
-          <h1 className="mt-2 text-3xl font-black text-white">My listings</h1>
+          <h1 className="mt-2 text-3xl font-bold text-white">My listings</h1>
           <p className="mt-2 text-[#d7d9ea]">
             Finish seller onboarding and wait for approval before using your
             listing dashboard.

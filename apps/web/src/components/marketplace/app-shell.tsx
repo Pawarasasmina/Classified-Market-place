@@ -105,11 +105,13 @@ function HeaderMenu({
       </button>
       {open ? (
         <div
-          className={`header-menu-panel ${
+          className={`header-menu-shell ${
             align === "right" ? "header-menu-panel-right" : ""
           }`}
         >
-          {children}
+          <div className="header-menu-panel">
+            {children}
+          </div>
         </div>
       ) : null}
     </div>
