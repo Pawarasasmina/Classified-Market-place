@@ -124,28 +124,28 @@ function CategoryChildLinks({
   customerPreview: boolean;
 }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="category-menu-results">
       {nodes.map((node) => (
-        <div key={node.slug} className="grid gap-2">
+        <div key={node.slug} className="category-menu-group">
           <Link
             href={withCustomerPreview(
               `/search?category=${node.slug}`,
               customerPreview,
             )}
-            className="rounded-md px-3 py-2 text-sm font-black text-[var(--foreground)] hover:bg-[var(--surface-strong)]"
+            className="category-menu-section-link"
           >
             {node.name}
           </Link>
           {node.nestedChildren.length ? (
-            <div className="grid gap-1 pl-3">
-              {node.nestedChildren.slice(0, 7).map((child) => (
+            <div className="grid gap-1.5 pl-1">
+              {node.nestedChildren.map((child) => (
                 <Link
                   key={child.slug}
                   href={withCustomerPreview(
                     `/search?category=${child.slug}`,
                     customerPreview,
                   )}
-                  className="rounded-md px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"
+                  className="category-menu-child-link"
                 >
                   {child.name}
                 </Link>
@@ -189,7 +189,7 @@ function CustomerCategoryMenu({
 
   return (
     <div
-      className="relative"
+      className="category-menu relative"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
@@ -202,79 +202,88 @@ function CustomerCategoryMenu({
         Categories
       </button>
       {open ? (
-        <div className="absolute left-1/2 top-[calc(100%+0.65rem)] z-50 w-[min(56rem,calc(100vw-3rem))] -translate-x-1/2 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] shadow-2xl">
-          <div className="grid max-h-[30rem] lg:grid-cols-[17rem_1fr]">
-            <div className="overflow-y-auto border-r border-[var(--line)] bg-[var(--surface-strong)] p-3">
-              <Link
-                href={withCustomerPreview("/categories", customerPreview)}
-                className="mb-2 block rounded-md px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-[var(--brand-strong)] hover:bg-white"
-              >
-                All categories
-              </Link>
-              {tree.map((category) => (
-                <button
-                  key={category.slug}
-                  type="button"
-                  onMouseEnter={() => setActiveSlug(category.slug)}
-                  onClick={() => setActiveSlug(category.slug)}
-                  className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm font-bold ${
-                    activeNode?.slug === category.slug
-                      ? "bg-white text-[var(--brand-strong)]"
-                      : "text-[var(--foreground)] hover:bg-white"
-                  }`}
+        <div className="category-menu-shell">
+          <div className="category-menu-panel">
+            <div className="grid max-h-[32rem] lg:grid-cols-[15.5rem_1fr]">
+              <div className="category-menu-sidebar">
+                <Link
+                  href={withCustomerPreview("/categories", customerPreview)}
+                  className="category-menu-all-link"
                 >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--brand-soft)] text-[var(--brand)]">
-                    <CategoryIcon slug={category.slug} className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{category.name}</span>
-                    <span className="block text-xs font-semibold text-[var(--muted)]">
-                      {category.nestedChildren.length
-                        ? `${category.nestedChildren.length} subcategories`
-                        : category.countLabel}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-            <div className="overflow-y-auto p-5">
-              {activeNode ? (
-                <>
-                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="section-eyebrow">
-                        Browse {activeNode.name}
-                      </p>
-                      <h3 className="mt-2 text-2xl font-black">
-                        {activeNode.name}
-                      </h3>
-                      <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">
-                        {activeNode.description}
-                      </p>
-                    </div>
-                    <Link
-                      href={withCustomerPreview(
-                        `/search?category=${activeNode.slug}`,
-                        customerPreview,
-                      )}
-                      className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-black text-white"
+                  All categories
+                </Link>
+                <div className="category-menu-sidebar-list">
+                  {tree.map((category) => (
+                    <button
+                      key={category.slug}
+                      type="button"
+                      onMouseEnter={() => setActiveSlug(category.slug)}
+                      onClick={() => setActiveSlug(category.slug)}
+                      className={`category-menu-category-link ${
+                        activeNode?.slug === category.slug
+                          ? "category-menu-category-link-active"
+                          : ""
+                      }`}
                     >
-                      View all
-                    </Link>
-                  </div>
-                  {activeNode.nestedChildren.length ? (
-                    <CategoryChildLinks
-                      nodes={activeNode.nestedChildren}
-                      customerPreview={customerPreview}
-                    />
-                  ) : (
-                    <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4 text-sm text-[var(--muted)]">
-                      Listings in this category use the standard marketplace
-                      filters.
+                      <span className="category-menu-icon">
+                        <CategoryIcon slug={category.slug} className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{category.name}</span>
+                        <span className="block text-[0.72rem] font-semibold text-[var(--muted)]">
+                          {category.nestedChildren.length
+                            ? `${category.nestedChildren.length} subcategories`
+                            : category.countLabel}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="category-menu-content">
+                {activeNode ? (
+                  <>
+                    <div className="category-menu-content-head">
+                      <div>
+                        <p className="section-eyebrow">
+                          Browse {activeNode.name}
+                        </p>
+                        <h3 className="mt-1.5 text-[1.35rem] font-black">
+                          {activeNode.name}
+                        </h3>
+                        <p className="mt-1.5 max-w-lg text-sm leading-6 text-[var(--muted)]">
+                          {activeNode.description}
+                        </p>
+                      </div>
+                      <div className="category-menu-content-meta">
+                        <span className="category-menu-count">
+                          {activeNode.nestedChildren.length} sections
+                        </span>
+                        <Link
+                          href={withCustomerPreview(
+                            `/search?category=${activeNode.slug}`,
+                            customerPreview,
+                          )}
+                          className="action-primary shrink-0 px-3 py-2 text-sm font-black"
+                        >
+                          View all
+                        </Link>
+                      </div>
                     </div>
-                  )}
-                </>
-              ) : null}
+                    {activeNode.nestedChildren.length ? (
+                      <CategoryChildLinks
+                        nodes={activeNode.nestedChildren}
+                        customerPreview={customerPreview}
+                      />
+                    ) : (
+                      <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-strong)] p-3 text-sm text-[var(--muted)]">
+                        Listings in this category use the standard marketplace
+                        filters.
+                      </div>
+                    )}
+                  </>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
