@@ -14,10 +14,8 @@ import {
   fetchMyListingQuota,
   fetchMyListings,
   fetchMySellerProfile,
-  fetchMySellerPrivileges,
   fetchMyTransactions,
   fetchMyWallet,
-  fetchReceivedSellerRatings,
   fetchSellerRatingSummary,
 } from "@/lib/marketplace-api";
 import type {
@@ -1307,33 +1305,19 @@ export default async function MyListingsPage() {
     boostPackages,
     wallet,
     listingQuota,
-    privilegeTiers,
     ratingSummary,
-    receivedRatings,
     listingFeeTransactions,
   ] = await Promise.all([
     fetchMyListings(accessToken),
     fetchBoostPackages(),
     fetchMyWallet(accessToken),
     fetchMyListingQuota(accessToken),
-    fetchMySellerPrivileges(accessToken),
     fetchSellerRatingSummary(user.id),
-    fetchReceivedSellerRatings(accessToken),
     fetchMyTransactions(accessToken, {
       take: 100,
       type: "LISTING_FEE",
     }),
   ]);
-  const currentPrivilegeTierId =
-    sellerProfileEnvelope.sellerProfile?.privilegeTier?.id ?? null;
-  const currentPrivilegeSortOrder =
-    sellerProfileEnvelope.sellerProfile?.privilegeTier?.sortOrder ?? -1;
-  const upgradeOptions = privilegeTiers.filter(
-    (tier) =>
-      tier.isActive &&
-      tier.id !== currentPrivilegeTierId &&
-      tier.sortOrder > currentPrivilegeSortOrder,
-  );
   const activeCount = listings.filter(
     (listing) => listing.status === "Active",
   ).length;
@@ -1373,8 +1357,8 @@ export default async function MyListingsPage() {
             </span>
           </div>
           <p className="seller-dashboard-hero__text">
-            Review previous listings, track performance, and manage selling
-            actions from one place.
+            Review previous listings, track performance, and manage boost
+            actions from one focused workspace.
           </p>
         </div>
         <div className="seller-dashboard-hero__actions">
@@ -1383,9 +1367,17 @@ export default async function MyListingsPage() {
             <span>{boostedCount} boosted</span>
             <span>{totalInquiries.toLocaleString()} inquiries</span>
           </div>
-          <Link href="/sell" className="action-primary px-4 py-2.5 text-sm font-semibold">
-            Create listing
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/wallet" className="action-secondary px-4 py-2.5 text-sm font-semibold">
+              Wallet
+            </Link>
+            <Link href="/profile" className="action-secondary px-4 py-2.5 text-sm font-semibold">
+              Seller profile
+            </Link>
+            <Link href="/sell" className="action-primary px-4 py-2.5 text-sm font-semibold">
+              Create listing
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -1417,7 +1409,7 @@ export default async function MyListingsPage() {
             className="seller-dashboard-rating"
           />
           <p className="seller-dashboard-stat__detail">
-            {receivedRatings.length} public reviews
+            {ratingSummary.reviewCount} public reviews
           </p>
         </div>
       </section>
@@ -1714,115 +1706,11 @@ export default async function MyListingsPage() {
         )}
       </section>
 
-      <section className="seller-dashboard-management grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        <div className="grid gap-4">
-          <SellerProfileStatus
-            activeCount={activeCount}
-            boostedCount={boostedCount}
-            listingsCount={listings.length}
-            ratingSummary={ratingSummary}
-            receivedReviewCount={receivedRatings.length}
-            user={user}
-          />
-
-          <SellerListingPaymentStatus
-            listingFeeTransactions={latestListingFeeTransactions}
-            listings={listings}
-          />
-
-          <SellerRatingsAndReviews
-            ratingSummary={ratingSummary}
-            reviews={receivedRatings}
-          />
-        </div>
-
-        <div className="grid gap-4">
-          <SellerWalletBalance boostPackages={boostPackages} wallet={wallet} />
-
-          {upgradeOptions.length ? (
-            <section className="panel grid gap-4">
-              <div>
-                <p className="section-eyebrow">Seller tier upgrades</p>
-                <h2 className="text-xl font-semibold text-[var(--foreground)]">
-                  Upgrade your seller privileges
-                </h2>
-                <p className="mt-2 text-sm text-[var(--muted)]">
-                  Move to a higher seller tier using your wallet balance. Your
-                  current tier is{" "}
-                  {sellerProfileEnvelope.sellerProfile?.privilegeTier?.name ??
-                    "Free"}
-                  .
-                </p>
-              </div>
-              <div className="grid gap-3">
-                {upgradeOptions.map((tier) => (
-                  <form
-                    key={tier.id}
-                    action={upgradeSellerPrivilegeAction}
-                    className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4"
-                  >
-                    <input type="hidden" name="returnTo" value="/my-listings" />
-                    <input
-                      type="hidden"
-                      name="sellerPrivilegeTierId"
-                      value={tier.id}
-                    />
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-                          {tier.code}
-                        </p>
-                        <h3 className="mt-1 text-base font-semibold">
-                          {tier.name}
-                        </h3>
-                      </div>
-                      <span className="text-sm font-semibold">
-                        {formatPackagePrice(
-                          tier.sellerLevelUpgradeFee,
-                          tier.currency,
-                        )}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm text-[var(--muted)]">
-                      {tier.description ??
-                        "Higher seller visibility and quota limits."}
-                    </p>
-                    <div className="mt-3 grid gap-2 text-sm text-[var(--muted)]">
-                      <div className="flex items-center justify-between gap-3">
-                        <span>Free listings</span>
-                        <span className="font-semibold text-[var(--foreground)]">
-                          {tier.monthlyFreeListingLimit}/month
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span>Active limit</span>
-                        <span className="font-semibold text-[var(--foreground)]">
-                          {tier.activeListingLimit ?? "Flexible"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span>Pending limit</span>
-                        <span className="font-semibold text-[var(--foreground)]">
-                          {tier.pendingListingLimit ?? "Flexible"}
-                        </span>
-                      </div>
-                    </div>
-                    <button className="action-primary mt-4 px-4 py-2.5 text-sm font-semibold">
-                      Upgrade to {tier.name}
-                    </button>
-                  </form>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          <SellerBoostOptions
-            boostPackages={boostPackages}
-            listings={listings}
-            wallet={wallet}
-          />
-        </div>
-      </section>
+      <SellerBoostOptions
+        boostPackages={boostPackages}
+        listings={listings}
+        wallet={wallet}
+      />
     </div>
   );
 }
