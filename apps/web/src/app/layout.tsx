@@ -12,12 +12,12 @@ const colorProfileScript = `
   (function () {
     try {
       var stored = window.localStorage.getItem("smartmarket-color-profile");
-      var profile = stored === "light" ? "light" : "dark";
+      var profile = stored === "light" || stored === "dark" ? stored : "light";
       document.documentElement.dataset.colorProfile = profile;
       document.documentElement.style.colorScheme = profile;
     } catch (error) {
-      document.documentElement.dataset.colorProfile = "dark";
-      document.documentElement.style.colorScheme = "dark";
+      document.documentElement.dataset.colorProfile = "light";
+      document.documentElement.style.colorScheme = "light";
     }
   })();
 `;
@@ -31,7 +31,7 @@ export default function RootLayout({
     <html
       lang="en"
       className="h-full antialiased"
-      data-color-profile="dark"
+      data-color-profile="light"
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>

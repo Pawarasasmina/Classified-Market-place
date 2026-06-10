@@ -2,18 +2,20 @@ import Link from "next/link";
 import {
   boostListingAction,
   deleteListingAction,
+  upgradeSellerPrivilegeAction,
   updateListingStatusAction,
   walletTopUpAction,
 } from "@/app/(main)/actions";
+import { SellerOnboardingPanel } from "@/components/marketplace/seller-onboarding-panel";
 import { SellerRatingSummary } from "@/components/marketplace/seller-rating-summary";
 import { requireSessionContext } from "@/lib/auth-dal";
 import {
   fetchBoostPackages,
   fetchMyListingQuota,
   fetchMyListings,
+  fetchMySellerProfile,
   fetchMyTransactions,
   fetchMyWallet,
-  fetchReceivedSellerRatings,
   fetchSellerRatingSummary,
 } from "@/lib/marketplace-api";
 import type {
@@ -175,10 +177,10 @@ function getFreeListingBalanceDetail({
   }
 
   if (freeListingRemaining === 0) {
-    return `${freeListingUsed} active/pending used`;
+    return `${freeListingUsed} used this month`;
   }
 
-  return `${freeListingUsed} active/pending used`;
+  return `${freeListingUsed} used this month`;
 }
 
 function getListingPaymentTone(
@@ -661,7 +663,7 @@ function SellerProfileStatus({
       <div>
         <p className="section-eyebrow">Seller profile status</p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <h2 className="text-2xl font-black">{tierLabel}</h2>
+          <h2 className="text-2xl font-bold">{tierLabel}</h2>
           <span
             className={`rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-1 text-xs font-black uppercase tracking-wide ${getSellerStatusTone(
               user.sellerPriorityTier,
@@ -679,17 +681,17 @@ function SellerProfileStatus({
         <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
           <div>
             <p className="text-[var(--muted)]">Profile readiness</p>
-            <p className="mt-1 text-2xl font-black">{completionPercent}%</p>
+            <p className="mt-1 text-2xl font-bold">{completionPercent}%</p>
           </div>
           <div>
             <p className="text-[var(--muted)]">Reputation score</p>
-            <p className="mt-1 text-2xl font-black">
+            <p className="mt-1 text-2xl font-bold">
               {ratingSummary.reputationScore}
             </p>
           </div>
           <div>
             <p className="text-[var(--muted)]">Listings</p>
-            <p className="mt-1 text-2xl font-black">{listingsCount}</p>
+            <p className="mt-1 text-2xl font-bold">{listingsCount}</p>
           </div>
         </div>
         <div className="mt-4">
@@ -778,8 +780,8 @@ function SellerWalletBalance({
     <section className="panel grid gap-5 lg:grid-cols-[1fr_1.35fr] lg:items-start">
       <div>
         <p className="section-eyebrow">Seller wallet</p>
-        <h2 className="mt-2 text-2xl font-black">Wallet balance</h2>
-        <p className="mt-3 text-4xl font-black">
+        <h2 className="mt-2 text-2xl font-bold">Wallet balance</h2>
+        <p className="mt-3 text-3xl font-bold">
           {formatPackagePrice(wallet.balance, wallet.currency)}
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -904,7 +906,7 @@ function SellerListingPaymentStatus({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="section-eyebrow">Listing payment status</p>
-          <h2 className="mt-2 text-2xl font-black">Payment overview</h2>
+          <h2 className="mt-2 text-2xl font-bold">Payment overview</h2>
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
             Track listing-fee payments, included listings, and payments that
             need attention.
@@ -931,7 +933,7 @@ function SellerListingPaymentStatus({
             className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-3"
           >
             <p className="text-sm text-[var(--muted)]">{label}</p>
-            <p className="mt-2 text-2xl font-black">{value}</p>
+            <p className="mt-2 text-2xl font-bold">{value}</p>
           </div>
         ))}
       </div>
@@ -1167,7 +1169,7 @@ function SellerBoostOptions({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="section-eyebrow">Boost options</p>
-          <h2 className="mt-2 text-2xl font-black">Available boost packages</h2>
+          <h2 className="mt-2 text-2xl font-bold">Available boost packages</h2>
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
             Compare active packages against your eligible listings and wallet
             balance.
@@ -1273,13 +1275,37 @@ function getAvailablePackages(
 
 export default async function MyListingsPage() {
   const { accessToken, user } = await requireSessionContext("/my-listings");
+  const sellerProfileEnvelope = await fetchMySellerProfile(accessToken).catch(() => ({
+    sellerProfile: null,
+    formDefinition: { fields: [] },
+  }));
+
+  if (sellerProfileEnvelope.sellerProfile?.status !== "APPROVED") {
+    return (
+      <div className="page grid gap-6">
+        <div className="panel-dark p-6">
+          <p className="section-eyebrow">Seller dashboard</p>
+          <h1 className="mt-2 text-3xl font-bold text-white">My listings</h1>
+          <p className="mt-2 text-[#d7d9ea]">
+            Finish seller onboarding and wait for approval before using your
+            listing dashboard.
+          </p>
+        </div>
+        <SellerOnboardingPanel
+          envelope={sellerProfileEnvelope}
+          returnTo="/my-listings"
+          title="Seller approval workflow"
+        />
+      </div>
+    );
+  }
+
   const [
     listings,
     boostPackages,
     wallet,
     listingQuota,
     ratingSummary,
-    receivedRatings,
     listingFeeTransactions,
   ] = await Promise.all([
     fetchMyListings(accessToken),
@@ -1287,7 +1313,6 @@ export default async function MyListingsPage() {
     fetchMyWallet(accessToken),
     fetchMyListingQuota(accessToken),
     fetchSellerRatingSummary(user.id),
-    fetchReceivedSellerRatings(accessToken),
     fetchMyTransactions(accessToken, {
       take: 100,
       type: "LISTING_FEE",
@@ -1321,113 +1346,92 @@ export default async function MyListingsPage() {
   );
 
   return (
-    <div className="page grid gap-6">
-      <div className="panel-dark flex flex-wrap items-end justify-between gap-4 p-6">
-        <div>
-          <p className="section-eyebrow">Your selling activity</p>
-          <h1 className="mt-2 text-3xl font-black text-white">My listings</h1>
-          <p className="mt-2 text-[#d7d9ea]">
-            Manage the items you post from this account and track moderation
-            status.
+    <div className="page seller-dashboard-page grid gap-4">
+      <section className="panel seller-dashboard-hero">
+        <div className="seller-dashboard-hero__copy">
+          <p className="section-eyebrow">Seller workspace</p>
+          <div className="seller-dashboard-hero__title-row">
+            <h1 className="seller-dashboard-hero__title">My listings</h1>
+            <span className="seller-dashboard-hero__count">
+              {listings.length} total
+            </span>
+          </div>
+          <p className="seller-dashboard-hero__text">
+            Review previous listings, track performance, and manage boost
+            actions from one focused workspace.
           </p>
         </div>
-        <Link
-          href="/sell"
-          className="rounded-md bg-white px-4 py-3 text-sm font-bold text-[var(--foreground)]"
-        >
-          Create listing
-        </Link>
-      </div>
-
-      <SellerProfileStatus
-        activeCount={activeCount}
-        boostedCount={boostedCount}
-        listingsCount={listings.length}
-        ratingSummary={ratingSummary}
-        receivedReviewCount={receivedRatings.length}
-        user={user}
-      />
-
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {[
-          ["Views", totalViews.toLocaleString(), "Listing detail visits"],
-          ["Saves", totalSaves.toLocaleString(), "Buyer shortlists"],
-          [
-            "Inquiries",
-            totalInquiries.toLocaleString(),
-            "Listing conversations",
-          ],
-          ["Conversion", `${sellerConversionRate}%`, "Inquiries per view"],
-          [
-            "Boost views",
-            totalBoostedViews.toLocaleString(),
-            "Views while boosted",
-          ],
-        ].map(([label, value, detail]) => (
-          <div key={label} className="panel">
-            <p className="text-sm text-[var(--muted)]">{label}</p>
-            <p className="mt-2 text-3xl font-black">{value}</p>
-            <p className="mt-2 text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-              {detail}
-            </p>
+        <div className="seller-dashboard-hero__actions">
+          <div className="seller-dashboard-hero__meta">
+            <span>{activeCount} active</span>
+            <span>{boostedCount} boosted</span>
+            <span>{totalInquiries.toLocaleString()} inquiries</span>
           </div>
-        ))}
+          <div className="flex flex-wrap gap-2">
+            <Link href="/wallet" className="action-secondary px-4 py-2.5 text-sm font-semibold">
+              Wallet
+            </Link>
+            <Link href="/profile" className="action-secondary px-4 py-2.5 text-sm font-semibold">
+              Seller profile
+            </Link>
+            <Link href="/sell" className="action-primary px-4 py-2.5 text-sm font-semibold">
+              Create listing
+            </Link>
+          </div>
+        </div>
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <section className="seller-dashboard-stats">
         {[
-          ["Total", listings.length],
-          ["Active", activeCount],
-        ].map(([label, value]) => (
-          <div key={label} className="panel">
-            <p className="text-sm text-[var(--muted)]">{label}</p>
-            <p className="mt-2 text-3xl font-black">{value}</p>
+          ["Active listings", activeCount.toLocaleString(), "Live now"],
+          ["Total views", totalViews.toLocaleString(), "Across all listings"],
+          ["Saved by buyers", totalSaves.toLocaleString(), "Shortlisted items"],
+          ["Conversion", `${sellerConversionRate}%`, "Inquiry rate"],
+          [
+            "Free quota",
+            `${listingQuota.freeListingRemaining}/${listingQuota.freeListingAllowance}`,
+            getFreeListingBalanceDetail(listingQuota),
+          ],
+          ["Boosted reach", totalBoostedViews.toLocaleString(), "Views from boosts"],
+        ].map(([label, value, detail]) => (
+          <div key={label} className="seller-dashboard-stat">
+            <p className="seller-dashboard-stat__label">{label}</p>
+            <p className="seller-dashboard-stat__value">{value}</p>
+            <p className="seller-dashboard-stat__detail">{detail}</p>
           </div>
         ))}
-        <div className="panel">
-          <p className="text-sm text-[var(--muted)]">Free listings</p>
-          <p className="mt-2 text-3xl font-black">
-            {listingQuota.freeListingRemaining}/
-            {listingQuota.freeListingAllowance}
-          </p>
-          <p className="mt-2 text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-            {getFreeListingBalanceDetail(listingQuota)}
-          </p>
-        </div>
-        <div className="panel">
-          <p className="text-sm text-[var(--muted)]">Boosted</p>
-          <p className="mt-2 text-3xl font-black">{boostedCount}</p>
-        </div>
-        <div className="panel">
-          <p className="text-sm text-[var(--muted)]">Seller rating</p>
+        <div className="seller-dashboard-stat seller-dashboard-stat--rating">
+          <p className="seller-dashboard-stat__label">Seller rating</p>
           <SellerRatingSummary
             averageRating={ratingSummary.averageRating}
             ratingCount={ratingSummary.ratingCount}
             reviewCount={ratingSummary.reviewCount}
-            className="mt-2 text-lg font-black"
+            className="seller-dashboard-rating"
           />
+          <p className="seller-dashboard-stat__detail">
+            {ratingSummary.reviewCount} public reviews
+          </p>
         </div>
-      </div>
+      </section>
 
-      <SellerWalletBalance boostPackages={boostPackages} wallet={wallet} />
-
-      <SellerBoostOptions
-        boostPackages={boostPackages}
-        listings={listings}
-        wallet={wallet}
-      />
-
-      <SellerListingPaymentStatus
-        listingFeeTransactions={latestListingFeeTransactions}
-        listings={listings}
-      />
-
-      <SellerRatingsAndReviews
-        ratingSummary={ratingSummary}
-        reviews={receivedRatings}
-      />
-
-      <div id="seller-listings" className="grid gap-3">
+      <section id="seller-listings" className="grid gap-3">
+        <div className="panel seller-listings-overview">
+          <div>
+            <p className="section-eyebrow">Previous and active listings</p>
+            <h2 className="seller-listings-overview__title">Your inventory</h2>
+          </div>
+          <div className="seller-listings-overview__chips">
+            <span className="seller-listings-overview__chip">
+              {listings.length} listings
+            </span>
+            <span className="seller-listings-overview__chip">
+              {activeCount} active
+            </span>
+            <span className="seller-listings-overview__chip">
+              {boostedCount} boosted
+            </span>
+          </div>
+        </div>
         {listings.length ? (
           listings.map((listing) => {
             const paymentInfo = getListingPaymentInfo(
@@ -1438,9 +1442,9 @@ export default async function MyListingsPage() {
             return (
               <section
                 key={listing.id}
-                className="panel grid gap-4 md:grid-cols-[9rem_1fr_minmax(14rem,18rem)] md:items-center"
+                className="panel seller-listing-row grid gap-4 md:grid-cols-[8.5rem_1fr_minmax(13rem,16rem)] md:items-start"
               >
-                <div className="h-32 overflow-hidden rounded-md bg-[var(--surface-strong)]">
+                <div className="seller-listing-row__media h-28 overflow-hidden rounded-md bg-[var(--surface-strong)]">
                   {listing.imageUrls[0] ? (
                     <img
                       src={listing.imageUrls[0]}
@@ -1451,17 +1455,19 @@ export default async function MyListingsPage() {
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="font-black">{listing.title}</h2>
-                    <span className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-2 py-1 text-xs font-bold">
+                    <h2 className="text-lg font-semibold leading-tight text-[var(--foreground)]">
+                      {listing.title}
+                    </h2>
+                    <span className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-2 py-1 text-[11px] font-semibold">
                       {listing.status}
                     </span>
                     <span
-                      className={`rounded-md border px-2 py-1 text-xs font-black ${paymentInfo.tone}`}
+                      className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${paymentInfo.tone}`}
                     >
                       {paymentInfo.label}
                     </span>
                     {listing.isBoosted ? (
-                      <span className="rounded-md border border-[var(--accent-strong)] bg-[var(--accent-soft)] px-2 py-1 text-xs font-black text-[var(--accent-strong)]">
+                      <span className="rounded-md border border-[var(--accent-strong)] bg-[var(--accent-soft)] px-2 py-1 text-[11px] font-semibold text-[var(--accent-strong)]">
                         {listing.boostLabel ?? "Boosted"}
                       </span>
                     ) : null}
@@ -1469,9 +1475,38 @@ export default async function MyListingsPage() {
                   <p className="mt-1 text-sm text-[var(--muted)]">
                     {listing.priceLabel} / {listing.location}
                   </p>
-                  <p className="mt-2 text-sm font-bold text-[var(--muted)]">
+                  <p className="mt-2 text-sm font-medium text-[var(--muted)]">
                     Listing payment: {paymentInfo.detail}
                   </p>
+                  {listing.status === "Pending" ? (
+                    <div className="mt-2 rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm font-medium text-[var(--muted)]">
+                      Submitted
+                      {listing.submittedAt
+                        ? ` on ${formatReviewDate(listing.submittedAt)}`
+                        : ""}. Waiting for admin review.
+                    </div>
+                  ) : null}
+                  {listing.status === "Rejected" ? (
+                    <div className="mt-2 rounded-md border border-[rgba(217,93,57,0.24)] bg-[var(--brand-soft)] px-3 py-2 text-sm text-[var(--brand-strong)]">
+                      <p className="font-semibold">Rejected by moderation</p>
+                      <p className="mt-1">
+                        {listing.rejectionReason ??
+                          "This listing needs updates before it can be approved."}
+                      </p>
+                      {listing.reviewedAt ? (
+                        <p className="mt-1 text-xs font-semibold text-[var(--muted)]">
+                          Reviewed on {formatReviewDate(listing.reviewedAt)}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {listing.reviewedAt &&
+                  listing.status !== "Rejected" &&
+                  listing.status !== "Draft" ? (
+                    <p className="mt-2 text-xs font-semibold text-[var(--muted)]">
+                      Reviewed on {formatReviewDate(listing.reviewedAt)}
+                    </p>
+                  ) : null}
                   <div className="mt-3 grid gap-2 sm:grid-cols-4">
                     {[
                       ["Views", listing.viewCountValue.toLocaleString()],
@@ -1483,15 +1518,15 @@ export default async function MyListingsPage() {
                         key={label}
                         className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2"
                       >
-                        <p className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
                           {label}
                         </p>
-                        <p className="mt-1 text-sm font-black">{value}</p>
+                        <p className="mt-1 text-sm font-semibold">{value}</p>
                       </div>
                     ))}
                   </div>
                   {listing.isBoosted ? (
-                    <p className="mt-2 text-sm font-bold text-[var(--success)]">
+                    <p className="mt-2 text-sm font-semibold text-[var(--success)]">
                       Boost active: {listing.boostLabel}
                       {listing.boostEndsLabel
                         ? ` / ${listing.boostEndsLabel}`
@@ -1508,27 +1543,27 @@ export default async function MyListingsPage() {
                     {listing.description}
                   </p>
                 </div>
-                <div className="grid gap-2">
+                <div className="grid gap-2 seller-listing-row__actions">
                   <Link
                     href={
                       listing.status === "Active"
                         ? `/listings/${listing.id}`
                         : `/listings/${listing.id}/edit`
                     }
-                    className="action-secondary px-3 py-2 text-center text-sm font-bold"
+                    className="action-secondary px-3 py-2 text-center text-sm font-semibold"
                   >
                     {listing.status === "Active" ? "View" : "Review"}
                   </Link>
                   <Link
                     href={`/listings/${listing.id}/edit`}
-                    className="action-secondary px-3 py-2 text-center text-sm font-bold"
+                    className="action-secondary px-3 py-2 text-center text-sm font-semibold"
                   >
                     Edit
                   </Link>
                   {paymentInfo.transaction?.status === "PENDING" ? (
                     <Link
                       href={`/listings/${listing.id}/checkout?transactionId=${paymentInfo.transaction.id}`}
-                      className="action-primary px-3 py-2 text-center text-sm font-black"
+                      className="action-primary px-3 py-2 text-center text-sm font-semibold"
                     >
                       Continue checkout
                     </Link>
@@ -1555,7 +1590,7 @@ export default async function MyListingsPage() {
                             <select
                               name="paymentMethod"
                               defaultValue="GATEWAY"
-                              className="surface-input rounded-md px-3 py-2 text-sm font-bold"
+                              className="surface-input rounded-md px-3 py-2 text-sm font-medium"
                             >
                               <option value="GATEWAY">Gateway</option>
                               <option value="WALLET">
@@ -1573,7 +1608,7 @@ export default async function MyListingsPage() {
                             <select
                               name="packageId"
                               defaultValue={availablePackages[0]?.id}
-                              className="surface-input rounded-md px-3 py-2 text-sm font-bold"
+                              className="surface-input rounded-md px-3 py-2 text-sm font-medium"
                             >
                               {availablePackages.map((boostPackage) => (
                                 <option
@@ -1590,18 +1625,18 @@ export default async function MyListingsPage() {
                               ))}
                             </select>
                           </label>
-                          <button className="action-primary px-3 py-2 text-sm font-black">
+                          <button className="action-primary px-3 py-2 text-sm font-semibold">
                             Boost listing
                           </button>
                         </form>
                       ) : (
-                        <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm font-bold text-[var(--muted)]">
+                        <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm font-medium text-[var(--muted)]">
                           No boost package for this category
                         </div>
                       );
                     })()
                   ) : listing.isBoosted ? (
-                    <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm font-bold text-[var(--success)]">
+                    <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-sm font-semibold text-[var(--success)]">
                       Active boost
                       {listing.boostEndsLabel ? (
                         <span className="block text-xs text-[var(--muted)]">
@@ -1620,7 +1655,7 @@ export default async function MyListingsPage() {
                           value={listing.id}
                         />
                         <input type="hidden" name="status" value="SOLD" />
-                        <button className="w-full rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-bold">
+                        <button className="w-full rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-medium">
                           Sold
                         </button>
                       </form>
@@ -1632,7 +1667,7 @@ export default async function MyListingsPage() {
                             value={listing.id}
                           />
                           <input type="hidden" name="status" value="PAUSED" />
-                          <button className="w-full rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-bold">
+                          <button className="w-full rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-medium">
                             Pause
                           </button>
                         </form>
@@ -1644,7 +1679,7 @@ export default async function MyListingsPage() {
                           value={listing.id}
                         />
                         <input type="hidden" name="status" value="REMOVED" />
-                        <button className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-bold text-red-700">
+                        <button className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700">
                           Remove
                         </button>
                       </form>
@@ -1652,7 +1687,7 @@ export default async function MyListingsPage() {
                   ) : null}
                   <form action={deleteListingAction}>
                     <input type="hidden" name="listingId" value={listing.id} />
-                    <button className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-bold text-red-700">
+                    <button className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700">
                       Delete
                     </button>
                   </form>
@@ -1661,15 +1696,21 @@ export default async function MyListingsPage() {
             );
           })
         ) : (
-          <div className="panel">
-            <h2 className="text-xl font-black">No listings yet.</h2>
+          <div className="panel seller-listings-empty">
+            <h2 className="text-lg font-semibold">No listings yet.</h2>
             <p className="mt-2 text-sm text-[var(--muted)]">
               Create your first listing to start appearing in marketplace search
               after review.
             </p>
           </div>
         )}
-      </div>
+      </section>
+
+      <SellerBoostOptions
+        boostPackages={boostPackages}
+        listings={listings}
+        wallet={wallet}
+      />
     </div>
   );
 }

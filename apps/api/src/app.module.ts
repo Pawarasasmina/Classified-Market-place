@@ -15,6 +15,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ReportsModule } from './reports/reports.module';
 import { RatingsModule } from './ratings/ratings.module';
+import { SellerProfilesModule } from './seller-profiles/seller-profiles.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { UsersModule } from './users/users.module';
 import { WalletsModule } from './wallets/wallets.module';
@@ -37,6 +38,7 @@ import { WalletsModule } from './wallets/wallets.module';
     TransactionsModule,
     ReportsModule,
     RatingsModule,
+    SellerProfilesModule,
     WalletsModule,
   ],
   controllers: [AppController],

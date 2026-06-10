@@ -258,6 +258,23 @@ export default async function ListingDetailPage(props: ListingDetailPageProps) {
                   ? "Verified seller"
                   : "Marketplace seller"}
               </p>
+              {seller?.badges.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {seller.badges.map((badge) => (
+                    <span
+                      key={badge.id}
+                      className="rounded-md px-3 py-2 text-xs font-black"
+                      style={{
+                        background:
+                          badge.badgeType.backgroundColor ?? "rgba(238,241,255,1)",
+                        color: badge.badgeType.textColor ?? "#283163",
+                      }}
+                    >
+                      {badge.badgeType.label}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               <p>
                 {seller?.joinedLabel ??
                   listing.sellerJoinedLabel ??

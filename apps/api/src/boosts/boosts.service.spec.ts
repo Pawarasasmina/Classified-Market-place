@@ -18,6 +18,7 @@ describe('BoostsService', () => {
   let prisma: {
     listing: {
       findUnique: jest.Mock;
+      update: jest.Mock;
     };
     boost: {
       create: jest.Mock;
@@ -55,6 +56,9 @@ describe('BoostsService', () => {
   let notifications: {
     notifyBoostActivated: jest.Mock;
   };
+  let sellerProfilesService: {
+    assertApprovedSeller: jest.Mock;
+  };
 
   const listing = {
     id: 'listing-1',
@@ -84,6 +88,11 @@ describe('BoostsService', () => {
     prisma = {
       listing: {
         findUnique: jest.fn().mockResolvedValue(listing),
+        update: jest.fn().mockResolvedValue({
+          id: 'listing-1',
+          boostedUntil: new Date('2026-05-26T00:00:00.000Z'),
+          boostPriority: 1,
+        }),
       },
       boost: {
         create: jest.fn().mockImplementation(({ data }) => ({
@@ -179,10 +188,14 @@ describe('BoostsService', () => {
         id: 'notification-1',
       }),
     };
+    sellerProfilesService = {
+      assertApprovedSeller: jest.fn().mockResolvedValue(undefined),
+    };
     service = new BoostsService(
       prisma as never,
       paymentsService as never,
       notifications as never,
+      sellerProfilesService as never,
     );
   });
 

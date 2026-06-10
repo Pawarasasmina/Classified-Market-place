@@ -58,6 +58,17 @@ const safeUserSelect = {
   reputationScore: true,
   createdAt: true,
   updatedAt: true,
+  sellerProfile: {
+    include: {
+      privilegeTier: true,
+      badgeAssignments: {
+        include: {
+          badgeType: true,
+        },
+        orderBy: [{ assignedAt: 'desc' as const }],
+      },
+    },
+  },
 };
 
 const listingInclude = {
@@ -161,6 +172,7 @@ export class UsersService {
   async getCurrentUser(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      select: safeUserSelect,
     });
 
     if (!user) {
@@ -174,6 +186,17 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
+        sellerProfile: {
+          include: {
+            privilegeTier: true,
+            badgeAssignments: {
+              include: {
+                badgeType: true,
+              },
+              orderBy: [{ assignedAt: 'desc' }],
+            },
+          },
+        },
         listings: {
           where: {
             status: ListingStatus.ACTIVE,
@@ -219,6 +242,7 @@ export class UsersService {
 
   async findAllForAdmin() {
     const users = await this.prisma.user.findMany({
+      select: safeUserSelect,
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
@@ -235,6 +259,7 @@ export class UsersService {
   async findOneForAdmin(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      select: safeUserSelect,
     });
 
     if (!user) {
@@ -361,7 +386,14 @@ export class UsersService {
         avatarUrl: updateUserDto.avatarUrl,
         bio: updateUserDto.bio,
         location: updateUserDto.location,
-        ...(phoneChanged ? { phoneVerified: false } : {}),
+        ...(phoneChanged
+          ? {
+              phoneVerified: false,
+              phoneVerificationStatus: 'NOT_REQUESTED',
+              phoneVerificationRequestedAt: null,
+              phoneVerifiedAt: null,
+            }
+          : {}),
       },
     });
 
@@ -375,6 +407,13 @@ export class UsersService {
 
     if (!existingUser) {
       throw new NotFoundException('User not found');
+    }
+
+    if (
+      changePasswordDto.confirmPassword &&
+      changePasswordDto.confirmPassword !== changePasswordDto.newPassword
+    ) {
+      throw new BadRequestException('Passwords do not match');
     }
 
     if (existingUser.passwordHash) {
@@ -403,12 +442,32 @@ export class UsersService {
       }
     }
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        passwordHash: await bcryptLib.hash(changePasswordDto.newPassword, 10),
-      },
-    });
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          passwordHash: await bcryptLib.hash(changePasswordDto.newPassword, 10),
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+        },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: {
+          revokedAt: new Date(),
+          revokedReason: 'password_changed',
+        },
+      }),
+      this.prisma.authAuditLog.create({
+        data: {
+          userId,
+          email: existingUser.email,
+          event: existingUser.passwordHash
+            ? 'password_changed'
+            : 'password_set',
+        },
+      }),
+    ]);
 
     return { message: 'Password updated successfully' };
   }

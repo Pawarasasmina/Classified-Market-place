@@ -28,7 +28,13 @@ import {
   type ApiListingPriorityRule,
   type ApiListingPriorityRuleTarget,
   type ApiSellerRating,
+  type ApiSellerProfile,
+  type ApiSellerProfileEnvelope,
+  type ApiPublicSellerProfile,
+  type ApiSellerBadgeType,
+  type ApiSellerPrivilegeTier,
   type ApiSellerRatingSummary,
+  type ApiSellerFormField,
   type ApiSellerReviewStatus,
   type ApiListing,
   type ApiListingPaymentMode,
@@ -282,6 +288,11 @@ type ListingPayload = {
   listingPaymentMode?: ApiListingPaymentMode;
   attributes: Record<string, unknown>;
   images?: ListingImagePayload[];
+};
+
+type SellerProfilePayload = {
+  formAnswers?: Record<string, unknown>;
+  requestMetadata?: Record<string, unknown>;
 };
 
 type ListingDraftPayload = Partial<ListingPayload> & {
@@ -666,6 +677,16 @@ export async function createCategory(
     description?: string;
     parentSlug?: string;
     listingExpiryDays?: number;
+    schemaDefinition?: {
+      fields: Array<{
+        key: string;
+        label: string;
+        type: "text" | "number" | "select" | "toggle";
+        options?: string[];
+        required?: boolean;
+        placeholder?: string;
+      }>;
+    } | null;
   },
 ) {
   const category = await apiRequest<ApiCategory>("/categories/admin", {
@@ -686,6 +707,16 @@ export async function updateCategory(
     parentSlug?: string;
     isActive?: boolean;
     listingExpiryDays?: number;
+    schemaDefinition?: {
+      fields: Array<{
+        key: string;
+        label: string;
+        type: "text" | "number" | "select" | "toggle";
+        options?: string[];
+        required?: boolean;
+        placeholder?: string;
+      }>;
+    } | null;
   },
 ) {
   const category = await apiRequest<ApiCategory>(`/categories/admin/${slug}`, {
@@ -1296,7 +1327,7 @@ export async function updateListingReport(
 export async function fetchSellerProfile(userId: string) {
   try {
     const [profile, ratingSummary] = await Promise.all([
-      apiRequest<ApiUser>(`/users/${userId}`),
+      apiRequest<ApiPublicSellerProfile>(`/seller-profiles/public/${userId}`),
       fetchSellerRatingSummary(userId),
     ]);
     return mapSeller(profile, ratingSummary);
@@ -1307,6 +1338,371 @@ export async function fetchSellerProfile(userId: string) {
 
     throw error;
   }
+}
+
+export async function fetchSellerFormDefinition() {
+  return apiRequest<{ fields: ApiSellerFormField[] }>("/seller-profiles/form");
+}
+
+export async function updateSellerFormDefinition(
+  accessToken: string,
+  schemaDefinition: { fields: ApiSellerFormField[] } | string,
+) {
+  const payload =
+    typeof schemaDefinition === "string"
+      ? JSON.parse(schemaDefinition)
+      : schemaDefinition;
+
+  return apiRequest<{ fields: ApiSellerFormField[] }>("/seller-profiles/admin/form", {
+    method: "PUT",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ schemaDefinition: payload }),
+  });
+}
+
+export async function fetchMySellerProfile(accessToken: string) {
+  return apiRequest<ApiSellerProfileEnvelope>("/seller-profiles/me", {
+    accessToken,
+  });
+}
+
+export async function fetchMySellerPrivileges(accessToken: string) {
+  return apiRequest<ApiSellerPrivilegeTier[]>("/seller-profiles/me/privileges", {
+    accessToken,
+  });
+}
+
+export async function switchToSeller(accessToken: string) {
+  return apiRequest<ApiSellerProfile>("/seller-profiles/me/switch", {
+    method: "POST",
+    accessToken,
+  });
+}
+
+export async function updateMySellerProfile(
+  accessToken: string,
+  payload: SellerProfilePayload,
+) {
+  return apiRequest<ApiSellerProfile>("/seller-profiles/me", {
+    method: "PATCH",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function submitMySellerProfile(
+  accessToken: string,
+  payload: SellerProfilePayload,
+) {
+  return apiRequest<ApiSellerProfile>("/seller-profiles/me/submit", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function submitSellerDocument(
+  accessToken: string,
+  payload: {
+    requestId?: string;
+    answers?: Record<string, unknown>;
+    files?: Array<Record<string, unknown>>;
+  },
+) {
+  return apiRequest("/seller-profiles/me/documents", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function requestVerifiedSeller(
+  accessToken: string,
+  payload: {
+    requestMetadata?: Record<string, unknown>;
+    reviewNotes?: string;
+  },
+) {
+  return apiRequest<ApiSellerProfile>("/seller-profiles/me/verified/request", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function upgradeMySellerPrivilege(
+  accessToken: string,
+  sellerPrivilegeTierId: string,
+) {
+  return apiRequest<ApiSellerProfile>("/seller-profiles/me/upgrade-tier", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sellerPrivilegeTierId }),
+  });
+}
+
+export async function fetchAdminSellerOverview(accessToken: string) {
+  return apiRequest<{
+    stats: Record<string, number>;
+    sellers: ApiSellerProfile[];
+  }>("/seller-profiles/admin/overview", {
+    accessToken,
+  });
+}
+
+export async function fetchAdminSellerProfiles(
+  accessToken: string,
+  query: {
+    status?: string;
+    verifiedStatus?: string;
+    search?: string;
+    take?: number;
+  } = {},
+) {
+  return apiRequest<ApiSellerProfile[]>("/seller-profiles/admin/all", {
+    accessToken,
+    searchParams: query,
+  });
+}
+
+export async function fetchAdminSellerProfile(
+  accessToken: string,
+  sellerProfileId: string,
+) {
+  return apiRequest<ApiSellerProfile>(`/seller-profiles/admin/${sellerProfileId}`, {
+    accessToken,
+  });
+}
+
+export async function reviewSellerProfile(
+  accessToken: string,
+  sellerProfileId: string,
+  payload: {
+    status: "APPROVED" | "REJECTED" | "SUSPENDED";
+    reviewNotes?: string;
+    rejectionReason?: string;
+    privilegeTierId?: string;
+  },
+) {
+  return apiRequest<ApiSellerProfile>(
+    `/seller-profiles/admin/${sellerProfileId}/review`,
+    {
+      method: "PATCH",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function createSellerDocumentRequest(
+  accessToken: string,
+  sellerProfileId: string,
+  payload: {
+    label: string;
+    slug?: string;
+    description?: string;
+    isRequired?: boolean;
+    dueAt?: string;
+  },
+) {
+  return apiRequest(`/seller-profiles/admin/${sellerProfileId}/document-requests`, {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function reviewSellerDocument(
+  accessToken: string,
+  documentSubmissionId: string,
+  payload: {
+    status: "APPROVED" | "REJECTED";
+    reviewNotes?: string;
+    rejectionReason?: string;
+  },
+) {
+  return apiRequest(`/seller-profiles/admin/documents/${documentSubmissionId}/review`, {
+    method: "PATCH",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function reviewVerifiedSeller(
+  accessToken: string,
+  sellerProfileId: string,
+  payload: {
+    status: "VERIFIED" | "REJECTED" | "NOT_REQUESTED";
+    reviewNotes?: string;
+  },
+) {
+  return apiRequest<ApiSellerProfile>(
+    `/seller-profiles/admin/${sellerProfileId}/verified`,
+    {
+      method: "PATCH",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function fetchAdminSellerPrivileges(accessToken: string) {
+  return apiRequest<ApiSellerPrivilegeTier[]>("/seller-profiles/admin/privileges", {
+    accessToken,
+  });
+}
+
+export async function upsertSellerPrivilegeTier(
+  accessToken: string,
+  payload: {
+    id?: string;
+    code: "FREE" | "PREMIUM" | "VERIFIED" | "VIP";
+    name: string;
+    slug?: string;
+    description?: string;
+    monthlyFreeListingLimit?: number;
+    activeListingLimit?: number | null;
+    pendingListingLimit?: number | null;
+    paidListingFee?: number;
+    sellerLevelUpgradeFee?: number;
+    currency?: string;
+    isActive?: boolean;
+    sortOrder?: number;
+  },
+) {
+  const path = payload.id
+    ? `/seller-profiles/admin/privileges/${payload.id}`
+    : "/seller-profiles/admin/privileges";
+  const method = payload.id ? "PATCH" : "POST";
+
+  return apiRequest<ApiSellerPrivilegeTier>(path, {
+    method,
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function upsertSellerPrivilegeQuota(
+  accessToken: string,
+  sellerPrivilegeTierId: string,
+  payload: {
+    categoryId: string;
+    monthlyFreeListingLimit?: number | null;
+    activeListingLimit?: number | null;
+    pendingListingLimit?: number | null;
+    paidListingFee?: number | null;
+  },
+) {
+  return apiRequest(
+    `/seller-profiles/admin/privileges/${sellerPrivilegeTierId}/quotas`,
+    {
+      method: "POST",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function applyDefaultSellerPrivilegeQuotas(
+  accessToken: string,
+  sellerPrivilegeTierId: string,
+) {
+  return apiRequest(
+    `/seller-profiles/admin/privileges/${sellerPrivilegeTierId}/quotas/apply-default`,
+    {
+      method: "POST",
+      accessToken,
+    },
+  );
+}
+
+export async function zeroAllSellerPrivilegeQuotas(
+  accessToken: string,
+  sellerPrivilegeTierId: string,
+) {
+  return apiRequest(
+    `/seller-profiles/admin/privileges/${sellerPrivilegeTierId}/quotas/zero-all`,
+    {
+      method: "POST",
+      accessToken,
+    },
+  );
+}
+
+export async function fetchAdminSellerBadges(accessToken: string) {
+  return apiRequest<ApiSellerBadgeType[]>("/seller-profiles/admin/badges", {
+    accessToken,
+  });
+}
+
+export async function upsertSellerBadgeType(
+  accessToken: string,
+  payload: {
+    id?: string;
+    label: string;
+    slug?: string;
+    description?: string;
+    icon?: string;
+    backgroundColor?: string;
+    textColor?: string;
+    isActive?: boolean;
+    isHidden?: boolean;
+    sortOrder?: number;
+  },
+) {
+  const path = payload.id
+    ? `/seller-profiles/admin/badges/${payload.id}`
+    : "/seller-profiles/admin/badges";
+  const method = payload.id ? "PATCH" : "POST";
+
+  return apiRequest<ApiSellerBadgeType>(path, {
+    method,
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function assignSellerBadge(
+  accessToken: string,
+  sellerProfileId: string,
+  payload: {
+    badgeTypeId: string;
+    expiresAt?: string;
+  },
+) {
+  return apiRequest(`/seller-profiles/admin/${sellerProfileId}/badges`, {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function removeSellerBadge(
+  accessToken: string,
+  sellerProfileId: string,
+  assignmentId: string,
+) {
+  return apiRequest(
+    `/seller-profiles/admin/${sellerProfileId}/badges/${assignmentId}`,
+    {
+      method: "DELETE",
+      accessToken,
+    },
+  );
 }
 
 export async function fetchSellerRatingSummary(sellerId: string) {
@@ -1380,6 +1776,12 @@ export async function fetchMyWallet(accessToken: string) {
   });
 }
 
+export async function fetchAdminWallet(accessToken: string, userId: string) {
+  return apiRequest<ApiWalletAccount>(`/admin/wallets/${userId}`, {
+    accessToken,
+  });
+}
+
 export async function createWalletTopUp(
   accessToken: string,
   payload: { amount: number; currency?: string },
@@ -1401,6 +1803,32 @@ export async function completeWalletTopUp(
     transaction?: ApiTransaction;
     wallet?: ApiWalletAccount;
   }>(`/wallet/top-ups/${transactionId}/payment/succeed`, {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function creditAdminWallet(
+  accessToken: string,
+  userId: string,
+  payload: { amount: number; currency?: string; note?: string },
+) {
+  return apiRequest<ApiWalletAccount>(`/admin/wallets/${userId}/credit`, {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function debitAdminWallet(
+  accessToken: string,
+  userId: string,
+  payload: { amount: number; currency?: string; note?: string },
+) {
+  return apiRequest<ApiWalletAccount>(`/admin/wallets/${userId}/debit`, {
     method: "POST",
     accessToken,
     headers: { "Content-Type": "application/json" },
@@ -1440,6 +1868,7 @@ export async function changePassword(
   payload: {
     currentPassword?: string;
     newPassword: string;
+    confirmPassword?: string;
   },
 ) {
   return apiRequest<{ message: string }>("/users/me/password", {
@@ -1465,10 +1894,14 @@ export async function loginUser(payload: {
 }
 
 export async function registerUser(payload: {
+  accountType?: "CUSTOMER" | "SELLER";
   displayName: string;
   email: string;
   phone?: string;
   password: string;
+  confirmPassword?: string;
+  sellerFormAnswers?: Record<string, unknown>;
+  sellerRequestMetadata?: Record<string, unknown>;
   termsAccepted: boolean;
 }) {
   const response = await apiRequest<RegisterResponse>("/auth/register", {
@@ -1570,15 +2003,28 @@ export async function resendEmailVerification(accessToken: string) {
 
 export type AuthSession = {
   id: string;
+  deviceName: string | null;
   userAgent: string | null;
   ipAddress: string | null;
   createdAt: string;
+  lastUsedAt: string;
   expiresAt: string;
 };
 
 export async function fetchAuthSessions(accessToken: string) {
   return apiRequest<AuthSession[]>("/auth/sessions", {
     accessToken,
+  });
+}
+
+export async function resendEmailVerificationForEmail(email: string) {
+  return apiRequest<{
+    message: string;
+    emailVerificationPreviewUrl?: string | null;
+  }>("/auth/resend-email-verification/request", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
   });
 }
 
@@ -1757,6 +2203,7 @@ export async function moderateListing(
   accessToken: string,
   listingId: string,
   status: ApiListingStatus,
+  reason?: string,
 ) {
   const listing = await apiRequest<ApiListing>(
     `/listings/admin/${listingId}/moderate`,
@@ -1764,7 +2211,7 @@ export async function moderateListing(
       method: "PATCH",
       accessToken,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, reason }),
     },
   );
 

@@ -17,6 +17,7 @@ import {
 import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SellerProfilesService } from '../seller-profiles/seller-profiles.service';
 import { CompleteBoostPaymentDto } from './dto/complete-boost-payment.dto';
 import { CreateBoostPackageDto } from './dto/create-boost-package.dto';
 import { CreateBoostDto } from './dto/create-boost.dto';
@@ -263,6 +264,7 @@ export class BoostsService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
     private readonly notifications?: NotificationsService,
+    private readonly sellerProfilesService?: SellerProfilesService,
   ) {}
 
   async onModuleInit() {
@@ -285,6 +287,10 @@ export class BoostsService implements OnModuleInit {
 
     if (!isAdminRole(user.role) && listing.sellerId !== user.id) {
       throw new ForbiddenException('You can only boost your own listings');
+    }
+
+    if (!isAdminRole(user.role)) {
+      await this.requireSellerProfilesService().assertApprovedSeller(user.id);
     }
 
     if (listing.status !== ListingStatus.ACTIVE) {
@@ -319,7 +325,6 @@ export class BoostsService implements OnModuleInit {
     const overlappingBoost = await this.prisma.boost.findFirst({
       where: {
         listingId,
-        placement,
         status: { in: mutableBoostStatuses },
         startsAt: { lt: endsAt },
         endsAt: { gt: startsAt },
@@ -329,7 +334,7 @@ export class BoostsService implements OnModuleInit {
 
     if (overlappingBoost) {
       throw new BadRequestException(
-        'This listing already has an overlapping boost for that placement',
+        'This listing already has an overlapping active or scheduled boost',
       );
     }
 
@@ -431,11 +436,17 @@ export class BoostsService implements OnModuleInit {
     boostId: string,
     completeBoostPaymentDto: CompleteBoostPaymentDto,
   ) {
-    return this.paymentsService.completeBoostPaymentForActor(
+    const boost = await this.paymentsService.completeBoostPaymentForActor(
       user,
       boostId,
       completeBoostPaymentDto,
     );
+
+    if (boost?.listingId) {
+      await this.syncListingBoostState([boost.listingId]);
+    }
+
+    return boost;
   }
 
   async listActiveForListing(listingId: string) {
@@ -618,16 +629,31 @@ export class BoostsService implements OnModuleInit {
   }
 
   private async refreshExpiredBoosts(where: Prisma.BoostWhereInput = {}) {
-    await this.prisma.boost.updateMany({
+    const expiringBoosts = await this.prisma.boost.findMany({
       where: {
         ...where,
         status: { in: mutableBoostStatuses },
         endsAt: { lte: new Date() },
       },
+      select: { id: true, listingId: true },
+    });
+
+    if (!expiringBoosts.length) {
+      return;
+    }
+
+    await this.prisma.boost.updateMany({
+      where: {
+        id: { in: expiringBoosts.map((boost) => boost.id) },
+      },
       data: {
         status: BoostStatus.EXPIRED,
       },
     });
+    await this.syncListingBoostState(
+      [...new Set(expiringBoosts.map((boost) => boost.listingId))],
+      new Date(),
+    );
   }
 
   private async createWalletBoost(input: {
@@ -726,6 +752,8 @@ export class BoostsService implements OnModuleInit {
         },
       });
 
+      await this.syncListingBoostState([listingId], now, tx);
+
       return createdBoost;
     });
 
@@ -768,16 +796,7 @@ export class BoostsService implements OnModuleInit {
     for (const boostPackage of defaultBoostPackages) {
       await this.prisma.boostPackage.upsert({
         where: { slug: boostPackage.slug },
-        update: {
-          name: boostPackage.name,
-          description: boostPackage.description,
-          placement: boostPackage.placement,
-          price: boostPackage.price,
-          currency: boostPackage.currency,
-          durationDays: boostPackage.durationDays,
-          sortOrder: boostPackage.sortOrder,
-          isActive: true,
-        },
+        update: {},
         create: {
           ...boostPackage,
           isActive: true,
@@ -865,5 +884,68 @@ export class BoostsService implements OnModuleInit {
         category: { connect: { id: categoryId } },
       })),
     };
+  }
+
+  private async syncListingBoostState(
+    listingIds: string[],
+    now = new Date(),
+    tx: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
+    const uniqueListingIds = [...new Set(listingIds)].filter(Boolean);
+
+    if (!uniqueListingIds.length) {
+      return;
+    }
+
+    const activeBoosts = await tx.boost.findMany({
+      where: {
+        listingId: { in: uniqueListingIds },
+        status: BoostStatus.ACTIVE,
+        startsAt: { lte: now },
+        endsAt: { gt: now },
+      },
+      select: {
+        listingId: true,
+        endsAt: true,
+      },
+      orderBy: [{ endsAt: 'desc' }],
+    });
+    const boostsByListing = new Map<
+      string,
+      Array<{ listingId: string; endsAt: Date }>
+    >();
+
+    for (const boost of activeBoosts) {
+      const listingBoosts = boostsByListing.get(boost.listingId) ?? [];
+      listingBoosts.push(boost);
+      boostsByListing.set(boost.listingId, listingBoosts);
+    }
+
+    await Promise.all(
+      uniqueListingIds.map((listingId) => {
+        const listingBoosts = boostsByListing.get(listingId) ?? [];
+        const boostedUntil = listingBoosts.length
+          ? new Date(
+              Math.max(...listingBoosts.map((boost) => boost.endsAt.getTime())),
+            )
+          : null;
+
+        return tx.listing.update({
+          where: { id: listingId },
+          data: {
+            boostedUntil,
+            boostPriority: listingBoosts.length || null,
+          },
+        });
+      }),
+    );
+  }
+
+  private requireSellerProfilesService() {
+    if (!this.sellerProfilesService) {
+      throw new BadRequestException('Seller profiles are not configured');
+    }
+
+    return this.sellerProfilesService;
   }
 }

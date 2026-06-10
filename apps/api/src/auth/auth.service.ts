@@ -13,12 +13,14 @@ import { createHash, randomBytes, randomInt } from 'crypto';
 import type { Prisma } from '@prisma/client';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SellerProfilesService } from '../seller-profiles/seller-profiles.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RequestPhoneOtpDto } from './dto/request-phone-otp.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResendEmailVerificationDto } from './dto/resend-email-verification.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RevokeSessionDto } from './dto/revoke-session.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
@@ -70,6 +72,18 @@ type GooglePeopleResponse = {
   }>;
 };
 
+type GoogleTokenInfoResponse = {
+  sub?: string;
+  email?: string;
+  name?: string;
+  picture?: string;
+  aud?: string;
+  azp?: string;
+  iss?: string;
+  exp?: string;
+  email_verified?: string | boolean;
+};
+
 const bcryptLib = bcrypt as BcryptModule;
 const authRateLimits = new Map<string, RateLimitEntry>();
 const loginFailureLimit = 5;
@@ -91,6 +105,11 @@ function cleanGooglePhone(value: string | undefined) {
   return trimmed || undefined;
 }
 
+function deriveDeviceName(userAgent: string | undefined) {
+  const trimmed = userAgent?.trim();
+  return trimmed ? trimmed.slice(0, 120) : undefined;
+}
+
 @Injectable()
 export class AuthService {
   private readonly otpExpiryMinutes = 10;
@@ -101,6 +120,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
+    private readonly sellerProfilesService: SellerProfilesService,
   ) {}
 
   private async signAccessToken(user: AuthUser) {
@@ -165,9 +185,12 @@ export class AuthService {
       data: {
         tokenHash: this.hashToken(refreshToken),
         userId: user.id,
+        rememberMe: options.rememberMe ?? false,
         expiresAt,
+        deviceName: deriveDeviceName(context.userAgent),
         userAgent: context.userAgent,
         ipAddress: context.ipAddress,
+        lastUsedAt: new Date(),
       },
     });
 
@@ -439,6 +462,7 @@ export class AuthService {
 
   private async getGoogleProfile(dto: GoogleLoginDto): Promise<GoogleProfile> {
     if (dto.idToken) {
+      this.rateLimit('google-token', 15, 15 * 60 * 1000);
       const response = await fetch(
         `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(dto.idToken)}`,
       );
@@ -447,23 +471,28 @@ export class AuthService {
         throw new UnauthorizedException('Invalid Google token');
       }
 
-      const payload = (await response.json()) as {
-        sub?: string;
-        email?: string;
-        name?: string;
-        picture?: string;
-        aud?: string;
-        email_verified?: string | boolean;
-      };
+      const payload = (await response.json()) as GoogleTokenInfoResponse;
       const configuredClientId =
         this.configService.get<string>('GOOGLE_CLIENT_ID');
 
       if (
         configuredClientId &&
-        payload.aud &&
-        payload.aud !== configuredClientId
+        ((payload.aud && payload.aud !== configuredClientId) ||
+          (payload.azp && payload.azp !== configuredClientId))
       ) {
         throw new UnauthorizedException('Google token audience is not allowed');
+      }
+
+      if (
+        payload.iss &&
+        payload.iss !== 'https://accounts.google.com' &&
+        payload.iss !== 'accounts.google.com'
+      ) {
+        throw new UnauthorizedException('Google token issuer is not allowed');
+      }
+
+      if (payload.exp && Number(payload.exp) * 1000 <= Date.now()) {
+        throw new UnauthorizedException('Google token has expired');
       }
 
       if (!payload.sub || !payload.email) {
@@ -513,6 +542,13 @@ export class AuthService {
       throw new BadRequestException('Accept the Terms and Privacy Policy');
     }
 
+    if (
+      registerDto.confirmPassword &&
+      registerDto.confirmPassword !== registerDto.password
+    ) {
+      throw new BadRequestException('Passwords do not match');
+    }
+
     const email = normalizeEmail(registerDto.email);
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
@@ -534,6 +570,14 @@ export class AuthService {
         role: 'USER',
       },
     });
+
+    if (registerDto.accountType === 'SELLER') {
+      await this.sellerProfilesService.registerSellerProfile(user.id, user.role, {
+        formAnswers: registerDto.sellerFormAnswers,
+        requestMetadata: registerDto.sellerRequestMetadata,
+      });
+    }
+
     const emailVerificationPreviewUrl = await this.createEmailVerificationLink(
       user.id,
     );
@@ -550,7 +594,10 @@ export class AuthService {
     await this.auditAuthEvent('register_success', context, {
       userId: user.id,
       email,
-      metadata: { emailSent },
+      metadata: {
+        emailSent,
+        accountType: registerDto.accountType ?? 'CUSTOMER',
+      },
     });
 
     return {
@@ -609,6 +656,7 @@ export class AuthService {
         where: { id: user.id },
         data: {
           failedLoginAttempts,
+          lastFailedLoginAt: new Date(),
           lockedUntil,
         },
       });
@@ -645,6 +693,7 @@ export class AuthService {
       where: { id: user.id },
       data: {
         failedLoginAttempts: 0,
+        lastLoginAt: new Date(),
         lockedUntil: null,
       },
     });
@@ -775,16 +824,30 @@ export class AuthService {
     ) {
       await this.prisma.refreshToken.update({
         where: { id: storedToken.id },
-        data: { revokedAt: new Date() },
+        data: {
+          revokedAt: new Date(),
+          revokedReason: 'email_verification_required',
+        },
       });
       throw new UnauthorizedException('Verify your email before signing in');
     }
 
     await this.prisma.refreshToken.update({
       where: { id: storedToken.id },
-      data: { revokedAt: new Date() },
+      data: { revokedAt: new Date(), revokedReason: 'rotated' },
     });
-    const tokens = await this.issueTokens(storedToken.user, context);
+    const tokens = await this.issueTokens(storedToken.user, context, {
+      rememberMe: storedToken.rememberMe,
+    });
+
+    await this.prisma.user.update({
+      where: { id: storedToken.userId },
+      data: {
+        failedLoginAttempts: 0,
+        lastLoginAt: new Date(),
+        lockedUntil: null,
+      },
+    });
 
     return {
       ...tokens,
@@ -804,6 +867,7 @@ export class AuthService {
       },
       data: {
         revokedAt: new Date(),
+        revokedReason: 'logout',
       },
     });
 
@@ -864,6 +928,11 @@ export class AuthService {
     resetPasswordDto: ResetPasswordDto,
     context: TokenContext = {},
   ) {
+    this.rateLimit(
+      `reset-password:ip:${context.ipAddress ?? 'unknown-ip'}`,
+      10,
+      15 * 60 * 1000,
+    );
     const tokenHash = this.hashToken(resetPasswordDto.token);
     const token = await this.prisma.passwordResetToken.findUnique({
       where: { tokenHash },
@@ -896,7 +965,7 @@ export class AuthService {
       }),
       this.prisma.refreshToken.updateMany({
         where: { userId: token.userId, revokedAt: null },
-        data: { revokedAt: new Date() },
+        data: { revokedAt: new Date(), revokedReason: 'password_reset' },
       }),
     ]);
     await this.auditAuthEvent('password_reset_completed', context, {
@@ -921,22 +990,72 @@ export class AuthService {
       };
     }
 
+    this.rateLimitAuthAction('resend-email-verification', user.email, context, 5);
+
+    return this.sendVerificationForUser(user.id, user.email, context, 'email_verification_resent');
+  }
+
+  async resendEmailVerificationForEmail(
+    resendEmailVerificationDto: ResendEmailVerificationDto,
+    context: TokenContext = {},
+  ) {
+    const email = normalizeEmail(resendEmailVerificationDto.email);
+    this.rateLimitAuthAction(
+      'resend-email-verification-public',
+      email,
+      context,
+      5,
+    );
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (user && !user.deactivatedAt && !user.emailVerified) {
+      return this.sendVerificationForUser(
+        user.id,
+        user.email,
+        context,
+        'email_verification_resent_public',
+      );
+    }
+
+    await this.auditAuthEvent(
+      'email_verification_resent_public_unknown',
+      context,
+      {
+        email,
+      },
+    );
+
+    return {
+      message:
+        'If an account exists for that email and still needs verification, a new verification link is available.',
+      emailVerificationPreviewUrl: null,
+    };
+  }
+
+  private async sendVerificationForUser(
+    userId: string,
+    email: string,
+    context: TokenContext,
+    auditEvent: string,
+  ) {
     const emailVerificationPreviewUrl = await this.createEmailVerificationLink(
-      user.id,
+      userId,
     );
     const emailSent = await this.sendEmailVerificationEmail(
-      user.email,
+      email,
       emailVerificationPreviewUrl,
     );
     this.logAuthLinkPreview(
       'Email verification',
-      user.email,
+      email,
       emailVerificationPreviewUrl,
       emailSent,
     );
-    await this.auditAuthEvent('email_verification_resent', context, {
-      userId: user.id,
-      email: user.email,
+    await this.auditAuthEvent(auditEvent, context, {
+      userId,
+      email,
       metadata: { emailSent },
     });
 
@@ -974,7 +1093,7 @@ export class AuthService {
     const [verifiedUser] = await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: token.userId },
-        data: { emailVerified: true },
+        data: { emailVerified: true, lastLoginAt: new Date() },
       }),
       this.prisma.emailVerificationToken.update({
         where: { id: token.id },
@@ -1008,9 +1127,11 @@ export class AuthService {
 
     return sessions.map((session) => ({
       id: session.id,
+      deviceName: session.deviceName,
       userAgent: session.userAgent,
       ipAddress: session.ipAddress,
       createdAt: session.createdAt,
+      lastUsedAt: session.lastUsedAt,
       expiresAt: session.expiresAt,
     }));
   }
@@ -1026,7 +1147,7 @@ export class AuthService {
         userId,
         revokedAt: null,
       },
-      data: { revokedAt: new Date() },
+      data: { revokedAt: new Date(), revokedReason: 'manual_revoke' },
     });
     await this.auditAuthEvent('session_revoked', context, {
       userId,
@@ -1042,7 +1163,7 @@ export class AuthService {
         userId,
         revokedAt: null,
       },
-      data: { revokedAt: new Date() },
+      data: { revokedAt: new Date(), revokedReason: 'logout_all' },
     });
     await this.auditAuthEvent('logout_all', context, { userId });
 
@@ -1053,6 +1174,16 @@ export class AuthService {
     userId: string,
     requestPhoneOtpDto: RequestPhoneOtpDto,
   ) {
+    this.rateLimit(
+      `request-phone-otp:user:${userId}`,
+      5,
+      15 * 60 * 1000,
+    );
+    this.rateLimit(
+      `request-phone-otp:phone:${requestPhoneOtpDto.phone}`,
+      5,
+      15 * 60 * 1000,
+    );
     const expiresAt = new Date(Date.now() + this.otpExpiryMinutes * 60 * 1000);
     const otpCode = this.generateOtpCode();
 
@@ -1075,6 +1206,16 @@ export class AuthService {
       },
     });
 
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        phone: requestPhoneOtpDto.phone,
+        phoneVerified: false,
+        phoneVerificationStatus: 'PENDING',
+        phoneVerificationRequestedAt: new Date(),
+      },
+    });
+
     const delivery = await this.deliverOtpCode(
       requestPhoneOtpDto.phone,
       otpCode,
@@ -1091,6 +1232,11 @@ export class AuthService {
   }
 
   async verifyPhone(userId: string, verifyPhoneDto: VerifyPhoneDto) {
+    this.rateLimit(
+      `verify-phone:user:${userId}`,
+      10,
+      15 * 60 * 1000,
+    );
     const challenge = await this.prisma.phoneOtpChallenge.findFirst({
       where: {
         userId,
@@ -1133,18 +1279,22 @@ export class AuthService {
       throw new BadRequestException('Invalid OTP code');
     }
 
+    const now = new Date();
+
     const [user] = await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: userId },
         data: {
           phone: verifyPhoneDto.phone,
           phoneVerified: true,
+          phoneVerificationStatus: 'VERIFIED',
+          phoneVerifiedAt: now,
         },
       }),
       this.prisma.phoneOtpChallenge.update({
         where: { id: challenge.id },
         data: {
-          consumedAt: new Date(),
+          consumedAt: now,
         },
       }),
     ]);

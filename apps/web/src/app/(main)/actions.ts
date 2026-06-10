@@ -10,6 +10,8 @@ import {
   completeBoostPayment,
   completeListingPayment,
   completeWalletTopUp,
+  creditAdminWallet,
+  createSellerDocumentRequest,
   createCategory,
   createBoostPackage,
   createListing,
@@ -21,10 +23,12 @@ import {
   deleteBoostPackage,
   deleteListing,
   forgotPassword,
+  debitAdminWallet,
   deletePriorityRule,
   deleteSellerReview,
   deleteSellerRating,
   googleLoginUser,
+  upgradeMySellerPrivilege,
   loginUser,
   logoutAllSessions,
   logoutSession,
@@ -34,17 +38,34 @@ import {
   publishListingDraft,
   registerUser,
   requestPhoneOtp,
+  requestVerifiedSeller,
   resendEmailVerification,
+  resendEmailVerificationForEmail,
+  reviewSellerDocument,
+  reviewSellerProfile,
+  reviewVerifiedSeller,
   resetPassword,
   revokeAuthSession,
   saveListingDraft,
   updateAdminUser,
   updateCategory,
   updateCurrentUser,
+  updateMySellerProfile,
   updateListing,
   updateListingPriorityOverride,
   updateListingReport,
   updatePriorityRule,
+  submitMySellerProfile,
+  submitSellerDocument,
+  switchToSeller,
+  updateSellerFormDefinition,
+  upsertSellerBadgeType,
+  upsertSellerPrivilegeQuota,
+  upsertSellerPrivilegeTier,
+  assignSellerBadge,
+  removeSellerBadge,
+  applyDefaultSellerPrivilegeQuotas,
+  zeroAllSellerPrivilegeQuotas,
   upsertSellerRating,
   verifyEmailToken,
   saveListing,
@@ -95,6 +116,7 @@ const googleLoginSchema = z
 
 const registerSchema = z
   .object({
+    accountType: z.enum(["CUSTOMER", "SELLER"]).default("CUSTOMER"),
     displayName: z
       .string()
       .trim()
@@ -247,6 +269,15 @@ const completeListingPaymentSchema = z.object({
 const walletTopUpSchema = z.object({
   amount: z.coerce.number().min(1).max(50000),
   currency: z.string().trim().length(3).default("AED"),
+  returnTo: z.string().trim().startsWith("/").default("/my-listings"),
+});
+
+const adminWalletAdjustmentSchema = z.object({
+  userId: z.string().trim().min(1),
+  amount: z.coerce.number().min(0.01).max(50000),
+  currency: z.string().trim().length(3).default("AED"),
+  note: z.string().trim().max(300).optional(),
+  returnTo: z.string().trim().startsWith("/").default("/admin/users"),
 });
 
 const boostPackageSchema = z.object({
@@ -517,6 +548,22 @@ function parseImages(formData: FormData, title: string) {
     }));
 }
 
+async function serializeBrowserFile(value: FormDataEntryValue | null) {
+  if (!(value instanceof File) || value.size === 0) {
+    return null;
+  }
+
+  const buffer = Buffer.from(await value.arrayBuffer());
+  const mimeType = value.type || "application/octet-stream";
+
+  return {
+    name: value.name,
+    size: value.size,
+    type: mimeType,
+    dataUrl: `data:${mimeType};base64,${buffer.toString("base64")}`,
+  };
+}
+
 function cleanOptional(value: string | undefined) {
   return value?.trim() ? value.trim() : undefined;
 }
@@ -530,9 +577,126 @@ function cleanNullable(value: FormDataEntryValue | null) {
   return trimmed ? trimmed : null;
 }
 
+function parseCategorySchemaDefinition(formData: FormData) {
+  const rawValue = cleanOptional(String(formData.get("schemaDefinition") ?? ""));
+
+  if (!rawValue) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as {
+      fields?: Array<{
+        key?: unknown;
+        label?: unknown;
+        type?: unknown;
+        options?: unknown;
+        required?: unknown;
+        placeholder?: unknown;
+      }>;
+    };
+
+    const fields: Array<{
+      key: string;
+      label: string;
+      type: "text" | "number" | "select" | "toggle";
+      options?: string[];
+      required?: boolean;
+      placeholder?: string;
+    }> = [];
+
+    if (Array.isArray(parsed.fields)) {
+      for (const field of parsed.fields) {
+        const key = cleanOptional(String(field.key ?? ""));
+        const label = cleanOptional(String(field.label ?? ""));
+        const type = String(field.type ?? "text");
+        const placeholder = cleanOptional(String(field.placeholder ?? ""));
+        const options = Array.isArray(field.options)
+          ? field.options
+              .map((option) => cleanOptional(String(option ?? "")))
+              .filter((option): option is string => Boolean(option))
+          : undefined;
+
+        if (!key || !label) {
+          continue;
+        }
+
+        fields.push({
+          key,
+          label,
+          type:
+            type === "number" || type === "select" || type === "toggle"
+              ? type
+              : "text",
+          options: type === "select" ? options : undefined,
+          required: field.required === true,
+          placeholder,
+        });
+      }
+    }
+
+    return { fields };
+  } catch {
+    return undefined;
+  }
+}
+
+async function parseSellerFormAnswers(formData: FormData) {
+  const answers: Record<string, unknown> = {};
+  const files: Array<Record<string, unknown>> = [];
+
+  for (const [key, value] of formData.entries()) {
+    if (key.startsWith("sellerAnswer:") && typeof value === "string") {
+      const fieldKey = key.replace("sellerAnswer:", "");
+      const trimmed = value.trim();
+
+      if (!trimmed) {
+        continue;
+      }
+
+      answers[fieldKey] =
+        trimmed === "true" || trimmed === "false"
+          ? trimmed === "true"
+          : trimmed;
+    }
+
+    if (key.startsWith("sellerFile:")) {
+      const fieldKey = key.replace("sellerFile:", "");
+      const serialized = await serializeBrowserFile(value);
+
+      if (!serialized) {
+        continue;
+      }
+
+      answers[fieldKey] = [serialized];
+      files.push({
+        fieldKey,
+        ...serialized,
+      });
+    }
+  }
+
+  return { answers, files };
+}
+
 function withQueryParam(path: string, params: Record<string, string>) {
   const separator = path.includes("?") ? "&" : "?";
   return `${path}${separator}${new URLSearchParams(params).toString()}`;
+}
+
+function revalidateSellerPaths() {
+  revalidatePath("/", "layout");
+  revalidatePath("/sell");
+  revalidatePath("/my-listings");
+  revalidatePath("/profile");
+  revalidatePath("/search");
+  revalidatePath("/admin");
+  revalidatePath("/admin/sellers");
+  revalidatePath("/admin/sellers/approvals");
+  revalidatePath("/admin/sellers/verified");
+  revalidatePath("/admin/sellers/badges");
+  revalidatePath("/admin/sellers/form");
+  revalidatePath("/admin/sellers/privileges");
 }
 
 export async function loginAction(
@@ -561,6 +725,18 @@ export async function loginAction(
     redirectPath = getPostAuthPath(session.user, nextPath);
     revalidatePath("/", "layout");
   } catch (error) {
+    if (
+      error instanceof MarketplaceApiError &&
+      error.message.toLowerCase().includes("verify your email")
+    ) {
+      const params = new URLSearchParams({
+        next: nextPath,
+        email: parsed.data.email,
+      });
+
+      redirect(`/verify-email?${params.toString()}`);
+    }
+
     return {
       message: getActionMessage(error, "We could not sign you in."),
     };
@@ -612,6 +788,7 @@ export async function registerAction(
 ): Promise<FormActionState> {
   const nextPath = getSafeNextPath(formData.get("next"), "/sell");
   const parsed = registerSchema.safeParse({
+    accountType: formData.get("accountType") || "CUSTOMER",
     displayName: formData.get("displayName"),
     email: formData.get("email"),
     phone: formData.get("phone") || undefined,
@@ -628,13 +805,22 @@ export async function registerAction(
   }
 
   let redirectPath = `/verify-email?next=${encodeURIComponent(nextPath)}`;
+  const sellerAnswers = await parseSellerFormAnswers(formData);
 
   try {
     const response = await registerUser({
+      accountType: parsed.data.accountType,
       displayName: parsed.data.displayName,
       email: parsed.data.email,
       phone: parsed.data.phone || undefined,
       password: parsed.data.password,
+      confirmPassword: parsed.data.confirmPassword,
+      sellerFormAnswers:
+        parsed.data.accountType === "SELLER" ? sellerAnswers.answers : undefined,
+      sellerRequestMetadata:
+        parsed.data.accountType === "SELLER"
+          ? { signupSource: "register" }
+          : undefined,
       termsAccepted: parsed.data.termsAccepted,
     });
     const params = new URLSearchParams({
@@ -1049,25 +1235,36 @@ export async function completeListingPaymentAction(formData: FormData) {
 }
 
 export async function walletTopUpAction(formData: FormData) {
+  const requestedReturnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/my-listings",
+  );
   const parsed = walletTopUpSchema.safeParse({
     amount: formData.get("amount"),
     currency: formData.get("currency") || "AED",
+    returnTo: requestedReturnTo,
   });
-  const { accessToken } = await requireSessionContext("/my-listings");
 
   if (parsed.success) {
-    const topUp = await createWalletTopUp(accessToken, parsed.data);
+    const returnTo = getSafeNextPath(parsed.data.returnTo, "/my-listings");
+    const { accessToken } = await requireSessionContext(returnTo);
+    const topUp = await createWalletTopUp(accessToken, {
+      amount: parsed.data.amount,
+      currency: parsed.data.currency,
+    });
 
     await completeWalletTopUp(accessToken, topUp.transaction.id, {
       providerRef: topUp.payment?.providerRef,
     });
 
     revalidatePath("/my-listings");
+    revalidatePath("/wallet");
     revalidatePath("/transactions");
-    redirect("/my-listings?wallet=top-up-success");
+    revalidatePath(returnTo);
+    redirect(withQueryParam(returnTo, { wallet: "top-up-success" }));
   }
 
-  redirect("/my-listings?wallet=top-up-invalid");
+  redirect(withQueryParam(requestedReturnTo, { wallet: "top-up-invalid" }));
 }
 
 export async function createBoostPackageAction(formData: FormData) {
@@ -1336,14 +1533,72 @@ export async function updateAdminUserAction(formData: FormData) {
 export async function moderateListingAction(formData: FormData) {
   const listingId = String(formData.get("listingId") ?? "");
   const status = String(formData.get("status") ?? "") as ApiListingStatus;
-  const { accessToken } = await requireSessionContext("/admin");
+  const reason = cleanOptional(String(formData.get("reason") ?? ""));
+  const returnTo = getSafeNextPath(formData.get("returnTo"), "/admin");
+  const { accessToken } = await requireSessionContext(returnTo);
 
   if (listingId && status) {
-    await moderateListing(accessToken, listingId, status);
+    await moderateListing(accessToken, listingId, status, reason);
   }
 
   revalidatePath("/admin");
-  redirect("/admin");
+  revalidatePath("/admin/listings");
+  revalidatePath(`/listings/${listingId}`);
+  redirect(returnTo);
+}
+
+export async function creditAdminWalletAction(formData: FormData) {
+  const parsed = adminWalletAdjustmentSchema.safeParse({
+    userId: formData.get("userId"),
+    amount: formData.get("amount"),
+    currency: formData.get("currency") || "AED",
+    note: cleanOptional(String(formData.get("note") ?? "")),
+    returnTo: formData.get("returnTo") || "/admin/users",
+  });
+
+  if (!parsed.success) {
+    redirect("/admin/users?wallet=invalid");
+  }
+
+  const { accessToken } = await requireSessionContext(parsed.data.returnTo);
+  await creditAdminWallet(accessToken, parsed.data.userId, {
+    amount: parsed.data.amount,
+    currency: parsed.data.currency,
+    note: parsed.data.note,
+  });
+
+  revalidatePath(parsed.data.returnTo);
+  revalidatePath("/admin/wallet");
+  revalidatePath("/wallet");
+  revalidatePath("/admin/reports/wallet-payments");
+  redirect(withQueryParam(parsed.data.returnTo, { wallet: "credited" }));
+}
+
+export async function debitAdminWalletAction(formData: FormData) {
+  const parsed = adminWalletAdjustmentSchema.safeParse({
+    userId: formData.get("userId"),
+    amount: formData.get("amount"),
+    currency: formData.get("currency") || "AED",
+    note: cleanOptional(String(formData.get("note") ?? "")),
+    returnTo: formData.get("returnTo") || "/admin/users",
+  });
+
+  if (!parsed.success) {
+    redirect("/admin/users?wallet=invalid");
+  }
+
+  const { accessToken } = await requireSessionContext(parsed.data.returnTo);
+  await debitAdminWallet(accessToken, parsed.data.userId, {
+    amount: parsed.data.amount,
+    currency: parsed.data.currency,
+    note: parsed.data.note,
+  });
+
+  revalidatePath(parsed.data.returnTo);
+  revalidatePath("/admin/wallet");
+  revalidatePath("/wallet");
+  revalidatePath("/admin/reports/wallet-payments");
+  redirect(withQueryParam(parsed.data.returnTo, { wallet: "debited" }));
 }
 
 export async function updateListingPriorityOverrideAction(formData: FormData) {
@@ -1790,6 +2045,7 @@ export async function createCategoryAction(
       description: cleanOptional(parsed.data.description),
       parentSlug: cleanOptional(parsed.data.parentSlug),
       listingExpiryDays: parsed.data.listingExpiryDays,
+      schemaDefinition: parseCategorySchemaDefinition(formData),
     });
   } catch (error) {
     return {
@@ -1826,6 +2082,7 @@ export async function updateCategoryAction(formData: FormData) {
       listingExpiryDays: Number.isFinite(listingExpiryDays)
         ? listingExpiryDays
         : undefined,
+      schemaDefinition: parseCategorySchemaDefinition(formData),
     });
   }
 
@@ -1883,15 +2140,19 @@ export async function revokeSessionAction(formData: FormData) {
 
 export async function resendEmailVerificationAction(
   _previousState: FormActionState,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<FormActionState> {
   void _previousState;
-  void _formData;
-
-  const { accessToken } = await requireSessionContext("/verify-email");
+  const email = cleanOptional(String(formData.get("email") ?? ""));
 
   try {
-    const response = await resendEmailVerification(accessToken);
+    const response = email
+      ? await resendEmailVerificationForEmail(email)
+      : await (async () => {
+          const { accessToken } = await requireSessionContext("/verify-email");
+          return resendEmailVerification(accessToken);
+        })();
+
     return {
       message: response.emailVerificationPreviewUrl
         ? `${response.message} Dev verification link: ${response.emailVerificationPreviewUrl}`
@@ -1958,6 +2219,382 @@ export async function updateProfileAction(
   };
 }
 
+export async function switchToSellerAction() {
+  const { accessToken } = await requireSessionContext("/sell");
+  await switchToSeller(accessToken);
+  revalidateSellerPaths();
+  redirect("/sell?seller=started");
+}
+
+export async function saveSellerProfileAction(formData: FormData) {
+  const returnTo = getSafeNextPath(formData.get("returnTo"), "/sell");
+  const { accessToken } = await requireSessionContext(returnTo);
+  const sellerData = await parseSellerFormAnswers(formData);
+
+  await updateMySellerProfile(accessToken, {
+    formAnswers: sellerData.answers,
+    requestMetadata: {
+      lastSavedAt: new Date().toISOString(),
+    },
+  });
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { seller: "saved" }));
+}
+
+export async function submitSellerProfileAction(formData: FormData) {
+  const returnTo = getSafeNextPath(formData.get("returnTo"), "/sell");
+  const { accessToken } = await requireSessionContext(returnTo);
+  const sellerData = await parseSellerFormAnswers(formData);
+
+  await submitMySellerProfile(accessToken, {
+    formAnswers: sellerData.answers,
+    requestMetadata: {
+      submittedFrom: returnTo,
+      submittedAt: new Date().toISOString(),
+    },
+  });
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { seller: "submitted" }));
+}
+
+export async function submitSellerDocumentAction(formData: FormData) {
+  const returnTo = getSafeNextPath(formData.get("returnTo"), "/sell");
+  const requestId = cleanOptional(String(formData.get("requestId") ?? ""));
+  const { accessToken } = await requireSessionContext(returnTo);
+  const sellerData = await parseSellerFormAnswers(formData);
+
+  await submitSellerDocument(accessToken, {
+    requestId,
+    answers: sellerData.answers,
+    files: sellerData.files,
+  });
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { document: "submitted" }));
+}
+
+export async function requestVerifiedSellerAction(formData: FormData) {
+  const returnTo = getSafeNextPath(formData.get("returnTo"), "/my-listings");
+  const { accessToken } = await requireSessionContext(returnTo);
+  const notes = cleanOptional(String(formData.get("reviewNotes") ?? ""));
+
+  await requestVerifiedSeller(accessToken, {
+    reviewNotes: notes,
+    requestMetadata: {
+      requestedAt: new Date().toISOString(),
+    },
+  });
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { verified: "requested" }));
+}
+
+export async function upgradeSellerPrivilegeAction(formData: FormData) {
+  const returnTo = getSafeNextPath(formData.get("returnTo"), "/my-listings");
+  const sellerPrivilegeTierId = String(
+    formData.get("sellerPrivilegeTierId") ?? "",
+  ).trim();
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  if (sellerPrivilegeTierId) {
+    await upgradeMySellerPrivilege(accessToken, sellerPrivilegeTierId);
+  }
+
+  revalidateSellerPaths();
+  revalidatePath("/wallet");
+  redirect(withQueryParam(returnTo, { tierUpgrade: "success" }));
+}
+
+export async function reviewSellerProfileAction(formData: FormData) {
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/sellers/approvals",
+  );
+  const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
+  const status = String(formData.get("status") ?? "") as
+    | "APPROVED"
+    | "REJECTED"
+    | "SUSPENDED";
+  const reviewNotes = cleanOptional(String(formData.get("reviewNotes") ?? ""));
+  const rejectionReason = cleanOptional(
+    String(formData.get("rejectionReason") ?? ""),
+  );
+  const privilegeTierId = cleanOptional(
+    String(formData.get("privilegeTierId") ?? ""),
+  );
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  if (sellerProfileId && status) {
+    await reviewSellerProfile(accessToken, sellerProfileId, {
+      status,
+      reviewNotes,
+      rejectionReason,
+      privilegeTierId,
+    });
+  }
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { reviewed: "success" }));
+}
+
+export async function createSellerDocumentRequestAction(formData: FormData) {
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/sellers/approvals",
+  );
+  const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
+  const label = String(formData.get("label") ?? "").trim();
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  if (sellerProfileId && label) {
+    await createSellerDocumentRequest(accessToken, sellerProfileId, {
+      label,
+      slug: cleanOptional(String(formData.get("slug") ?? "")),
+      description: cleanOptional(String(formData.get("description") ?? "")),
+      isRequired: formData.get("isRequired") === "true",
+      dueAt: cleanOptional(String(formData.get("dueAt") ?? "")),
+    });
+  }
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { documentRequest: "created" }));
+}
+
+export async function reviewSellerDocumentAction(formData: FormData) {
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/sellers/approvals",
+  );
+  const documentSubmissionId = String(formData.get("documentSubmissionId") ?? "");
+  const status = String(formData.get("status") ?? "") as "APPROVED" | "REJECTED";
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  if (documentSubmissionId && status) {
+    await reviewSellerDocument(accessToken, documentSubmissionId, {
+      status,
+      reviewNotes: cleanOptional(String(formData.get("reviewNotes") ?? "")),
+      rejectionReason: cleanOptional(
+        String(formData.get("rejectionReason") ?? ""),
+      ),
+    });
+  }
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { documentReview: "saved" }));
+}
+
+export async function reviewVerifiedSellerAction(formData: FormData) {
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/sellers/verified",
+  );
+  const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
+  const status = String(formData.get("status") ?? "") as
+    | "VERIFIED"
+    | "REJECTED"
+    | "NOT_REQUESTED";
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  if (sellerProfileId && status) {
+    await reviewVerifiedSeller(accessToken, sellerProfileId, {
+      status,
+      reviewNotes: cleanOptional(String(formData.get("reviewNotes") ?? "")),
+    });
+  }
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { verifiedReview: "saved" }));
+}
+
+export async function updateSellerFormDefinitionAction(formData: FormData) {
+  const returnTo = getSafeNextPath(formData.get("returnTo"), "/admin/sellers/form");
+  const schemaDefinition = cleanOptional(String(formData.get("schemaDefinition") ?? ""));
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  if (schemaDefinition) {
+    await updateSellerFormDefinition(accessToken, schemaDefinition);
+  }
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { form: "saved" }));
+}
+
+export async function upsertSellerPrivilegeTierAction(formData: FormData) {
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/sellers/privileges",
+  );
+  const { accessToken } = await requireSessionContext(returnTo);
+  const id = cleanOptional(String(formData.get("id") ?? ""));
+  const code = String(formData.get("code") ?? "FREE") as
+    | "FREE"
+    | "PREMIUM"
+    | "VERIFIED"
+    | "VIP";
+
+  await upsertSellerPrivilegeTier(accessToken, {
+    id,
+    code,
+    name: String(formData.get("name") ?? "").trim(),
+    slug: cleanOptional(String(formData.get("slug") ?? "")),
+    description: cleanOptional(String(formData.get("description") ?? "")),
+    monthlyFreeListingLimit: Number(formData.get("monthlyFreeListingLimit") ?? 0),
+    activeListingLimit: cleanOptional(String(formData.get("activeListingLimit") ?? ""))
+      ? Number(formData.get("activeListingLimit"))
+      : null,
+    pendingListingLimit: cleanOptional(
+      String(formData.get("pendingListingLimit") ?? ""),
+    )
+      ? Number(formData.get("pendingListingLimit"))
+      : null,
+    paidListingFee: Number(formData.get("paidListingFee") ?? 0),
+    sellerLevelUpgradeFee: Number(
+      formData.get("sellerLevelUpgradeFee") ?? 0,
+    ),
+    currency: cleanOptional(String(formData.get("currency") ?? "")) ?? "AED",
+    isActive: formData.get("isActive") !== "false",
+    sortOrder: Number(formData.get("sortOrder") ?? 0),
+  });
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { tier: "saved" }));
+}
+
+export async function upsertSellerPrivilegeQuotaAction(formData: FormData) {
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/sellers/privileges",
+  );
+  const { accessToken } = await requireSessionContext(returnTo);
+  const sellerPrivilegeTierId = String(formData.get("sellerPrivilegeTierId") ?? "");
+
+  if (sellerPrivilegeTierId) {
+    await upsertSellerPrivilegeQuota(accessToken, sellerPrivilegeTierId, {
+      categoryId: String(formData.get("categoryId") ?? ""),
+      monthlyFreeListingLimit: cleanOptional(
+        String(formData.get("monthlyFreeListingLimit") ?? ""),
+      )
+        ? Number(formData.get("monthlyFreeListingLimit"))
+        : null,
+      activeListingLimit: cleanOptional(
+        String(formData.get("activeListingLimit") ?? ""),
+      )
+        ? Number(formData.get("activeListingLimit"))
+        : null,
+      pendingListingLimit: cleanOptional(
+        String(formData.get("pendingListingLimit") ?? ""),
+      )
+        ? Number(formData.get("pendingListingLimit"))
+        : null,
+      paidListingFee: cleanOptional(String(formData.get("paidListingFee") ?? ""))
+        ? Number(formData.get("paidListingFee"))
+        : null,
+    });
+  }
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { quota: "saved" }));
+}
+
+export async function applyDefaultSellerPrivilegeQuotasAction(formData: FormData) {
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/sellers/privileges",
+  );
+  const sellerPrivilegeTierId = String(formData.get("sellerPrivilegeTierId") ?? "");
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  if (sellerPrivilegeTierId) {
+    await applyDefaultSellerPrivilegeQuotas(accessToken, sellerPrivilegeTierId);
+  }
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { quota: "applied" }));
+}
+
+export async function zeroAllSellerPrivilegeQuotasAction(formData: FormData) {
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/sellers/privileges",
+  );
+  const sellerPrivilegeTierId = String(formData.get("sellerPrivilegeTierId") ?? "");
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  if (sellerPrivilegeTierId) {
+    await zeroAllSellerPrivilegeQuotas(accessToken, sellerPrivilegeTierId);
+  }
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { quota: "zeroed" }));
+}
+
+export async function upsertSellerBadgeTypeAction(formData: FormData) {
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/sellers/badges",
+  );
+  const { accessToken } = await requireSessionContext(returnTo);
+
+  await upsertSellerBadgeType(accessToken, {
+    id: cleanOptional(String(formData.get("id") ?? "")),
+    label: String(formData.get("label") ?? "").trim(),
+    slug: cleanOptional(String(formData.get("slug") ?? "")),
+    description: cleanOptional(String(formData.get("description") ?? "")),
+    icon: cleanOptional(String(formData.get("icon") ?? "")),
+    backgroundColor: cleanOptional(
+      String(formData.get("backgroundColor") ?? ""),
+    ),
+    textColor: cleanOptional(String(formData.get("textColor") ?? "")),
+    isActive: formData.has("isActive")
+      ? formData.getAll("isActive").includes("true")
+      : true,
+    isHidden: formData.getAll("isHidden").includes("true"),
+    sortOrder: Number(formData.get("sortOrder") ?? 0),
+  });
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { badge: "saved" }));
+}
+
+export async function assignSellerBadgeAction(formData: FormData) {
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/sellers/badges",
+  );
+  const { accessToken } = await requireSessionContext(returnTo);
+  const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
+  const badgeTypeId = String(formData.get("badgeTypeId") ?? "");
+
+  if (sellerProfileId && badgeTypeId) {
+    await assignSellerBadge(accessToken, sellerProfileId, {
+      badgeTypeId,
+      expiresAt: cleanOptional(String(formData.get("expiresAt") ?? "")) ?? undefined,
+    });
+  }
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { badgeAssign: "saved" }));
+}
+
+export async function removeSellerBadgeAction(formData: FormData) {
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/sellers/badges",
+  );
+  const { accessToken } = await requireSessionContext(returnTo);
+  const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
+  const assignmentId = String(formData.get("assignmentId") ?? "");
+
+  if (sellerProfileId && assignmentId) {
+    await removeSellerBadge(accessToken, sellerProfileId, assignmentId);
+  }
+
+  revalidateSellerPaths();
+  redirect(withQueryParam(returnTo, { badgeAssign: "removed" }));
+}
+
 export async function changePasswordAction(
   _previousState: FormActionState,
   formData: FormData,
@@ -1983,6 +2620,7 @@ export async function changePasswordAction(
     const response = await changePassword(accessToken, {
       currentPassword: parsed.data.currentPassword,
       newPassword: parsed.data.newPassword,
+      confirmPassword: parsed.data.confirmPassword,
     });
 
     return {

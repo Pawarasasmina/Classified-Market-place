@@ -46,10 +46,10 @@ export function ListingCard({
 
       <div className="listing-card-body">
         <div>
-          <h3 className="line-clamp-2 min-h-12 text-lg font-black leading-6 text-white">
+          <h3 className="line-clamp-2 min-h-11 text-[1.15rem] font-black leading-6 text-white">
             {listing.title}
           </h3>
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
+          <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[0.92rem] text-[var(--muted)]">
             <span>{listing.location}</span>
             <span>/</span>
             <span>{listing.postedLabel}</span>
@@ -57,7 +57,7 @@ export function ListingCard({
         </div>
 
         <div className="flex items-end justify-between gap-3">
-          <p className="text-xl font-black text-white">
+          <p className="text-[1.05rem] font-black text-white">
             {listing.priceLabel}
           </p>
           <span className="listing-chip">
@@ -76,26 +76,34 @@ export function ListingCard({
           ))}
         </div>
 
-        <div className="grid grid-cols-3 gap-2 text-xs font-bold text-[var(--muted)]">
+        <div className="grid grid-cols-3 gap-2 text-[0.76rem] font-bold text-[var(--muted)]">
           <span>{listing.viewCount}</span>
           <span>{listing.chatCount.toLocaleString()} inquiries</span>
           <span>{listing.saveCount.toLocaleString()} saves</span>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-3">
+        <div className="listing-card-footer border-t border-[var(--line)] pt-3">
           <div className="min-w-0 text-sm">
             <span className="block truncate text-[var(--muted)]">
               {listing.sellerDisplayName
                 ? `${listing.sellerDisplayName}${listing.sellerVerified ? " / verified" : ""}`
                 : "Marketplace seller"}
             </span>
+            {listing.sellerBadges.length ? (
+              <span className="mt-1 block truncate text-xs font-bold text-[var(--foreground)]">
+                {listing.sellerBadges
+                  .slice(0, 2)
+                  .map((badge) => badge.badgeType.label)
+                  .join(" / ")}
+              </span>
+            ) : null}
             <span className="mt-1 block truncate text-xs font-bold text-[var(--accent-strong)]">
               Seller rating: {sellerRatingLabel}
             </span>
           </div>
           <Link
             href={listingHref}
-            className="listing-details-button shrink-0"
+            className="listing-details-button listing-details-button-compact"
           >
             View details
           </Link>

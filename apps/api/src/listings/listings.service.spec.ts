@@ -21,14 +21,18 @@ describe('ListingsService normal-user posting', () => {
   let service: ListingsService;
   let prisma: {
     category: {
+      count: jest.Mock;
+      findMany: jest.Mock;
       findUnique: jest.Mock;
     };
     listing: {
       count: jest.Mock;
       create: jest.Mock;
+      findFirst: jest.Mock;
       findMany: jest.Mock;
       findUnique: jest.Mock;
       update: jest.Mock;
+      updateMany: jest.Mock;
     };
     marketplaceSetting: {
       findUnique: jest.Mock;
@@ -41,6 +45,13 @@ describe('ListingsService normal-user posting', () => {
       create: jest.Mock;
       findFirst: jest.Mock;
       update: jest.Mock;
+    };
+    walletAccount: {
+      upsert: jest.Mock;
+      update: jest.Mock;
+    };
+    walletLedger: {
+      create: jest.Mock;
     };
     user: {
       findUnique: jest.Mock;
@@ -58,13 +69,19 @@ describe('ListingsService normal-user posting', () => {
   };
   let paymentsService: {
     completeListingFeePaymentForActor: jest.Mock;
-    createListingFeePaymentIntent: jest.Mock;
+  };
+  let sellerProfilesService: {
+    assertApprovedSeller: jest.Mock;
+    getSellerListingPolicy: jest.Mock;
   };
 
   const category = {
     id: 'category-1',
     slug: 'electronics',
     name: 'Electronics',
+    isActive: true,
+    listingExpiryDays: 30,
+    schemaDefinition: null,
   };
 
   const listing = {
@@ -73,11 +90,20 @@ describe('ListingsService normal-user posting', () => {
     categoryId: 'category-1',
     status: ListingStatus.PENDING,
     attributes: null,
+    category,
   };
 
   beforeEach(() => {
     prisma = {
       category: {
+        count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'category-1',
+            slug: 'electronics',
+            parentId: null,
+          },
+        ]),
         findUnique: jest.fn().mockResolvedValue(category),
       },
       listing: {
@@ -86,12 +112,14 @@ describe('ListingsService normal-user posting', () => {
           id: 'listing-1',
           ...data,
         })),
+        findFirst: jest.fn().mockResolvedValue(null),
         findMany: jest.fn(),
         findUnique: jest.fn().mockResolvedValue(listing),
         update: jest.fn().mockImplementation(({ data }) => ({
           ...listing,
           ...data,
         })),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       marketplaceSetting: {
         findUnique: jest.fn().mockResolvedValue(null),
@@ -110,6 +138,23 @@ describe('ListingsService normal-user posting', () => {
           id: 'transaction-1',
           ...data,
         })),
+      },
+      walletAccount: {
+        upsert: jest.fn().mockResolvedValue({
+          id: 'wallet-1',
+          userId: 'user-1',
+          balance: new Prisma.Decimal(200),
+          currency: 'AED',
+        }),
+        update: jest.fn().mockResolvedValue({
+          id: 'wallet-1',
+          userId: 'user-1',
+          balance: new Prisma.Decimal(175),
+          currency: 'AED',
+        }),
+      },
+      walletLedger: {
+        create: jest.fn().mockResolvedValue({ id: 'wallet-ledger-1' }),
       },
       user: {
         findUnique: jest.fn(),
@@ -140,11 +185,15 @@ describe('ListingsService normal-user posting', () => {
     };
     paymentsService = {
       completeListingFeePaymentForActor: jest.fn(),
-      createListingFeePaymentIntent: jest.fn().mockResolvedValue({
-        provider: 'dev',
-        providerRef: 'dev-listing-payment-1',
-        checkoutUrl:
-          'http://127.0.0.1:3001/payments/dev/checkout/dev-listing-payment-1',
+    };
+    sellerProfilesService = {
+      assertApprovedSeller: jest.fn().mockResolvedValue(undefined),
+      getSellerListingPolicy: jest.fn().mockResolvedValue({
+        monthlyFreeListingLimit: 3,
+        paidListingFee: 25,
+        currency: 'AED',
+        activeListingLimit: null,
+        pendingListingLimit: null,
       }),
     };
 
@@ -153,6 +202,7 @@ describe('ListingsService normal-user posting', () => {
       mediaService as never,
       notifications as never,
       paymentsService as never,
+      sellerProfilesService as never,
     );
   });
 
@@ -213,20 +263,14 @@ describe('ListingsService normal-user posting', () => {
         data: expect.objectContaining({
           listingId: 'listing-1',
           type: TransactionType.LISTING_FEE,
-          status: TransactionStatus.PENDING,
+          status: TransactionStatus.SUCCEEDED,
           amount: expect.any(Prisma.Decimal),
           currency: 'AED',
+          provider: 'wallet',
         }),
       }),
     );
-    expect(paymentsService.createListingFeePaymentIntent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        transactionId: 'transaction-1',
-        userId: 'user-1',
-        listingId: 'listing-1',
-        listingTitle: 'Paid fallback phone',
-      }),
-    );
+    expect(prisma.walletLedger.create).toHaveBeenCalled();
   });
 
   it('returns the persisted free listing quota balance for the seller', async () => {
@@ -241,10 +285,10 @@ describe('ListingsService normal-user posting', () => {
     prisma.listing.count.mockResolvedValue(2);
 
     await expect(service.getMyListingQuota('user-1')).resolves.toEqual({
-      freeListingAllowance: 5,
+      freeListingAllowance: 3,
       freeListingUsed: 2,
-      freeListingRemaining: 3,
-      listingFeeAmount: '35.00',
+      freeListingRemaining: 1,
+      listingFeeAmount: '25.00',
       listingFeeCurrency: 'AED',
       paidListingFallbackEnabled: true,
     });
@@ -457,9 +501,7 @@ describe('ListingsService normal-user posting', () => {
     expect(prisma.listing.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          category: {
-            OR: [{ slug: 'motors' }, { parent: { slug: 'motors' } }],
-          },
+          category: { slug: { in: ['motors'] } },
           status: ListingStatus.ACTIVE,
         }),
       }),
@@ -741,9 +783,7 @@ describe('ListingsService normal-user posting', () => {
 
     const sharedFilteredWhere = {
       status: ListingStatus.ACTIVE,
-      category: {
-        OR: [{ slug: 'electronics' }, { parent: { slug: 'electronics' } }],
-      },
+      category: { slug: { in: ['electronics'] } },
       location: { contains: 'Colombo', mode: 'insensitive' },
       price: {
         gte: new Prisma.Decimal(100),

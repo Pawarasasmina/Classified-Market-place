@@ -2,17 +2,22 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { logoutAction } from "@/app/(main)/actions";
 import { CategoryIcon } from "@/components/marketplace/category-icon";
 import { ColorProfileToggle } from "@/components/marketplace/color-profile-toggle";
 import { GoogleOneTapPrompt } from "@/components/marketplace/google-auth-form";
 import { NotificationBell } from "@/components/marketplace/notification-bell";
-import {
-  hasAdminPermission,
-  hasAnyAdminPermission,
-  type AdminPermission,
-} from "@/lib/admin-permissions";
+import { getAdminNavigationSections } from "@/lib/admin-navigation";
+import { hasAnyAdminPermission } from "@/lib/admin-permissions";
 import {
   buildMarketplaceCategoryTree,
   type MarketplaceCategoryNode,
@@ -28,100 +33,90 @@ const customerNavLinks = [
   { href: "/messages", label: "Messages" },
   { href: "/notifications", label: "Notifications" },
   { href: "/transactions", label: "Purchases" },
+  { href: "/wallet", label: "Wallet" },
   { href: "/reports", label: "Reports" },
   { href: "/my-listings", label: "My Listings" },
   { href: "/profile", label: "Profile" },
 ];
 
-const adminNavLinks: Array<{
-  href: string;
-  label: string;
-  permission?: AdminPermission;
-}> = [
-  { href: "/admin", label: "Dashboard", permission: "ADMIN_DASHBOARD" },
-  {
-    href: "/admin/categories",
-    label: "Categories",
-    permission: "CATEGORIES_READ",
-  },
-  {
-    href: "/admin/boost-packages",
-    label: "Boosts",
-    permission: "BOOSTS_WRITE",
-  },
-  { href: "/admin/boosts", label: "Active Boosts", permission: "BOOSTS_READ" },
-  {
-    href: "/admin/priority-rules",
-    label: "Priority",
-    permission: "LISTINGS_PRIORITY",
-  },
-  { href: "/admin/users", label: "Users", permission: "USERS_READ" },
-  {
-    href: "/admin#moderation",
-    label: "Moderation",
-    permission: "LISTINGS_MODERATE",
-  },
-  { href: "/admin/reviews", label: "Reviews", permission: "REVIEWS_READ" },
-  { href: "/admin/reports", label: "Monitoring", permission: "REPORTS_READ" },
-  {
-    href: "/admin/reports/active-listings",
-    label: "Active Listings",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/reports/paid-listings",
-    label: "Paid Listings",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/reports/category-income",
-    label: "Category Income",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/reports/boost-revenue",
-    label: "Boost Revenue",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/reports/wallet-payments",
-    label: "Wallet Payments",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/reports/sellers",
-    label: "Sellers",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/reports/top-sellers",
-    label: "Top Sellers",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/reports/seller-approvals",
-    label: "Approvals",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/listing-reports",
-    label: "Report Queue",
-    permission: "REPORTS_READ",
-  },
-  {
-    href: "/admin/transactions",
-    label: "Ledger",
-    permission: "TRANSACTIONS_READ",
-  },
-  {
-    href: "/admin/audit-logs",
-    label: "Audit Logs",
-    permission: "AUDIT_LOGS_READ",
-  },
-  { href: "/messages", label: "Support Inbox", permission: "SUPPORT_READ" },
-  { href: "/notifications", label: "Notifications" },
-  { href: "/profile", label: "Profile" },
-];
+const customerColorProfileStorageKey = "smartmarket-color-profile";
+const desktopPrimaryNavLinkHrefs = new Set([
+  "/",
+  "/categories",
+  "/search",
+  "/sell",
+  "/saved",
+  "/messages",
+]);
+
+function ChevronDownIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      className={className}
+    >
+      <path d="m5 7.5 5 5 5-5" />
+    </svg>
+  );
+}
+
+function HeaderMenu({
+  label,
+  active,
+  align = "center",
+  tone = "nav",
+  children,
+}: {
+  label: ReactNode;
+  active: boolean;
+  align?: "center" | "right";
+  tone?: "nav" | "utility";
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div
+      className="header-menu relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        onFocus={() => setOpen(true)}
+        className={
+          tone === "utility"
+            ? "marketplace-header-button header-utility-button px-3 py-2 font-semibold"
+            : `header-menu-trigger px-3 py-2 font-semibold ${
+                active ? "nav-link-active" : "nav-link"
+              }`
+        }
+        aria-expanded={open}
+      >
+        <span className="header-menu-trigger-label">{label}</span>
+        <ChevronDownIcon className={`header-menu-chevron ${open ? "header-menu-chevron-open" : ""}`} />
+      </button>
+      {open ? (
+        <div
+          className={`header-menu-shell ${
+            align === "right" ? "header-menu-panel-right" : ""
+          }`}
+        >
+          <div className="header-menu-panel">
+            {children}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function CategoryChildLinks({
   nodes,
@@ -131,28 +126,28 @@ function CategoryChildLinks({
   customerPreview: boolean;
 }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="category-menu-results">
       {nodes.map((node) => (
-        <div key={node.slug} className="grid gap-2">
+        <div key={node.slug} className="category-menu-group">
           <Link
             href={withCustomerPreview(
               `/search?category=${node.slug}`,
               customerPreview,
             )}
-            className="rounded-md px-3 py-2 text-sm font-black text-[var(--foreground)] hover:bg-[var(--surface-strong)]"
+            className="category-menu-section-link"
           >
             {node.name}
           </Link>
           {node.nestedChildren.length ? (
-            <div className="grid gap-1 pl-3">
-              {node.nestedChildren.slice(0, 7).map((child) => (
+            <div className="grid gap-1.5 pl-1">
+              {node.nestedChildren.map((child) => (
                 <Link
                   key={child.slug}
                   href={withCustomerPreview(
                     `/search?category=${child.slug}`,
                     customerPreview,
                   )}
-                  className="rounded-md px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"
+                  className="category-menu-child-link"
                 >
                   {child.name}
                 </Link>
@@ -196,7 +191,7 @@ function CustomerCategoryMenu({
 
   return (
     <div
-      className="relative"
+      className="category-menu relative"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
@@ -209,79 +204,88 @@ function CustomerCategoryMenu({
         Categories
       </button>
       {open ? (
-        <div className="absolute left-1/2 top-[calc(100%+0.65rem)] z-50 w-[min(56rem,calc(100vw-3rem))] -translate-x-1/2 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] shadow-2xl">
-          <div className="grid max-h-[30rem] lg:grid-cols-[17rem_1fr]">
-            <div className="overflow-y-auto border-r border-[var(--line)] bg-[var(--surface-strong)] p-3">
-              <Link
-                href={withCustomerPreview("/categories", customerPreview)}
-                className="mb-2 block rounded-md px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-[var(--brand-strong)] hover:bg-white"
-              >
-                All categories
-              </Link>
-              {tree.map((category) => (
-                <button
-                  key={category.slug}
-                  type="button"
-                  onMouseEnter={() => setActiveSlug(category.slug)}
-                  onClick={() => setActiveSlug(category.slug)}
-                  className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm font-bold ${
-                    activeNode?.slug === category.slug
-                      ? "bg-white text-[var(--brand-strong)]"
-                      : "text-[var(--foreground)] hover:bg-white"
-                  }`}
+        <div className="category-menu-shell">
+          <div className="category-menu-panel">
+            <div className="grid max-h-[32rem] lg:grid-cols-[15.5rem_1fr]">
+              <div className="category-menu-sidebar">
+                <Link
+                  href={withCustomerPreview("/categories", customerPreview)}
+                  className="category-menu-all-link"
                 >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--brand-soft)] text-[var(--brand)]">
-                    <CategoryIcon slug={category.slug} className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{category.name}</span>
-                    <span className="block text-xs font-semibold text-[var(--muted)]">
-                      {category.nestedChildren.length
-                        ? `${category.nestedChildren.length} subcategories`
-                        : category.countLabel}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-            <div className="overflow-y-auto p-5">
-              {activeNode ? (
-                <>
-                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="section-eyebrow">
-                        Browse {activeNode.name}
-                      </p>
-                      <h3 className="mt-2 text-2xl font-black">
-                        {activeNode.name}
-                      </h3>
-                      <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">
-                        {activeNode.description}
-                      </p>
-                    </div>
-                    <Link
-                      href={withCustomerPreview(
-                        `/search?category=${activeNode.slug}`,
-                        customerPreview,
-                      )}
-                      className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-black text-white"
+                  All categories
+                </Link>
+                <div className="category-menu-sidebar-list">
+                  {tree.map((category) => (
+                    <button
+                      key={category.slug}
+                      type="button"
+                      onMouseEnter={() => setActiveSlug(category.slug)}
+                      onClick={() => setActiveSlug(category.slug)}
+                      className={`category-menu-category-link ${
+                        activeNode?.slug === category.slug
+                          ? "category-menu-category-link-active"
+                          : ""
+                      }`}
                     >
-                      View all
-                    </Link>
-                  </div>
-                  {activeNode.nestedChildren.length ? (
-                    <CategoryChildLinks
-                      nodes={activeNode.nestedChildren}
-                      customerPreview={customerPreview}
-                    />
-                  ) : (
-                    <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4 text-sm text-[var(--muted)]">
-                      Listings in this category use the standard marketplace
-                      filters.
+                      <span className="category-menu-icon">
+                        <CategoryIcon slug={category.slug} className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{category.name}</span>
+                        <span className="block text-[0.72rem] font-semibold text-[var(--muted)]">
+                          {category.nestedChildren.length
+                            ? `${category.nestedChildren.length} subcategories`
+                            : category.countLabel}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="category-menu-content">
+                {activeNode ? (
+                  <>
+                    <div className="category-menu-content-head">
+                      <div>
+                        <p className="section-eyebrow">
+                          Browse {activeNode.name}
+                        </p>
+                        <h3 className="mt-1.5 text-[1.35rem] font-black">
+                          {activeNode.name}
+                        </h3>
+                        <p className="mt-1.5 max-w-lg text-sm leading-6 text-[var(--muted)]">
+                          {activeNode.description}
+                        </p>
+                      </div>
+                      <div className="category-menu-content-meta">
+                        <span className="category-menu-count">
+                          {activeNode.nestedChildren.length} sections
+                        </span>
+                        <Link
+                          href={withCustomerPreview(
+                            `/search?category=${activeNode.slug}`,
+                            customerPreview,
+                          )}
+                          className="action-primary shrink-0 px-3 py-2 text-sm font-black"
+                        >
+                          View all
+                        </Link>
+                      </div>
                     </div>
-                  )}
-                </>
-              ) : null}
+                    {activeNode.nestedChildren.length ? (
+                      <CategoryChildLinks
+                        nodes={activeNode.nestedChildren}
+                        customerPreview={customerPreview}
+                      />
+                    ) : (
+                      <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-strong)] p-3 text-sm text-[var(--muted)]">
+                        Listings in this category use the standard marketplace
+                        filters.
+                      </div>
+                    )}
+                  </>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
@@ -304,6 +308,269 @@ function isAdminUser(user: SessionUser | null) {
   return hasAnyAdminPermission(user?.role);
 }
 
+function getCustomerNavLinks(user: SessionUser | null) {
+  return customerNavLinks.filter((link) => {
+    if (link.href !== "/my-listings") {
+      return true;
+    }
+
+    return Boolean(user?.sellerProfile);
+  });
+}
+
+function getDesktopPrimaryNavLinks(user: SessionUser | null) {
+  return getCustomerNavLinks(user).filter((link) =>
+    desktopPrimaryNavLinkHrefs.has(link.href),
+  );
+}
+
+function getDesktopSecondaryNavLinks(user: SessionUser | null) {
+  if (!user) {
+    return [];
+  }
+
+  return getCustomerNavLinks(user).filter(
+    (link) =>
+      !desktopPrimaryNavLinkHrefs.has(link.href) && link.href !== "/notifications",
+  );
+}
+
+function AdminSidebar({
+  pathname,
+  role,
+}: {
+  pathname: string;
+  role: string | null | undefined;
+}) {
+  const sections = useMemo(() => getAdminNavigationSections(role), [role]);
+  const activeSectionId =
+    sections.find((section) =>
+      section.items.some((item) => isActive(pathname, item.href)),
+    )?.id ?? sections[0]?.id ?? "";
+  const [mobileState, setMobileState] = useState({
+    open: false,
+    pathname,
+    sectionId: activeSectionId,
+  });
+  const [desktopSectionId, setDesktopSectionId] = useState("");
+  const mobileOpen =
+    mobileState.pathname === pathname ? mobileState.open : false;
+  const mobileSectionId =
+    mobileState.pathname === pathname &&
+    sections.some((section) => section.id === mobileState.sectionId)
+      ? mobileState.sectionId
+      : activeSectionId;
+
+  return (
+    <>
+      <div className="admin-sidebar-mobile">
+        <button
+          type="button"
+          onClick={() =>
+            setMobileState({
+              open: !mobileOpen,
+              pathname,
+              sectionId: mobileSectionId,
+            })
+          }
+          className="admin-sidebar-mobile-toggle"
+          aria-expanded={mobileOpen}
+          aria-controls="admin-sidebar-mobile-panel"
+        >
+          <span>
+            <span className="admin-sidebar-mobile-label">
+              Admin navigation
+            </span>
+            <span className="admin-sidebar-mobile-detail">
+              Open admin pages
+            </span>
+          </span>
+          <span className="admin-sidebar-mobile-arrow">
+            {mobileOpen ? "Hide" : "Open"}
+          </span>
+        </button>
+        {mobileOpen ? (
+          <div
+            id="admin-sidebar-mobile-panel"
+            className="admin-sidebar-panel admin-sidebar-panel-mobile"
+          >
+            <AdminSidebarMobileSections
+              pathname={pathname}
+              sections={sections}
+              activeSectionId={mobileSectionId}
+              onToggleSection={(sectionId) =>
+                setMobileState({
+                  open: true,
+                  pathname,
+                  sectionId: mobileSectionId === sectionId ? "" : sectionId,
+                })
+              }
+            />
+          </div>
+        ) : null}
+      </div>
+      <aside
+        className="admin-sidebar-desktop"
+        onMouseLeave={() => setDesktopSectionId("")}
+        onPointerLeave={() => setDesktopSectionId("")}
+      >
+        <div className="admin-sidebar-desktop-shell">
+          <AdminSidebarDesktopSections
+            pathname={pathname}
+            sections={sections}
+            activeSectionId={desktopSectionId}
+            onFocusSection={setDesktopSectionId}
+          />
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function AdminSidebarDesktopSections({
+  pathname,
+  sections,
+  activeSectionId,
+  onFocusSection,
+}: {
+  pathname: string;
+  sections: ReturnType<typeof getAdminNavigationSections>;
+  activeSectionId: string;
+  onFocusSection: (sectionId: string) => void;
+}) {
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const [submenuTop, setSubmenuTop] = useState(0);
+  const activeSection =
+    sections.find((section) => section.id === activeSectionId) ?? null;
+
+  function handleOpenSection(
+    sectionId: string,
+    event: MouseEvent<HTMLButtonElement> | FocusEvent<HTMLButtonElement>,
+  ) {
+    const shellTop = shellRef.current?.getBoundingClientRect().top ?? 0;
+    const buttonTop = event.currentTarget.getBoundingClientRect().top;
+    setSubmenuTop(buttonTop - shellTop);
+    onFocusSection(sectionId);
+  }
+
+  return (
+    <div ref={shellRef} className="admin-sidebar-rail">
+      <div className="admin-sidebar-panel admin-sidebar-panel-desktop admin-sidebar-main-panel">
+        <div className="admin-sidebar-header">
+          <h2 className="admin-sidebar-title">Admin</h2>
+        </div>
+        <nav className="admin-sidebar-nav">
+          {sections.map((section) => {
+            const hasActiveItem = section.items.some((item) =>
+              isActive(pathname, item.href),
+            );
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onMouseEnter={(event) => handleOpenSection(section.id, event)}
+                onPointerEnter={(event) => handleOpenSection(section.id, event)}
+                onFocus={(event) => handleOpenSection(section.id, event)}
+                className={`admin-sidebar-main-link ${
+                  hasActiveItem ? "admin-sidebar-main-link-active" : ""
+                }`}
+              >
+                <span>{section.label}</span>
+                <span className="admin-sidebar-main-link-count">&gt;</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+      {activeSection ? (
+        <div className="admin-sidebar-submenu panel" style={{ top: submenuTop }}>
+          <div className="admin-sidebar-submenu-head">
+            <p className="admin-sidebar-group-label">{activeSection.label}</p>
+          </div>
+          <div className="admin-sidebar-group-links">
+            {activeSection.items.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`admin-sidebar-nav-link ${
+                  isActive(pathname, item.href)
+                    ? "admin-sidebar-nav-link-active"
+                    : ""
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AdminSidebarMobileSections({
+  pathname,
+  sections,
+  activeSectionId,
+  onToggleSection,
+}: {
+  pathname: string;
+  sections: ReturnType<typeof getAdminNavigationSections>;
+  activeSectionId: string;
+  onToggleSection: (sectionId: string) => void;
+}) {
+  return (
+    <div className="admin-sidebar-sections">
+      {sections.map((section) => {
+        const hasActiveItem = section.items.some((item) =>
+          isActive(pathname, item.href),
+        );
+        const expanded = activeSectionId === section.id;
+
+        return (
+          <section
+            key={section.id}
+            className={`admin-sidebar-section ${
+              hasActiveItem ? "admin-sidebar-section-active" : ""
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => onToggleSection(section.id)}
+              className="admin-sidebar-section-toggle"
+              aria-expanded={expanded}
+            >
+              <span className="admin-sidebar-section-head">
+                <span className="admin-sidebar-section-label">{section.label}</span>
+              </span>
+              <span className="admin-sidebar-mobile-count">
+                {expanded ? "Hide" : section.items.length}
+              </span>
+            </button>
+            {expanded ? (
+              <div className="admin-sidebar-group-links">
+                {section.items.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`admin-sidebar-nav-link ${
+                      isActive(pathname, item.href)
+                        ? "admin-sidebar-nav-link-active"
+                        : ""
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 function adminWorkspaceRoute(pathname: string) {
   return (
     pathname.startsWith("/admin") ||
@@ -320,6 +587,24 @@ function withCustomerPreview(href: string, enabled: boolean) {
 
   const separator = href.includes("?") ? "&" : "?";
   return `${href}${separator}view=customer`;
+}
+
+function getStoredColorProfile(
+  storageKey: string,
+  defaultProfile: "light" | "dark",
+) {
+  try {
+    const stored = window.localStorage.getItem(storageKey);
+    return stored === "light" || stored === "dark" ? stored : defaultProfile;
+  } catch {
+    return defaultProfile;
+  }
+}
+
+function applyColorProfile(profile: "light" | "dark") {
+  const root = document.documentElement;
+  root.dataset.colorProfile = profile;
+  root.style.colorScheme = profile;
 }
 
 export function MarketplaceShell({
@@ -355,36 +640,35 @@ export function MarketplaceShell({
     pathname !== "/login" &&
     pathname !== "/register";
   const navLinks = adminShell
-    ? adminNavLinks.filter(
-        (link) =>
-          !link.permission || hasAdminPermission(user?.role, link.permission),
-      )
+    ? []
     : adminLogin
       ? []
-      : customerNavLinks;
+      : getCustomerNavLinks(user);
+  const desktopPrimaryNavLinks = getDesktopPrimaryNavLinks(user);
+  const desktopSecondaryNavLinks = getDesktopSecondaryNavLinks(user);
+  const hasDesktopSecondaryActive = desktopSecondaryNavLinks.some((link) =>
+    isActive(pathname, link.href),
+  );
 
   useEffect(() => {
     const root = document.documentElement;
 
     if (adminExperience) {
       root.dataset.adminShell = "true";
-      root.dataset.colorProfile = "light";
-      root.style.colorScheme = "light";
+      applyColorProfile(
+        getStoredColorProfile(customerColorProfileStorageKey, "light"),
+      );
       return;
     }
 
     delete root.dataset.adminShell;
 
-    try {
-      const stored = window.localStorage.getItem("smartmarket-color-profile");
-      const profile = stored === "light" ? "light" : "dark";
-      root.dataset.colorProfile = profile;
-      root.style.colorScheme = profile;
-    } catch {
-      root.dataset.colorProfile = "dark";
-      root.style.colorScheme = "dark";
-    }
-  }, [adminExperience]);
+    applyColorProfile(
+      customerPreview
+        ? "light"
+        : getStoredColorProfile(customerColorProfileStorageKey, "light"),
+    );
+  }, [adminExperience, customerPreview]);
 
   useEffect(() => {
     if (shouldRedirectToAdmin) {
@@ -399,20 +683,24 @@ export function MarketplaceShell({
       }`}
     >
       {showOneTap ? <GoogleOneTapPrompt nextPath={oneTapNextPath} /> : null}
-      <header className="marketplace-header sticky top-0 z-40">
-        <div className="mx-auto flex max-w-[92rem] flex-col gap-4 px-4 py-4 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-10">
+      <header
+        className={`marketplace-header top-0 z-40 ${
+          adminExperience ? "fixed inset-x-0" : "sticky"
+        }`}
+      >
+        <div className="marketplace-header-shell mx-auto max-w-[92rem] px-4 py-4 sm:px-8 lg:px-10">
           <Link
             href={
               adminExperience
                 ? "/admin"
                 : withCustomerPreview("/", customerPreview)
             }
-            className="flex items-center gap-3"
+            className="marketplace-header-brand flex items-center gap-3"
           >
             <span className="marketplace-brand-mark flex h-11 w-11 items-center justify-center text-sm font-black text-white">
               CM
             </span>
-            <span>
+            <span className="min-w-0">
               <span className="block text-sm font-black uppercase tracking-[0.22em]">
                 {adminExperience ? "Admin Console" : "Classified Marketplace"}
               </span>
@@ -426,9 +714,9 @@ export function MarketplaceShell({
             </span>
           </Link>
 
-          {navLinks.length ? (
-            <nav className="hidden flex-wrap gap-2 text-sm lg:flex">
-              {navLinks.map((link) =>
+          {desktopPrimaryNavLinks.length ? (
+            <nav className="marketplace-desktop-nav hidden min-w-0 items-center justify-center gap-2 text-sm lg:flex">
+              {desktopPrimaryNavLinks.map((link) =>
                 !adminShell && link.href === "/categories" ? (
                   <CustomerCategoryMenu
                     key={link.href}
@@ -454,10 +742,42 @@ export function MarketplaceShell({
                   </Link>
                 ),
               )}
+              {desktopSecondaryNavLinks.length ? (
+                <HeaderMenu
+                  label="More"
+                  active={hasDesktopSecondaryActive}
+                >
+                  <div className="grid gap-1 p-2">
+                    {desktopSecondaryNavLinks.map((link) => (
+                      <Link
+                        key={link.href}
+                        href={withCustomerPreview(link.href, customerPreview)}
+                        className={`header-menu-link ${
+                          isActive(pathname, link.href)
+                            ? "header-menu-link-active"
+                            : ""
+                        }`}
+                      >
+                        <span>{link.label}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </HeaderMenu>
+              ) : null}
             </nav>
           ) : null}
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            {!adminExperience ? <ColorProfileToggle /> : null}
+          <div className="marketplace-header-actions flex flex-wrap items-center gap-2 text-sm">
+            {adminExperience ? (
+              <ColorProfileToggle
+                storageKey={customerColorProfileStorageKey}
+                defaultProfile="light"
+              />
+            ) : !customerPreview ? (
+              <ColorProfileToggle
+                storageKey={customerColorProfileStorageKey}
+                defaultProfile="light"
+              />
+            ) : null}
             {user ? (
               <>
                 {accessToken ? (
@@ -466,9 +786,6 @@ export function MarketplaceShell({
                     apiBaseUrl={notificationsApiBaseUrl}
                   />
                 ) : null}
-                <span className="marketplace-header-badge rounded-md px-3 py-2 font-semibold">
-                  {user.displayName}
-                </span>
                 {adminShell ? (
                   <Link
                     href="/?view=customer"
@@ -486,11 +803,64 @@ export function MarketplaceShell({
                     Back to admin
                   </Link>
                 ) : null}
-                <form action={logoutAction}>
-                  <button className="marketplace-header-button px-3 py-2 font-semibold">
-                    Sign out
-                  </button>
-                </form>
+                <HeaderMenu
+                  label={
+                    <span className="flex items-center gap-2">
+                      <span className="marketplace-header-badge header-user-badge rounded-full px-3 py-1.5 font-semibold">
+                        {user.displayName}
+                      </span>
+                    </span>
+                  }
+                  active={
+                    isActive(pathname, "/profile") ||
+                    isActive(pathname, "/wallet") ||
+                    isActive(pathname, "/transactions") ||
+                    isActive(pathname, "/reports") ||
+                    isActive(pathname, "/notifications") ||
+                    isActive(pathname, "/my-listings")
+                  }
+                  align="right"
+                  tone="utility"
+                >
+                  <div className="grid gap-1 p-2">
+                    <div className="border-b border-[var(--line)] px-3 py-2">
+                      <p className="text-sm font-bold text-[var(--foreground)]">
+                        {user.displayName}
+                      </p>
+                      <p className="text-xs text-[var(--muted)]">
+                        Manage your marketplace activity
+                      </p>
+                    </div>
+                    {desktopSecondaryNavLinks.map((link) => (
+                      <Link
+                        key={link.href}
+                        href={withCustomerPreview(link.href, customerPreview)}
+                        className={`header-menu-link ${
+                          isActive(pathname, link.href)
+                            ? "header-menu-link-active"
+                            : ""
+                        }`}
+                      >
+                        <span>{link.label}</span>
+                      </Link>
+                    ))}
+                    <Link
+                      href={withCustomerPreview("/notifications", customerPreview)}
+                      className={`header-menu-link ${
+                        isActive(pathname, "/notifications")
+                          ? "header-menu-link-active"
+                          : ""
+                      }`}
+                    >
+                      <span>Notifications</span>
+                    </Link>
+                    <form action={logoutAction} className="pt-1">
+                      <button className="header-menu-link w-full text-left text-[var(--foreground)]">
+                        Sign out
+                      </button>
+                    </form>
+                  </div>
+                </HeaderMenu>
               </>
             ) : (
               <div className={`flex gap-2 ${adminLogin ? "hidden" : ""}`}>
@@ -534,7 +904,18 @@ export function MarketplaceShell({
           </div>
         ) : null}
       </header>
-      <main>{children}</main>
+      <main className={adminExperience ? "pt-[7.5rem]" : undefined}>
+        {adminShell ? (
+          <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
+            <div className="admin-workspace">
+              <AdminSidebar pathname={pathname} role={user?.role} />
+              <div className="admin-workspace-content">{children}</div>
+            </div>
+          </div>
+        ) : (
+          children
+        )}
+      </main>
       {!adminExperience ? (
         <footer className="marketplace-footer">
           <div className="mx-auto grid max-w-[92rem] gap-6 px-4 py-8 text-sm sm:px-8 lg:grid-cols-[1fr_auto] lg:items-center lg:px-10">

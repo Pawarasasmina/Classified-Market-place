@@ -1,0 +1,2 @@
+ALTER TABLE "RefreshToken"
+  ADD COLUMN IF NOT EXISTS "rememberMe" BOOLEAN NOT NULL DEFAULT false;

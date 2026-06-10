@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { RegisterForm } from "@/components/marketplace/register-form";
 import { getSessionUser } from "@/lib/auth-dal";
+import { fetchSellerFormDefinition } from "@/lib/marketplace-api";
 import { getSafeNextPath } from "@/lib/redirects";
 
 type RegisterPageProps = {
@@ -18,6 +19,10 @@ export default async function RegisterPage(props: RegisterPageProps) {
     redirect(nextPath);
   }
 
+  const sellerFormDefinition = await fetchSellerFormDefinition().catch(() => ({
+    fields: [],
+  }));
+
   return (
     <div className="page max-w-3xl">
       <div className="panel-dark p-6">
@@ -26,7 +31,10 @@ export default async function RegisterPage(props: RegisterPageProps) {
         <p className="mt-2 text-[#d7d9ea]">Create an account to post listings and contact sellers.</p>
       </div>
       <div className="mt-6">
-        <RegisterForm nextPath={nextPath} />
+        <RegisterForm
+          nextPath={nextPath}
+          sellerFields={sellerFormDefinition.fields}
+        />
       </div>
     </div>
   );

@@ -4,9 +4,11 @@ import { logoutAllAction, revokeSessionAction } from "@/app/(main)/actions";
 
 type AuthSession = {
   id: string;
+  deviceName: string | null;
   userAgent: string | null;
   ipAddress: string | null;
   createdAt: string;
+  lastUsedAt: string;
   expiresAt: string;
 };
 
@@ -18,13 +20,21 @@ export function SessionsList({ sessions }: { sessions: AuthSession[] }) {
           <article key={session.id} className="panel grid gap-3">
             <div>
               <h2 className="text-lg font-black">
-                {session.userAgent || "Unknown device"}
+                {session.deviceName || session.userAgent || "Unknown device"}
               </h2>
               <p className="mt-1 text-sm text-[var(--muted)]">
-                IP {session.ipAddress || "unknown"} · Started{" "}
-                {new Date(session.createdAt).toLocaleString()} · Expires{" "}
+                IP {session.ipAddress || "unknown"} | Started{" "}
+                {new Date(session.createdAt).toLocaleString()} | Last used{" "}
+                {new Date(session.lastUsedAt).toLocaleString()} | Expires{" "}
                 {new Date(session.expiresAt).toLocaleString()}
               </p>
+              {session.userAgent &&
+              session.deviceName &&
+              session.deviceName !== session.userAgent ? (
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  {session.userAgent}
+                </p>
+              ) : null}
             </div>
             <form action={revokeSessionAction}>
               <input type="hidden" name="sessionId" value={session.id} />

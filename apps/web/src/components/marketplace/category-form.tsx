@@ -6,7 +6,9 @@ import {
   useState,
 } from "react";
 import { createCategoryAction } from "@/app/(main)/actions";
+import { CategorySchemaEditor } from "@/components/marketplace/category-schema-editor";
 import {
+  type AttributeField,
   type FormActionState,
   type MarketplaceCategory,
 } from "@/lib/marketplace";
@@ -75,16 +77,20 @@ function formatPath(path: string[], categories: MarketplaceCategory[]) {
 export function CategoryForm({
   categories,
   presetParentSlug,
+  returnTo = "/admin/categories",
+  initialMode,
 }: {
   categories: MarketplaceCategory[];
   presetParentSlug?: string;
+  returnTo?: string;
+  initialMode?: "main" | "sub";
 }) {
   const [state, formAction, pending] = useActionState(
     createCategoryAction,
     initialState
   );
   const [mode, setMode] = useState<"main" | "sub">(
-    presetParentSlug ? "sub" : "main"
+    initialMode ?? (presetParentSlug ? "sub" : "main")
   );
   const [parentPath, setParentPath] = useState<string[]>(
     presetParentSlug ? getParentPath(presetParentSlug, categories) : []
@@ -136,6 +142,16 @@ export function CategoryForm({
 
     return selectors;
   }, [childrenByParent, parentPath]);
+  const inheritedSchema = useMemo<AttributeField[]>(() => {
+    if (!selectedParentSlug) {
+      return [];
+    }
+
+    return (
+      categories.find((category) => category.slug === selectedParentSlug)?.schema ??
+      []
+    ).map((field) => ({ ...field }));
+  }, [categories, selectedParentSlug]);
 
   return (
     <form
@@ -143,7 +159,7 @@ export function CategoryForm({
       action={formAction}
       className="rounded-md border border-[var(--line)] bg-white p-5 shadow-sm scroll-mt-6"
     >
-      <input type="hidden" name="returnTo" value="/admin/categories" />
+      <input type="hidden" name="returnTo" value={returnTo} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
@@ -307,6 +323,13 @@ export function CategoryForm({
         ) : (
           <input type="hidden" name="parentSlug" value="" />
         )}
+
+        <div className="md:col-span-2">
+          <CategorySchemaEditor
+            key={`create-schema-${selectedParentSlug || "root"}`}
+            inheritedFields={inheritedSchema}
+          />
+        </div>
 
         <div className={`flex items-end ${mode === "main" ? "md:col-span-2" : ""}`}>
           <button

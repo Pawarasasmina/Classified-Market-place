@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { EmailVerificationAutoLogin } from "@/components/marketplace/email-verification-auto-login";
-import { EmailVerificationPanel } from "@/components/marketplace/profile-form";
+import {
+  EmailVerificationPanel,
+  PublicEmailVerificationPanel,
+} from "@/components/marketplace/profile-form";
 import { getSessionUser } from "@/lib/auth-dal";
 import { getSafeNextPath } from "@/lib/redirects";
 
@@ -56,6 +59,10 @@ export default async function VerifyEmailPage(props: VerifyEmailPageProps) {
               Back to sign in
             </Link>
           </div>
+        ) : null}
+
+        {!searchParams.token && searchParams.email && !user ? (
+          <PublicEmailVerificationPanel email={searchParams.email} />
         ) : !searchParams.token && user ? (
           <EmailVerificationPanel verified={user.emailVerified} />
         ) : !searchParams.token ? (
