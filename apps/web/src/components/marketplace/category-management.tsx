@@ -6,6 +6,7 @@ import {
   updateCategoryAction,
 } from "@/app/(main)/actions";
 import { AdminSubmitButton } from "@/components/marketplace/admin-form-feedback";
+import { CategoryBulkTools } from "@/components/marketplace/category-bulk-tools";
 import { CategorySchemaEditor } from "@/components/marketplace/category-schema-editor";
 import { type MarketplaceCategory } from "@/lib/marketplace";
 import { CategoryForm } from "./category-form";
@@ -592,6 +593,11 @@ export function CategoryManagement({
       </div>
 
       <div className="grid gap-4">
+          <CategoryBulkTools
+            canEdit={canEdit}
+            categories={categories}
+            returnTo={returnTo}
+          />
           {canEdit ? (
             <CategoryForm
               key={presetParent?.version ?? "category-root-form"}

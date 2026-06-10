@@ -7,6 +7,10 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { defaultCategories } from './categories.seed';
+import {
+  BulkCategoryImportRowDto,
+  BulkUpsertCategoriesDto,
+} from './dto/bulk-upsert-categories.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
@@ -43,6 +47,16 @@ function cloneSchemaDefinition(
   }
 
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+}
+
+function normalizeOptionalText(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+
+function hasSchemaFields(value: Record<string, unknown> | undefined) {
+  const fields = value?.fields;
+  return Array.isArray(fields) && fields.length > 0;
 }
 
 @Injectable()
@@ -222,6 +236,189 @@ export class CategoriesService implements OnModuleInit {
     });
   }
 
+  async bulkUpsert(dto: BulkUpsertCategoriesDto) {
+    const normalizedRows = dto.rows
+      .map((row, index) => this.normalizeBulkRow(row, index))
+      .filter(
+        (
+          row,
+        ): row is ReturnType<CategoriesService['normalizeBulkRow']> &
+          NonNullable<unknown> => row !== null,
+      );
+
+    if (!normalizedRows.length) {
+      throw new BadRequestException('At least one category row is required');
+    }
+
+    const existingCategories = await this.prisma.category.findMany({
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        parentId: true,
+        schemaDefinition: true,
+      },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+
+    const categoriesBySlug = new Map(
+      existingCategories.map((category) => [category.slug, category]),
+    );
+    const categoriesByName = new Map(
+      existingCategories.map((category) => [
+        category.name.trim().toLowerCase(),
+        category,
+      ]),
+    );
+    const importedNameToSlug = new Map<string, string>();
+
+    for (const row of normalizedRows) {
+      importedNameToSlug.set(row.name.trim().toLowerCase(), row.slug);
+    }
+
+    const pendingRows = normalizedRows.map((row) => ({ ...row }));
+    const errors: string[] = [];
+    const summary = {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      processed: normalizedRows.length,
+    };
+
+    while (pendingRows.length) {
+      let progressed = false;
+
+      for (let index = 0; index < pendingRows.length; ) {
+        const row = pendingRows[index];
+        const parentResolution = this.resolveBulkParentSlug({
+          categoriesByName,
+          categoriesBySlug,
+          importedNameToSlug,
+          row,
+        });
+
+        if (parentResolution.waitingForParent) {
+          index += 1;
+          continue;
+        }
+
+        if (parentResolution.error) {
+          errors.push(`Row ${row.rowNumber}: ${parentResolution.error}`);
+          pendingRows.splice(index, 1);
+          progressed = true;
+          continue;
+        }
+
+        const parentId = parentResolution.parentSlug
+          ? (categoriesBySlug.get(parentResolution.parentSlug)?.id ?? null)
+          : null;
+        const existing = categoriesBySlug.get(row.slug);
+
+        if (existing) {
+          const schemaUpdate = await this.resolveBulkSchemaDefinition({
+            parentId,
+            row,
+            mode: 'update',
+          });
+          if (!dto.updateExisting) {
+            summary.skipped += 1;
+            pendingRows.splice(index, 1);
+            progressed = true;
+            continue;
+          }
+
+          if (parentId && parentId === existing.id) {
+            errors.push(
+              `Row ${row.rowNumber}: "${row.name}" cannot be its own parent.`,
+            );
+            pendingRows.splice(index, 1);
+            progressed = true;
+            continue;
+          }
+
+          const updated = await this.prisma.category.update({
+            where: { id: existing.id },
+            data: {
+              name: row.name,
+              description: row.description,
+              parentId,
+              listingExpiryDays: row.listingExpiryDays,
+              sortOrder: row.sortOrder,
+              isActive: row.isActive,
+              ...(schemaUpdate.shouldWrite
+                ? {
+                    schemaDefinition:
+                      toJsonValue(schemaUpdate.value) ?? Prisma.JsonNull,
+                  }
+                : {}),
+            },
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+              parentId: true,
+              schemaDefinition: true,
+            },
+          });
+
+          categoriesBySlug.set(updated.slug, updated);
+          categoriesByName.set(updated.name.trim().toLowerCase(), updated);
+          summary.updated += 1;
+          pendingRows.splice(index, 1);
+          progressed = true;
+          continue;
+        }
+
+        const schemaUpdate = await this.resolveBulkSchemaDefinition({
+          parentId,
+          row,
+          mode: 'create',
+        });
+        const created = await this.prisma.category.create({
+          data: {
+            name: row.name,
+            slug: row.slug,
+            description: row.description,
+            parentId,
+            listingExpiryDays: row.listingExpiryDays ?? 30,
+            sortOrder: row.sortOrder ?? 0,
+            isActive: row.isActive ?? true,
+            schemaDefinition: toJsonValue(schemaUpdate.value),
+          },
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            parentId: true,
+            schemaDefinition: true,
+          },
+        });
+
+        categoriesBySlug.set(created.slug, created);
+        categoriesByName.set(created.name.trim().toLowerCase(), created);
+        importedNameToSlug.set(created.name.trim().toLowerCase(), created.slug);
+        summary.created += 1;
+        pendingRows.splice(index, 1);
+        progressed = true;
+      }
+
+      if (!progressed) {
+        for (const row of pendingRows) {
+          errors.push(
+            `Row ${row.rowNumber}: parent category "${row.parentSlug ?? row.parentName ?? 'unknown'}" could not be resolved.`,
+          );
+        }
+        break;
+      }
+    }
+
+    return {
+      ...summary,
+      failed: errors.length,
+      errors,
+    };
+  }
+
   private async resolveParentId(parentSlug?: string) {
     if (!parentSlug) {
       return null;
@@ -245,8 +442,198 @@ export class CategoriesService implements OnModuleInit {
     });
 
     return cloneSchemaDefinition(
-      (parent?.schemaDefinition as Record<string, unknown> | null | undefined) ??
-        undefined,
+      (parent?.schemaDefinition as
+        | Record<string, unknown>
+        | null
+        | undefined) ?? undefined,
     );
+  }
+
+  private normalizeBulkRow(row: BulkCategoryImportRowDto, index: number) {
+    const name = row.name?.trim();
+    const slug = slugify(row.slug ?? row.name);
+
+    if (!name || !slug) {
+      return null;
+    }
+
+    return {
+      rowNumber: index + 2,
+      name,
+      slug,
+      description: normalizeOptionalText(row.description) ?? null,
+      isActive: row.isActive,
+      listingExpiryDays: row.listingExpiryDays,
+      parentName: normalizeOptionalText(row.parentName),
+      parentSlug: normalizeOptionalText(row.parentSlug)
+        ? slugify(row.parentSlug as string)
+        : undefined,
+      schemaDefinition: hasSchemaFields(row.schemaDefinition)
+        ? cloneSchemaDefinition(row.schemaDefinition)
+        : undefined,
+      sortOrder: row.sortOrder,
+      useParentQuestions: row.useParentQuestions === true,
+    };
+  }
+
+  private async resolveBulkSchemaDefinition({
+    mode,
+    parentId,
+    row,
+  }: {
+    mode: 'create' | 'update';
+    parentId: string | null;
+    row: {
+      rowNumber: number;
+      name: string;
+      slug: string;
+      description: string | null;
+      parentName?: string;
+      parentSlug?: string;
+      listingExpiryDays?: number;
+      isActive?: boolean;
+      sortOrder?: number;
+      schemaDefinition?: Record<string, unknown>;
+      useParentQuestions?: boolean;
+    };
+  }) {
+    if (row.schemaDefinition) {
+      return {
+        shouldWrite: true,
+        value: cloneSchemaDefinition(row.schemaDefinition),
+      };
+    }
+
+    if (row.useParentQuestions && parentId) {
+      return {
+        shouldWrite: true,
+        value: await this.getInheritedSchemaDefinition(parentId),
+      };
+    }
+
+    if (!parentId && row.useParentQuestions) {
+      return {
+        shouldWrite: false,
+        value: undefined,
+      };
+    }
+
+    if (mode === 'create' && parentId && !row.schemaDefinition) {
+      return {
+        shouldWrite: true,
+        value: await this.getInheritedSchemaDefinition(parentId),
+      };
+    }
+
+    return {
+      shouldWrite: false,
+      value: undefined,
+    };
+  }
+
+  private resolveBulkParentSlug({
+    categoriesByName,
+    categoriesBySlug,
+    importedNameToSlug,
+    row,
+  }: {
+    categoriesByName: Map<
+      string,
+      {
+        id: string;
+        slug: string;
+        name: string;
+        parentId: string | null;
+        schemaDefinition: Prisma.JsonValue | null;
+      }
+    >;
+    categoriesBySlug: Map<
+      string,
+      {
+        id: string;
+        slug: string;
+        name: string;
+        parentId: string | null;
+        schemaDefinition: Prisma.JsonValue | null;
+      }
+    >;
+    importedNameToSlug: Map<string, string>;
+    row: {
+      rowNumber: number;
+      name: string;
+      slug: string;
+      description: string | null;
+      parentName?: string;
+      parentSlug?: string;
+      listingExpiryDays?: number;
+      isActive?: boolean;
+      sortOrder?: number;
+      schemaDefinition?: Record<string, unknown>;
+      useParentQuestions?: boolean;
+    };
+  }) {
+    if (!row.parentSlug && !row.parentName) {
+      return { parentSlug: undefined, waitingForParent: false };
+    }
+
+    const directParentSlug = row.parentSlug
+      ? slugify(row.parentSlug)
+      : undefined;
+
+    if (directParentSlug) {
+      if (directParentSlug === row.slug) {
+        return {
+          error: 'A category cannot be its own parent.',
+          waitingForParent: false,
+        };
+      }
+
+      if (categoriesBySlug.has(directParentSlug)) {
+        return { parentSlug: directParentSlug, waitingForParent: false };
+      }
+
+      return { parentSlug: directParentSlug, waitingForParent: true };
+    }
+
+    const normalizedParentName = row.parentName?.trim().toLowerCase();
+
+    if (!normalizedParentName) {
+      return { parentSlug: undefined, waitingForParent: false };
+    }
+
+    const importedParentSlug = importedNameToSlug.get(normalizedParentName);
+
+    if (importedParentSlug) {
+      if (importedParentSlug === row.slug) {
+        return {
+          error: 'A category cannot be its own parent.',
+          waitingForParent: false,
+        };
+      }
+
+      if (categoriesBySlug.has(importedParentSlug)) {
+        return { parentSlug: importedParentSlug, waitingForParent: false };
+      }
+
+      return { parentSlug: importedParentSlug, waitingForParent: true };
+    }
+
+    const existingParent = categoriesByName.get(normalizedParentName);
+
+    if (existingParent) {
+      if (existingParent.slug === row.slug) {
+        return {
+          error: 'A category cannot be its own parent.',
+          waitingForParent: false,
+        };
+      }
+
+      return { parentSlug: existingParent.slug, waitingForParent: false };
+    }
+
+    return {
+      error: `Parent category "${row.parentName}" was not found.`,
+      waitingForParent: false,
+    };
   }
 }

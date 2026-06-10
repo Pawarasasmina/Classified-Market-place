@@ -13,6 +13,7 @@ import { rolesForPermission } from '../common/admin-permissions';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CategoriesService } from './categories.service';
+import { BulkUpsertCategoriesDto } from './dto/bulk-upsert-categories.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
@@ -37,6 +38,13 @@ export class CategoriesController {
   @Post('admin')
   create(@Body() dto: CreateCategoryDto) {
     return this.categoriesService.create(dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...rolesForPermission('CATEGORIES_WRITE'))
+  @Post('admin/bulk')
+  bulkUpsert(@Body() dto: BulkUpsertCategoriesDto) {
+    return this.categoriesService.bulkUpsert(dto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

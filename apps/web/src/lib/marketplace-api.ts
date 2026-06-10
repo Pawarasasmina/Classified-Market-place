@@ -698,6 +698,48 @@ export async function createCategory(
   return mapCategory(category);
 }
 
+export async function bulkImportCategories(
+  accessToken: string,
+  payload: {
+    rows: Array<{
+      name: string;
+      slug?: string;
+      description?: string;
+      parentSlug?: string;
+      parentName?: string;
+      listingExpiryDays?: number;
+      isActive?: boolean;
+      sortOrder?: number;
+      useParentQuestions?: boolean;
+      schemaDefinition?: {
+        fields?: Array<{
+          key: string;
+          label: string;
+          type: "text" | "number" | "select" | "toggle";
+          options?: string[];
+          required?: boolean;
+          placeholder?: string;
+        }>;
+      };
+    }>;
+    updateExisting?: boolean;
+  },
+) {
+  return apiRequest<{
+    created: number;
+    updated: number;
+    skipped: number;
+    processed: number;
+    failed: number;
+    errors: string[];
+  }>("/categories/admin/bulk", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function updateCategory(
   accessToken: string,
   slug: string,
@@ -1353,12 +1395,15 @@ export async function updateSellerFormDefinition(
       ? JSON.parse(schemaDefinition)
       : schemaDefinition;
 
-  return apiRequest<{ fields: ApiSellerFormField[] }>("/seller-profiles/admin/form", {
-    method: "PUT",
-    accessToken,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ schemaDefinition: payload }),
-  });
+  return apiRequest<{ fields: ApiSellerFormField[] }>(
+    "/seller-profiles/admin/form",
+    {
+      method: "PUT",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schemaDefinition: payload }),
+    },
+  );
 }
 
 export async function fetchMySellerProfile(accessToken: string) {
@@ -1368,9 +1413,12 @@ export async function fetchMySellerProfile(accessToken: string) {
 }
 
 export async function fetchMySellerPrivileges(accessToken: string) {
-  return apiRequest<ApiSellerPrivilegeTier[]>("/seller-profiles/me/privileges", {
-    accessToken,
-  });
+  return apiRequest<ApiSellerPrivilegeTier[]>(
+    "/seller-profiles/me/privileges",
+    {
+      accessToken,
+    },
+  );
 }
 
 export async function switchToSeller(accessToken: string) {
@@ -1475,9 +1523,12 @@ export async function fetchAdminSellerProfile(
   accessToken: string,
   sellerProfileId: string,
 ) {
-  return apiRequest<ApiSellerProfile>(`/seller-profiles/admin/${sellerProfileId}`, {
-    accessToken,
-  });
+  return apiRequest<ApiSellerProfile>(
+    `/seller-profiles/admin/${sellerProfileId}`,
+    {
+      accessToken,
+    },
+  );
 }
 
 export async function reviewSellerProfile(
@@ -1512,12 +1563,15 @@ export async function createSellerDocumentRequest(
     dueAt?: string;
   },
 ) {
-  return apiRequest(`/seller-profiles/admin/${sellerProfileId}/document-requests`, {
-    method: "POST",
-    accessToken,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  return apiRequest(
+    `/seller-profiles/admin/${sellerProfileId}/document-requests`,
+    {
+      method: "POST",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export async function reviewSellerDocument(
@@ -1529,12 +1583,15 @@ export async function reviewSellerDocument(
     rejectionReason?: string;
   },
 ) {
-  return apiRequest(`/seller-profiles/admin/documents/${documentSubmissionId}/review`, {
-    method: "PATCH",
-    accessToken,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  return apiRequest(
+    `/seller-profiles/admin/documents/${documentSubmissionId}/review`,
+    {
+      method: "PATCH",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export async function reviewVerifiedSeller(
@@ -1557,9 +1614,12 @@ export async function reviewVerifiedSeller(
 }
 
 export async function fetchAdminSellerPrivileges(accessToken: string) {
-  return apiRequest<ApiSellerPrivilegeTier[]>("/seller-profiles/admin/privileges", {
-    accessToken,
-  });
+  return apiRequest<ApiSellerPrivilegeTier[]>(
+    "/seller-profiles/admin/privileges",
+    {
+      accessToken,
+    },
+  );
 }
 
 export async function upsertSellerPrivilegeTier(

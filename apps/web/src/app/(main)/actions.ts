@@ -65,6 +65,7 @@ import {
   assignSellerBadge,
   removeSellerBadge,
   applyDefaultSellerPrivilegeQuotas,
+  bulkImportCategories,
   zeroAllSellerPrivilegeQuotas,
   upsertSellerRating,
   verifyEmailToken,
@@ -359,6 +360,41 @@ const categorySchema = z.object({
   listingExpiryDays: z.coerce.number().int().min(1).max(365).default(30),
 });
 
+const bulkCategoryImportSchema = z.object({
+  updateExisting: z.boolean().default(false),
+  rows: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1, "Category name is required."),
+        slug: z.string().trim().optional(),
+        description: z.string().trim().optional(),
+        parentSlug: z.string().trim().optional(),
+        parentName: z.string().trim().optional(),
+        listingExpiryDays: z.number().int().min(1).max(365).optional(),
+        isActive: z.boolean().optional(),
+        sortOrder: z.number().int().min(0).optional(),
+        useParentQuestions: z.boolean().optional(),
+        schemaDefinition: z
+          .object({
+            fields: z
+              .array(
+                z.object({
+                  key: z.string().trim().min(1),
+                  label: z.string().trim().min(1),
+                  type: z.enum(["text", "number", "select", "toggle"]),
+                  options: z.array(z.string().trim().min(1)).optional(),
+                  required: z.boolean().optional(),
+                  placeholder: z.string().trim().optional(),
+                }),
+              )
+              .optional(),
+          })
+          .optional(),
+      }),
+    )
+    .min(1, "Add at least one category row."),
+});
+
 const listingReportSchema = z.object({
   listingId: z.string().trim().min(1),
   reason: z
@@ -578,7 +614,9 @@ function cleanNullable(value: FormDataEntryValue | null) {
 }
 
 function parseCategorySchemaDefinition(formData: FormData) {
-  const rawValue = cleanOptional(String(formData.get("schemaDefinition") ?? ""));
+  const rawValue = cleanOptional(
+    String(formData.get("schemaDefinition") ?? ""),
+  );
 
   if (!rawValue) {
     return undefined;
@@ -820,7 +858,9 @@ export async function registerAction(
       password: parsed.data.password,
       confirmPassword: parsed.data.confirmPassword,
       sellerFormAnswers:
-        parsed.data.accountType === "SELLER" ? sellerAnswers.answers : undefined,
+        parsed.data.accountType === "SELLER"
+          ? sellerAnswers.answers
+          : undefined,
       sellerRequestMetadata:
         parsed.data.accountType === "SELLER"
           ? { signupSource: "register" }
@@ -2187,6 +2227,77 @@ export async function createCategoryAction(
   return { message: "Category saved." };
 }
 
+export async function bulkImportCategoriesAction(
+  _previousState: FormActionState,
+  formData: FormData,
+): Promise<FormActionState> {
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/categories",
+  );
+  const payloadRaw = String(formData.get("payload") ?? "");
+
+  if (!payloadRaw) {
+    return {
+      message: "Upload a CSV file and map at least the category name column.",
+    };
+  }
+
+  let payload: unknown;
+
+  try {
+    payload = JSON.parse(payloadRaw);
+  } catch {
+    return {
+      message: "The bulk import payload is invalid. Please reload the file.",
+    };
+  }
+
+  const parsed = bulkCategoryImportSchema.safeParse(payload);
+
+  if (!parsed.success) {
+    return {
+      message:
+        parsed.error.issues[0]?.message ?? "Check the bulk category file.",
+      fieldErrors: flattenFieldErrors(parsed.error),
+    };
+  }
+
+  const { accessToken } = await requireSessionContext("/admin");
+
+  try {
+    const result = await bulkImportCategories(accessToken, parsed.data);
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/categories");
+    revalidatePath("/admin/categories/main");
+    revalidatePath("/admin/categories/subcategories");
+    revalidatePath(returnTo);
+
+    const summary = [
+      `${result.created} created`,
+      `${result.updated} updated`,
+      `${result.skipped} skipped`,
+    ].join(", ");
+    const errorDetail = result.errors.length
+      ? ` ${result.errors.slice(0, 3).join(" ")}${
+          result.errors.length > 3 ? ` +${result.errors.length - 3} more.` : ""
+        }`
+      : "";
+
+    return {
+      message: `Bulk import finished. ${summary}. ${result.failed} failed.${errorDetail}`,
+    };
+  } catch (error) {
+    return {
+      message: getActionMessage(
+        error,
+        "We could not import the category spreadsheet.",
+      ),
+    };
+  }
+}
+
 export async function updateCategoryAction(formData: FormData) {
   const returnTo = getSafeNextPath(
     formData.get("returnTo"),
@@ -2492,7 +2603,10 @@ export async function reviewSellerProfileAction(formData: FormData) {
     redirect(
       withQueryParam(returnTo, {
         reviewed: "error",
-        message: getActionMessage(error, "We could not save that seller decision."),
+        message: getActionMessage(
+          error,
+          "We could not save that seller decision.",
+        ),
       }),
     );
   }
@@ -2526,7 +2640,10 @@ export async function createSellerDocumentRequestAction(formData: FormData) {
     redirect(
       withQueryParam(returnTo, {
         documentRequest: "error",
-        message: getActionMessage(error, "We could not create that document request."),
+        message: getActionMessage(
+          error,
+          "We could not create that document request.",
+        ),
       }),
     );
   }
@@ -2540,8 +2657,12 @@ export async function reviewSellerDocumentAction(formData: FormData) {
     formData.get("returnTo"),
     "/admin/sellers/approvals",
   );
-  const documentSubmissionId = String(formData.get("documentSubmissionId") ?? "");
-  const status = String(formData.get("status") ?? "") as "APPROVED" | "REJECTED";
+  const documentSubmissionId = String(
+    formData.get("documentSubmissionId") ?? "",
+  );
+  const status = String(formData.get("status") ?? "") as
+    | "APPROVED"
+    | "REJECTED";
   if (!documentSubmissionId || !status) {
     redirect(withQueryParam(returnTo, { documentReview: "invalid" }));
   }
@@ -2560,7 +2681,10 @@ export async function reviewSellerDocumentAction(formData: FormData) {
     redirect(
       withQueryParam(returnTo, {
         documentReview: "error",
-        message: getActionMessage(error, "We could not save that document review."),
+        message: getActionMessage(
+          error,
+          "We could not save that document review.",
+        ),
       }),
     );
   }
@@ -2607,8 +2731,13 @@ export async function reviewVerifiedSellerAction(formData: FormData) {
 }
 
 export async function updateSellerFormDefinitionAction(formData: FormData) {
-  const returnTo = getSafeNextPath(formData.get("returnTo"), "/admin/sellers/form");
-  const schemaDefinition = cleanOptional(String(formData.get("schemaDefinition") ?? ""));
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin/sellers/form",
+  );
+  const schemaDefinition = cleanOptional(
+    String(formData.get("schemaDefinition") ?? ""),
+  );
   if (!schemaDefinition) {
     redirect(withQueryParam(returnTo, { form: "invalid" }));
   }
@@ -2650,8 +2779,12 @@ export async function upsertSellerPrivilegeTierAction(formData: FormData) {
       name: String(formData.get("name") ?? "").trim(),
       slug: cleanOptional(String(formData.get("slug") ?? "")),
       description: cleanOptional(String(formData.get("description") ?? "")),
-      monthlyFreeListingLimit: Number(formData.get("monthlyFreeListingLimit") ?? 0),
-      activeListingLimit: cleanOptional(String(formData.get("activeListingLimit") ?? ""))
+      monthlyFreeListingLimit: Number(
+        formData.get("monthlyFreeListingLimit") ?? 0,
+      ),
+      activeListingLimit: cleanOptional(
+        String(formData.get("activeListingLimit") ?? ""),
+      )
         ? Number(formData.get("activeListingLimit"))
         : null,
       pendingListingLimit: cleanOptional(
@@ -2660,9 +2793,7 @@ export async function upsertSellerPrivilegeTierAction(formData: FormData) {
         ? Number(formData.get("pendingListingLimit"))
         : null,
       paidListingFee: Number(formData.get("paidListingFee") ?? 0),
-      sellerLevelUpgradeFee: Number(
-        formData.get("sellerLevelUpgradeFee") ?? 0,
-      ),
+      sellerLevelUpgradeFee: Number(formData.get("sellerLevelUpgradeFee") ?? 0),
       currency: cleanOptional(String(formData.get("currency") ?? "")) ?? "AED",
       isActive: formData.get("isActive") !== "false",
       sortOrder: Number(formData.get("sortOrder") ?? 0),
@@ -2686,7 +2817,9 @@ export async function upsertSellerPrivilegeQuotaAction(formData: FormData) {
     "/admin/sellers/privileges",
   );
   const { accessToken } = await requireSessionContext(returnTo);
-  const sellerPrivilegeTierId = String(formData.get("sellerPrivilegeTierId") ?? "");
+  const sellerPrivilegeTierId = String(
+    formData.get("sellerPrivilegeTierId") ?? "",
+  );
 
   if (!sellerPrivilegeTierId) {
     redirect(withQueryParam(returnTo, { quota: "invalid" }));
@@ -2710,7 +2843,9 @@ export async function upsertSellerPrivilegeQuotaAction(formData: FormData) {
       )
         ? Number(formData.get("pendingListingLimit"))
         : null,
-      paidListingFee: cleanOptional(String(formData.get("paidListingFee") ?? ""))
+      paidListingFee: cleanOptional(
+        String(formData.get("paidListingFee") ?? ""),
+      )
         ? Number(formData.get("paidListingFee"))
         : null,
     });
@@ -2718,7 +2853,10 @@ export async function upsertSellerPrivilegeQuotaAction(formData: FormData) {
     redirect(
       withQueryParam(returnTo, {
         quota: "error",
-        message: getActionMessage(error, "We could not save that category quota."),
+        message: getActionMessage(
+          error,
+          "We could not save that category quota.",
+        ),
       }),
     );
   }
@@ -2727,12 +2865,16 @@ export async function upsertSellerPrivilegeQuotaAction(formData: FormData) {
   redirect(withQueryParam(returnTo, { quota: "saved" }));
 }
 
-export async function applyDefaultSellerPrivilegeQuotasAction(formData: FormData) {
+export async function applyDefaultSellerPrivilegeQuotasAction(
+  formData: FormData,
+) {
   const returnTo = getSafeNextPath(
     formData.get("returnTo"),
     "/admin/sellers/privileges",
   );
-  const sellerPrivilegeTierId = String(formData.get("sellerPrivilegeTierId") ?? "");
+  const sellerPrivilegeTierId = String(
+    formData.get("sellerPrivilegeTierId") ?? "",
+  );
   const { accessToken } = await requireSessionContext(returnTo);
 
   if (!sellerPrivilegeTierId) {
@@ -2759,7 +2901,9 @@ export async function zeroAllSellerPrivilegeQuotasAction(formData: FormData) {
     formData.get("returnTo"),
     "/admin/sellers/privileges",
   );
-  const sellerPrivilegeTierId = String(formData.get("sellerPrivilegeTierId") ?? "");
+  const sellerPrivilegeTierId = String(
+    formData.get("sellerPrivilegeTierId") ?? "",
+  );
   const { accessToken } = await requireSessionContext(returnTo);
 
   if (!sellerPrivilegeTierId) {
@@ -2834,7 +2978,8 @@ export async function assignSellerBadgeAction(formData: FormData) {
   try {
     await assignSellerBadge(accessToken, sellerProfileId, {
       badgeTypeId,
-      expiresAt: cleanOptional(String(formData.get("expiresAt") ?? "")) ?? undefined,
+      expiresAt:
+        cleanOptional(String(formData.get("expiresAt") ?? "")) ?? undefined,
     });
   } catch (error) {
     redirect(

@@ -790,8 +790,12 @@ export function MarketplaceShell({
     : adminLogin
       ? []
       : getCustomerNavLinks(user);
-  const desktopPrimaryNavLinks = getDesktopPrimaryNavLinks(user);
-  const desktopSecondaryNavLinks = getDesktopSecondaryNavLinks(user);
+  const desktopPrimaryNavLinks = adminExperience
+    ? []
+    : getDesktopPrimaryNavLinks(user);
+  const desktopSecondaryNavLinks = adminExperience
+    ? []
+    : getDesktopSecondaryNavLinks(user);
   const hasDesktopSecondaryActive = desktopSecondaryNavLinks.some((link) =>
     isActive(pathname, link.href),
   );
