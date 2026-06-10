@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { requireSessionContext } from "@/lib/auth-dal";
 import type { AdminBookingMessage, AdminBookingParticipant } from "@/lib/marketplace";
 import {
@@ -84,24 +85,28 @@ export default async function AdminUserBookingsPage(
 
   return (
     <div className="admin-dashboard page">
-      <section className="admin-hero">
-        <div className="admin-hero-copy">
-          <span className="admin-kicker">User bookings</span>
-          <h1>{managedUser.displayName}</h1>
-          <p>{bookings.length} booking conversations and offer records.</p>
-        </div>
-        <div className="admin-hero-actions">
-          <Link href={`/admin/users/${managedUser.id}`} className="admin-panel-link">
-            User details
-          </Link>
-          <Link
-            href={`/admin/users/${managedUser.id}/listings`}
-            className="admin-primary-link"
-          >
-            Listings
-          </Link>
-        </div>
-      </section>
+      <AdminPageHeader
+        eyebrow="User bookings"
+        title={managedUser.displayName}
+        description="Booking conversations and offer records for this user."
+        badge={`${bookings.length} conversations`}
+        actions={
+          <>
+            <Link
+              href={`/admin/users/${managedUser.id}`}
+              className="action-secondary px-4 py-2 text-sm font-semibold"
+            >
+              User details
+            </Link>
+            <Link
+              href={`/admin/users/${managedUser.id}/listings`}
+              className="action-primary px-4 py-2 text-sm font-semibold"
+            >
+              Listings
+            </Link>
+          </>
+        }
+      />
 
       <section className="admin-booking-grid">
         {bookings.map((booking) => (

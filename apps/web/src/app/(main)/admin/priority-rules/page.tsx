@@ -5,6 +5,11 @@ import {
   deletePriorityRuleAction,
   updatePriorityRuleAction,
 } from "@/app/(main)/actions";
+import {
+  AdminActionFeedback,
+  AdminSubmitButton,
+} from "@/components/marketplace/admin-form-feedback";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import {
@@ -26,6 +31,13 @@ const priorityTargets: ApiListingPriorityRuleTarget[] = [
   "AUTHORIZED_SELLER",
 ];
 
+type AdminPriorityRulesPageProps = {
+  searchParams: Promise<{
+    message?: string;
+    rule?: string;
+  }>;
+};
+
 function humanizeRuleTarget(target: ApiListingPriorityRuleTarget) {
   return target
     .toLowerCase()
@@ -33,7 +45,10 @@ function humanizeRuleTarget(target: ApiListingPriorityRuleTarget) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export default async function AdminPriorityRulesPage() {
+export default async function AdminPriorityRulesPage(
+  props: AdminPriorityRulesPageProps,
+) {
+  const searchParams = await props.searchParams;
   const { accessToken, user } = await requireSessionContext(
     "/admin/priority-rules",
   );
@@ -51,25 +66,32 @@ export default async function AdminPriorityRulesPage() {
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Search priority
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Priority Rules</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            Control paid listing priority, boost ranking, category weighting,
-            seller rating, manual admin priority, package weights, and trusted
-            seller tiers in customer results.
-          </p>
-        </div>
-        <Link
-          href="/admin"
-          className="action-secondary px-4 py-2 text-sm font-semibold"
-        >
-          Back to admin
-        </Link>
-      </div>
+      <AdminPageHeader
+        eyebrow="Search priority"
+        title="Priority Rules"
+        description="Control paid listing priority, boost ranking, category weighting, seller rating, manual admin priority, package weights, and trusted seller tiers in customer results."
+        badge={`${activeCount} active / ${rules.length} total`}
+        actions={
+          <Link
+            href="/admin"
+            className="action-secondary px-4 py-2 text-sm font-semibold"
+          >
+            Back to admin
+          </Link>
+        }
+      />
+
+      <AdminActionFeedback
+        status={searchParams.rule}
+        message={searchParams.message}
+        messages={{
+          created: "Priority rule created.",
+          updated: "Priority rule updated.",
+          deleted: "Priority rule deactivated.",
+          invalid: "Check the rule fields and try again.",
+        }}
+        successStatuses={["created", "updated", "deleted"]}
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
@@ -171,9 +193,12 @@ export default async function AdminPriorityRulesPage() {
             />
             Active
           </label>
-          <button className="action-primary px-4 py-2 text-sm font-semibold md:col-span-8">
+          <AdminSubmitButton
+            className="action-primary px-4 py-2 text-sm font-semibold md:col-span-8"
+            pendingText="Saving rule..."
+          >
             Save rule
-          </button>
+          </AdminSubmitButton>
         </form>
       </section>
 
@@ -281,14 +306,23 @@ export default async function AdminPriorityRulesPage() {
                 Active
               </label>
               <div className="flex flex-wrap gap-2 md:col-span-8">
-                <button className="action-primary px-4 py-2 text-sm font-semibold">
+                <AdminSubmitButton
+                  className="action-primary px-4 py-2 text-sm font-semibold"
+                  pendingText="Updating rule..."
+                >
                   Update
-                </button>
+                </AdminSubmitButton>
               </div>
             </form>
             <form action={deletePriorityRuleAction}>
               <input type="hidden" name="ruleId" value={rule.id} />
-              <button className="admin-table-action">Deactivate</button>
+              <AdminSubmitButton
+                className="admin-table-action"
+                confirmMessage={`Deactivate "${rule.name}"? This can change customer search ranking immediately.`}
+                pendingText="Deactivating..."
+              >
+                Deactivate
+              </AdminSubmitButton>
             </form>
           </div>
         ))}

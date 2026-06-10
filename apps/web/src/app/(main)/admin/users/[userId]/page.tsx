@@ -4,12 +4,22 @@ import {
   creditAdminWalletAction,
   debitAdminWalletAction,
 } from "@/app/(main)/actions";
+import {
+  AdminActionFeedback,
+  AdminSubmitButton,
+} from "@/components/marketplace/admin-form-feedback";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { AdminUserCard } from "@/components/marketplace/admin-user-card";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminUser, fetchAdminWallet } from "@/lib/marketplace-api";
 
 type AdminUserDetailPageProps = {
   params: Promise<{ userId: string }>;
+  searchParams: Promise<{
+    message?: string;
+    user?: string;
+    wallet?: string;
+  }>;
 };
 
 function formatMoney(value: string | number, currency: string) {
@@ -33,8 +43,9 @@ function formatDate(value: string) {
 export default async function AdminUserDetailPage(
   props: AdminUserDetailPageProps
 ) {
-  const [{ userId }, session] = await Promise.all([
+  const [{ userId }, searchParams, session] = await Promise.all([
     props.params,
+    props.searchParams,
     requireSessionContext("/admin/users"),
   ]);
   const { accessToken, user } = session;
@@ -50,30 +61,45 @@ export default async function AdminUserDetailPage(
 
   return (
     <div className="admin-dashboard page">
-      <section className="admin-hero">
-        <div className="admin-hero-copy">
-          <span className="admin-kicker">User details</span>
-          <h1>{managedUser.displayName}</h1>
-          <p>{managedUser.email}</p>
-        </div>
-        <div className="admin-hero-actions">
-          <Link href="/admin/users" className="admin-panel-link">
-            All users
-          </Link>
-          <Link
-            href={`/admin/users/${managedUser.id}/listings`}
-            className="admin-primary-link"
-          >
-            User listings
-          </Link>
-          <Link
-            href={`/admin/users/${managedUser.id}/bookings`}
-            className="admin-primary-link"
-          >
-            User bookings
-          </Link>
-        </div>
-      </section>
+      <AdminPageHeader
+        eyebrow="User details"
+        title={managedUser.displayName}
+        description={managedUser.email}
+        badge={`${managedUser.adminStats.totalListings} listings`}
+        actions={
+          <>
+            <Link href="/admin/users" className="action-secondary px-4 py-2 text-sm font-semibold">
+              All users
+            </Link>
+            <Link
+              href={`/admin/users/${managedUser.id}/listings`}
+              className="action-primary px-4 py-2 text-sm font-semibold"
+            >
+              User listings
+            </Link>
+            <Link
+              href={`/admin/users/${managedUser.id}/bookings`}
+              className="action-secondary px-4 py-2 text-sm font-semibold"
+            >
+              User bookings
+            </Link>
+          </>
+        }
+      />
+
+      <AdminActionFeedback
+        status={searchParams.user ?? searchParams.wallet}
+        message={searchParams.message}
+        messages={{
+          updated: "User details updated.",
+          invalid: searchParams.wallet
+            ? "Check the wallet amount and try again."
+            : "Check the user fields and try again.",
+          credited: "Wallet credited.",
+          debited: "Wallet debited.",
+        }}
+        successStatuses={["updated", "credited", "debited"]}
+      />
 
       <section className="admin-stat-grid" aria-label="User detail summary">
         {[
@@ -149,9 +175,12 @@ export default async function AdminUserDetailPage(
                 placeholder="Reason for the credit"
                 className="surface-input w-full text-sm"
               />
-              <button className="action-primary px-4 py-3 text-sm font-bold">
+              <AdminSubmitButton
+                confirmMessage={`Credit ${managedUser.displayName}'s wallet? This creates a financial ledger entry.`}
+                pendingText="Crediting wallet..."
+              >
                 Credit seller wallet
-              </button>
+              </AdminSubmitButton>
             </form>
             <form action={debitAdminWalletAction} className="panel grid gap-3">
               <input type="hidden" name="userId" value={managedUser.id} />
@@ -180,9 +209,13 @@ export default async function AdminUserDetailPage(
                 placeholder="Reason for the debit"
                 className="surface-input w-full text-sm"
               />
-              <button className="action-secondary px-4 py-3 text-sm font-bold">
+              <AdminSubmitButton
+                className="action-secondary px-4 py-3 text-sm font-bold"
+                confirmMessage={`Debit ${managedUser.displayName}'s wallet? This reduces their wallet balance and creates a financial ledger entry.`}
+                pendingText="Debiting wallet..."
+              >
                 Debit seller wallet
-              </button>
+              </AdminSubmitButton>
             </form>
           </div>
         </div>

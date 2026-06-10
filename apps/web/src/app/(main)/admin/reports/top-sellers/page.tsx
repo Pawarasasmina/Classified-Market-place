@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { AdminReportEmailForm } from "@/components/marketplace/admin-report-email-form";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchTopSellersReport } from "@/lib/marketplace-api";
@@ -105,17 +107,14 @@ export default async function TopSellersReportPage(
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Seller report
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Top sellers</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            {formatDate(report.range.from)} to {formatDate(report.range.to)}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <AdminPageHeader
+        eyebrow="Seller report"
+        title="Top sellers"
+        description={`${formatDate(report.range.from)} to ${formatDate(
+          report.range.to,
+        )}`}
+        actions={
+          <>
           {canEmailReports ? (
             <AdminReportEmailForm
               filters={{ days: selectedDays, take: 100 }}
@@ -148,8 +147,9 @@ export default async function TopSellersReportPage(
           >
             Operations report
           </Link>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
@@ -261,8 +261,12 @@ export default async function TopSellersReportPage(
           </Link>
         </div>
 
+        <AdminTableEnhancer
+          tableId="admin-top-sellers-table"
+          copyLabel="seller IDs"
+        />
         <div className="admin-table-wrap">
-          <table className="admin-table">
+          <table id="admin-top-sellers-table" className="admin-table">
             <thead>
               <tr>
                 <th>Rank</th>
@@ -277,9 +281,11 @@ export default async function TopSellersReportPage(
             </thead>
             <tbody>
               {report.sellers.map((seller) => (
-                <tr key={seller.id}>
-                  <td className="font-black">#{seller.rank}</td>
-                  <td>
+                <tr key={seller.id} data-row-id={seller.id}>
+                  <td className="font-black" data-label="Rank">
+                    #{seller.rank}
+                  </td>
+                  <td data-label="Seller">
                     <Link
                       href={`/sellers/${seller.id}?view=customer`}
                       target="_blank"
@@ -298,7 +304,7 @@ export default async function TopSellersReportPage(
                         : "Unverified contact"}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Score">
                     <span className="font-semibold">
                       {formatMetric(seller.performanceScore)}
                     </span>
@@ -306,7 +312,7 @@ export default async function TopSellersReportPage(
                       Reputation {formatMetric(seller.reputationScore)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Listings">
                     <span className="font-semibold">
                       {formatMetric(seller.totalListings)} total
                     </span>
@@ -317,7 +323,7 @@ export default async function TopSellersReportPage(
                       {formatMetric(seller.soldListings)} sold
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Engagement">
                     <span className="font-semibold">
                       {formatMetric(seller.viewCount)} views
                     </span>
@@ -327,7 +333,7 @@ export default async function TopSellersReportPage(
                       {seller.inquiryConversionRate}%
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Revenue">
                     <span className="font-semibold">
                       {formatMoney(seller.revenue)}
                     </span>
@@ -336,7 +342,7 @@ export default async function TopSellersReportPage(
                       {formatMoney(seller.listingFeeRevenue)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Ratings">
                     {seller.ratingCount ? (
                       <>
                         <span className="font-semibold">
@@ -351,7 +357,7 @@ export default async function TopSellersReportPage(
                       "No ratings"
                     )}
                   </td>
-                  <td>
+                  <td data-label="Risk">
                     <span className="font-semibold">
                       {formatMetric(seller.reportCount)} reports
                     </span>
@@ -364,8 +370,18 @@ export default async function TopSellersReportPage(
             </tbody>
           </table>
           {report.sellers.length === 0 ? (
-            <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-              No sellers have enough activity to rank yet.
+            <div className="admin-empty-state">
+              <p className="admin-empty-state-title">No ranked sellers</p>
+              <p className="admin-empty-state-copy">
+                Seller rankings will appear after enough listing, engagement,
+                rating, and revenue activity is available.
+              </p>
+              <Link
+                href="/admin/reports/sellers"
+                className="action-secondary px-3 py-2 text-sm font-semibold"
+              >
+                Open seller report
+              </Link>
             </div>
           ) : null}
         </div>

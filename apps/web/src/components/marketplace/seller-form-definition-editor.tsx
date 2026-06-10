@@ -74,10 +74,15 @@ export function SellerFormDefinitionEditor({
       {fields.map((field, index) => (
         <div
           key={field.id}
-          className="grid gap-3 rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4"
+          className="admin-form-section"
         >
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-black">Field {index + 1}</p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="admin-form-section-head">
+              <p className="admin-form-section-title">Field {index + 1}</p>
+              <p className="admin-form-section-copy">
+                {normalizeKey(field.key || field.label) || "Key will be generated from the label"}
+              </p>
+            </div>
             <button
               type="button"
               onClick={() =>
@@ -92,11 +97,9 @@ export function SellerFormDefinitionEditor({
               Remove
             </button>
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="grid gap-2">
-              <span className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-                Label
-              </span>
+          <div className="admin-form-grid md:grid-cols-2">
+            <label className="admin-field">
+              <span className="admin-field-label">Label</span>
               <input
                 value={field.label}
                 onChange={(event) =>
@@ -114,11 +117,12 @@ export function SellerFormDefinitionEditor({
                 }
                 className="surface-input w-full text-sm"
               />
-            </label>
-            <label className="grid gap-2">
-              <span className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-                Key
+              <span className="admin-field-help">
+                The human-readable question shown to sellers.
               </span>
+            </label>
+            <label className="admin-field">
+              <span className="admin-field-label">Key</span>
               <input
                 value={field.key}
                 onChange={(event) =>
@@ -132,11 +136,12 @@ export function SellerFormDefinitionEditor({
                 }
                 className="surface-input w-full text-sm"
               />
-            </label>
-            <label className="grid gap-2">
-              <span className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-                Type
+              <span className="admin-field-help">
+                Stored key used by admin review and profile data.
               </span>
+            </label>
+            <label className="admin-field">
+              <span className="admin-field-label">Type</span>
               <select
                 value={field.type}
                 onChange={(event) =>
@@ -160,10 +165,8 @@ export function SellerFormDefinitionEditor({
                 <option value="file">File upload</option>
               </select>
             </label>
-            <label className="grid gap-2">
-              <span className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-                Sort order
-              </span>
+            <label className="admin-field">
+              <span className="admin-field-label">Sort order</span>
               <input
                 type="number"
                 value={field.sortOrder ?? 0}
@@ -179,10 +182,8 @@ export function SellerFormDefinitionEditor({
                 className="surface-input w-full text-sm"
               />
             </label>
-            <label className="grid gap-2 md:col-span-2">
-              <span className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-                Placeholder
-              </span>
+            <label className="admin-field md:col-span-2">
+              <span className="admin-field-label">Placeholder</span>
               <input
                 value={field.placeholder ?? ""}
                 onChange={(event) =>
@@ -197,10 +198,8 @@ export function SellerFormDefinitionEditor({
                 className="surface-input w-full text-sm"
               />
             </label>
-            <label className="grid gap-2 md:col-span-2">
-              <span className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-                Help text
-              </span>
+            <label className="admin-field md:col-span-2">
+              <span className="admin-field-label">Help text</span>
               <input
                 value={field.helpText ?? ""}
                 onChange={(event) =>
@@ -216,10 +215,8 @@ export function SellerFormDefinitionEditor({
               />
             </label>
             {field.type === "select" ? (
-              <label className="grid gap-2 md:col-span-2">
-                <span className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-                  Options
-                </span>
+              <label className="admin-field md:col-span-2">
+                <span className="admin-field-label">Options</span>
                 <textarea
                   value={(field.options ?? []).join("\n")}
                   onChange={(event) =>
@@ -240,9 +237,16 @@ export function SellerFormDefinitionEditor({
                   rows={4}
                   className="surface-input min-h-24 w-full text-sm"
                 />
+                <span className="admin-field-help">
+                  Add one dropdown option per line.
+                </span>
               </label>
             ) : null}
-            <label className="flex items-center gap-3 md:col-span-2">
+            <label className="admin-toggle md:col-span-2">
+              <span className="admin-toggle-copy">
+                <span>Required field</span>
+                <span>Sellers must answer this before submitting.</span>
+              </span>
               <input
                 type="checkbox"
                 checked={field.required ?? false}
@@ -255,9 +259,7 @@ export function SellerFormDefinitionEditor({
                     ),
                   )
                 }
-                className="h-4 w-4 accent-[var(--brand)]"
               />
-              <span className="text-sm font-semibold">Required field</span>
             </label>
           </div>
         </div>

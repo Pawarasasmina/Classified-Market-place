@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchWalletPaymentsReport } from "@/lib/marketplace-api";
@@ -38,14 +40,20 @@ export default async function AdminWalletPage() {
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel-dark p-6">
-        <p className="section-eyebrow">Wallet operations</p>
-        <h1 className="mt-2 text-3xl font-black text-white">Admin wallet desk</h1>
-        <p className="mt-2 text-[#d7d9ea]">
-          Audit seller balances, recent wallet movement, and jump into per-user
-          credit or debit actions.
-        </p>
-      </div>
+      <AdminPageHeader
+        eyebrow="Wallet operations"
+        title="Admin wallet desk"
+        description="Audit seller balances, recent wallet movement, and jump into per-user credit or debit actions."
+        badge={formatMoney(report.overview.totalBalance)}
+        actions={
+          <Link
+            href="/admin/reports/wallet-payments"
+            className="action-primary px-4 py-2 text-sm font-semibold"
+          >
+            Full wallet report
+          </Link>
+        }
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
@@ -67,12 +75,6 @@ export default async function AdminWalletPage() {
 
       <div className="flex flex-wrap gap-2">
         <Link
-          href="/admin/reports/wallet-payments"
-          className="action-primary px-4 py-3 text-sm font-bold"
-        >
-          Full wallet report
-        </Link>
-        <Link
           href="/admin/transactions?type=WALLET_TOP_UP"
           className="action-secondary px-4 py-3 text-sm font-bold"
         >
@@ -92,51 +94,64 @@ export default async function AdminWalletPage() {
         </Link>
       </div>
 
-      <section className="panel overflow-x-auto">
+      <section className="panel grid gap-4">
         <div className="mb-4">
           <h2 className="text-xl font-semibold">Wallet accounts</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
             Open a user to adjust balances and review their full wallet ledger.
           </p>
         </div>
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="border-b border-[var(--line)] text-left text-xs uppercase tracking-wide text-[var(--muted)]">
-              <th className="py-3 pr-4">User</th>
-              <th className="py-3 pr-4">Balance</th>
-              <th className="py-3 pr-4">Net movement</th>
-              <th className="py-3 pr-4">Ledger</th>
-              <th className="py-3 pr-4">Last activity</th>
-              <th className="py-3 pr-4">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.wallets.map((wallet) => (
-              <tr key={wallet.id} className="border-b border-[var(--line)]">
-                <td className="py-3 pr-4">
-                  <p className="font-bold">{wallet.user.displayName}</p>
-                  <p className="text-xs text-[var(--muted)]">{wallet.user.email}</p>
-                </td>
-                <td className="py-3 pr-4">
-                  {formatMoney(wallet.balance, wallet.currency)}
-                </td>
-                <td className="py-3 pr-4">
-                  {formatMoney(wallet.netMovement, wallet.currency)}
-                </td>
-                <td className="py-3 pr-4">{wallet.ledgerEntryCount}</td>
-                <td className="py-3 pr-4">{formatDate(wallet.latestLedgerAt)}</td>
-                <td className="py-3 pr-4">
-                  <Link
-                    href={`/admin/users/${wallet.userId}`}
-                    className="admin-table-action"
-                  >
-                    Open user wallet
-                  </Link>
-                </td>
+        <AdminTableEnhancer
+          tableId="admin-wallet-table"
+          copyLabel="user IDs"
+          stickyActions
+        />
+        <div className="admin-table-wrap">
+          <table id="admin-wallet-table" className="admin-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Balance</th>
+                <th>Net movement</th>
+                <th>Ledger</th>
+                <th>Last activity</th>
+                <th>Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {report.wallets.map((wallet) => (
+                <tr key={wallet.id} data-row-id={wallet.userId}>
+                  <td data-label="User">
+                    <p className="font-bold">{wallet.user.displayName}</p>
+                    <p className="text-xs text-[var(--muted)]">{wallet.user.email}</p>
+                  </td>
+                  <td data-label="Balance">{formatMoney(wallet.balance, wallet.currency)}</td>
+                  <td data-label="Net movement">{formatMoney(wallet.netMovement, wallet.currency)}</td>
+                  <td data-label="Ledger">{wallet.ledgerEntryCount}</td>
+                  <td data-label="Last activity">{formatDate(wallet.latestLedgerAt)}</td>
+                  <td data-label="Actions">
+                    <div className="admin-row-actions">
+                      <Link
+                        href={`/admin/users/${wallet.userId}`}
+                        className="admin-table-action"
+                      >
+                        Open user wallet
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {report.wallets.length === 0 ? (
+            <div className="admin-empty-state">
+              <p className="admin-empty-state-title">No wallets found</p>
+              <p className="admin-empty-state-copy">
+                Wallet accounts will appear here after users receive balances or ledger activity.
+              </p>
+            </div>
+          ) : null}
+        </div>
       </section>
     </div>
   );

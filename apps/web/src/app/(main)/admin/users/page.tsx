@@ -2,10 +2,23 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { updateAdminUserAction } from "@/app/(main)/actions";
 import {
+  AdminActionFeedback,
+  AdminSubmitButton,
+} from "@/components/marketplace/admin-form-feedback";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
+import { AdminTablePagination } from "@/components/marketplace/admin-table-pagination";
+import {
   assignableUserRoles,
   hasAdminPermission,
   humanizeAdminRole,
 } from "@/lib/admin-permissions";
+import {
+  buildAdminPaginationHref,
+  getAdminPaginationHiddenFields,
+  getAdminPaginationState,
+  paginateAdminItems,
+} from "@/lib/admin-pagination";
 import { requireSessionContext } from "@/lib/auth-dal";
 import {
   fetchAdminSellerRatingSummaries,
@@ -20,7 +33,34 @@ const sellerTiers: ApiSellerPriorityTier[] = [
   "VIP",
 ];
 
-export default async function AdminUsersPage() {
+type AdminUsersPageProps = {
+  searchParams: Promise<{
+    q?: string;
+    role?: string;
+    tier?: ApiSellerPriorityTier;
+    message?: string;
+    user?: string;
+    wallet?: string;
+    page?: string;
+    pageSize?: string;
+  }>;
+};
+
+function buildReturnTo(searchParams: Awaited<AdminUsersPageProps["searchParams"]>) {
+  const params = new URLSearchParams();
+
+  if (searchParams.q) params.set("q", searchParams.q);
+  if (searchParams.role) params.set("role", searchParams.role);
+  if (searchParams.tier) params.set("tier", searchParams.tier);
+  if (searchParams.page) params.set("page", searchParams.page);
+  if (searchParams.pageSize) params.set("pageSize", searchParams.pageSize);
+
+  const query = params.toString();
+  return query ? `/admin/users?${query}` : "/admin/users";
+}
+
+export default async function AdminUsersPage(props: AdminUsersPageProps) {
+  const searchParams = await props.searchParams;
   const { accessToken, user } = await requireSessionContext("/admin/users");
 
   if (!hasAdminPermission(user.role, "USERS_READ")) {
@@ -38,27 +78,61 @@ export default async function AdminUsersPage() {
   const prioritizedCount = users.filter(
     (item) => (item.sellerPriorityTier ?? "NONE") !== "NONE",
   ).length;
+  const query = searchParams.q?.trim() ?? "";
+  const role = searchParams.role?.trim().toUpperCase() ?? "";
+  const tier = sellerTiers.includes(searchParams.tier as ApiSellerPriorityTier)
+    ? searchParams.tier
+    : "";
+  const roles = Array.from(new Set(users.map((item) => item.role.toUpperCase())));
+  const filteredUsers = users.filter((item) => {
+    const matchesRole = !role || item.role.toUpperCase() === role;
+    const matchesTier = !tier || (item.sellerPriorityTier ?? "NONE") === tier;
+    const searchable = [item.displayName, item.email, item.phone, item.role]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const matchesQuery = !query || searchable.includes(query.toLowerCase());
+
+    return matchesRole && matchesTier && matchesQuery;
+  });
+  const pagination = getAdminPaginationState(
+    searchParams,
+    filteredUsers.length,
+  );
+  const paginatedUsers = paginateAdminItems(filteredUsers, pagination);
+  const paginationParams = { q: query, role, tier, pageSize: pagination.pageSize };
+  const returnTo = buildReturnTo(searchParams);
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Seller trust
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Users</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            Assign authorized, verified, and VIP priority tiers for customer
-            search results.
-          </p>
-        </div>
-        <Link
-          href="/admin"
-          className="action-secondary px-4 py-2 text-sm font-semibold"
-        >
-          Back to admin
-        </Link>
-      </div>
+      <AdminPageHeader
+        eyebrow="Seller trust"
+        title="Users"
+        description="Assign authorized, verified, and VIP priority tiers for customer search results."
+        badge={`${filteredUsers.length} shown / ${users.length} total`}
+        actions={
+          <Link
+            href="/admin"
+            className="action-secondary px-4 py-2 text-sm font-semibold"
+          >
+            Back to admin
+          </Link>
+        }
+      />
+
+      <AdminActionFeedback
+        status={searchParams.user ?? searchParams.wallet}
+        message={searchParams.message}
+        messages={{
+          updated: "User details updated.",
+          invalid: searchParams.wallet
+            ? "Check the wallet amount and try again."
+            : "Check the user fields and try again.",
+          credited: "Wallet credited.",
+          debited: "Wallet debited.",
+        }}
+        successStatuses={["updated", "credited", "debited"]}
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
@@ -78,8 +152,50 @@ export default async function AdminUsersPage() {
         ))}
       </section>
 
+      <form className="panel admin-filter-bar grid gap-3 lg:grid-cols-[1.5fr_1fr_1fr_auto] lg:items-end">
+        <label className="grid gap-2 text-sm font-bold">
+          Search users
+          <input
+            name="q"
+            defaultValue={query}
+            className="surface-input"
+            placeholder="Name, email, phone, or role"
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-bold">
+          Role
+          <select name="role" defaultValue={role} className="surface-input">
+            <option value="">All roles</option>
+            {roles.map((item) => (
+              <option key={item} value={item}>
+                {humanizeAdminRole(item)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-2 text-sm font-bold">
+          Seller tier
+          <select name="tier" defaultValue={tier} className="surface-input">
+            <option value="">All tiers</option>
+            {sellerTiers.map((item) => (
+              <option key={item} value={item}>
+                {humanizeAdminRole(item)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className="action-primary px-4 py-3 text-sm font-black">
+          Filter
+        </button>
+      </form>
+
+      <AdminTableEnhancer
+        tableId="admin-users-table"
+        copyLabel="user IDs"
+        stickyActions
+      />
       <div className="admin-table-wrap">
-        <table className="admin-table">
+        <table id="admin-users-table" className="admin-table">
           <thead>
             <tr>
               <th>User</th>
@@ -92,9 +208,9 @@ export default async function AdminUsersPage() {
             </tr>
           </thead>
           <tbody>
-            {users.map((item) => (
-              <tr key={item.id}>
-                <td>
+            {paginatedUsers.map((item) => (
+              <tr key={item.id} data-row-id={item.id}>
+                <td data-label="User">
                   <div className="grid gap-1">
                     <span className="font-semibold">{item.displayName}</span>
                     <span className="text-sm text-[var(--muted)]">
@@ -102,14 +218,32 @@ export default async function AdminUsersPage() {
                     </span>
                   </div>
                 </td>
-                <td>{item.role}</td>
-                <td>{humanizeAdminRole(item.sellerPriorityTier ?? "NONE")}</td>
-                <td>
+                <td data-label="Role">
+                  <span
+                    className="admin-status-badge"
+                    data-status={item.role.toLowerCase()}
+                  >
+                    {item.role}
+                  </span>
+                </td>
+                <td data-label="Tier">
+                  <span
+                    className="admin-status-badge"
+                    data-status={
+                      (item.sellerPriorityTier ?? "NONE") === "NONE"
+                        ? "none"
+                        : "success"
+                    }
+                  >
+                    {humanizeAdminRole(item.sellerPriorityTier ?? "NONE")}
+                  </span>
+                </td>
+                <td data-label="Customer rating">
                   {sellerSummaries.get(item.id)?.ratingCount
                     ? `${sellerSummaries.get(item.id)?.averageRating?.toFixed(1)} / 5 (${sellerSummaries.get(item.id)?.ratingCount})`
                     : "No ratings"}
                 </td>
-                <td>
+                <td data-label="Reviews">
                   {sellerSummaries.get(item.id)?.reviewCount ? (
                     <Link
                       href={`/sellers/${item.id}?view=customer`}
@@ -121,16 +255,22 @@ export default async function AdminUsersPage() {
                     "0"
                   )}
                 </td>
-                <td>
-                  {item.emailVerified || item.phoneVerified ? "Yes" : "No"}
+                <td data-label="Verified">
+                  <span
+                    className="admin-status-badge"
+                    data-status={item.emailVerified || item.phoneVerified ? "yes" : "no"}
+                  >
+                    {item.emailVerified || item.phoneVerified ? "Yes" : "No"}
+                  </span>
                 </td>
-                <td>
+                <td data-label="Actions">
                   {canEditUsers ? (
                     <form
                       action={updateAdminUserAction}
-                      className="grid min-w-[280px] gap-2"
+                      className="admin-row-actions-grid min-w-[280px]"
                     >
                       <input type="hidden" name="userId" value={item.id} />
+                      <input type="hidden" name="returnTo" value={returnTo} />
                       <input type="hidden" name="name" value={item.displayName} />
                       <input
                         type="hidden"
@@ -181,7 +321,13 @@ export default async function AdminUsersPage() {
                           Phone
                         </label>
                       </div>
-                      <button className="admin-table-action">Save</button>
+                      <AdminSubmitButton
+                        className="admin-table-action"
+                        confirmMessage={`Save role, verification, or seller tier changes for ${item.displayName}?`}
+                        pendingText="Saving..."
+                      >
+                        Save
+                      </AdminSubmitButton>
                     </form>
                   ) : (
                     <span className="text-sm text-[var(--muted)]">
@@ -193,12 +339,28 @@ export default async function AdminUsersPage() {
             ))}
           </tbody>
         </table>
-        {users.length === 0 ? (
-          <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-            No users are available.
+        {filteredUsers.length === 0 ? (
+          <div className="admin-empty-state">
+            <p className="admin-empty-state-title">No users found</p>
+            <p className="admin-empty-state-copy">
+              Adjust the search, role, or seller tier filters to broaden the user list.
+            </p>
           </div>
         ) : null}
       </div>
+      {filteredUsers.length > 0 ? (
+        <AdminTablePagination
+          buildPageHref={(page, pageSize = pagination.pageSize) =>
+            buildAdminPaginationHref("/admin/users", paginationParams, {
+              page,
+              pageSize,
+            })
+          }
+          hiddenFields={getAdminPaginationHiddenFields(paginationParams)}
+          itemLabel="users"
+          pagination={pagination}
+        />
+      ) : null}
     </div>
   );
 }

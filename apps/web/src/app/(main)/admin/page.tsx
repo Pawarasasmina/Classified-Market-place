@@ -1,9 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { ReactNode } from "react";
 import {
   moderateListingAction,
   updateListingPriorityOverrideAction,
 } from "@/app/(main)/actions";
+import {
+  AdminActionFeedback,
+  AdminSubmitButton,
+} from "@/components/marketplace/admin-form-feedback";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
 import {
   hasAdminPermission,
   humanizeAdminRole,
@@ -50,24 +57,134 @@ function getAdminDataUnavailableMessage(error: unknown) {
   return "Admin data is temporarily unavailable.";
 }
 
+function AdminModuleIcon({
+  name,
+  className,
+}: {
+  name: string;
+  className?: string;
+}) {
+  const paths: Record<string, ReactNode> = {
+    approvals: (
+      <>
+        <path d="M12 3 3.8 18.2A1.8 1.8 0 0 0 5.4 21h13.2a1.8 1.8 0 0 0 1.6-2.8Z" />
+        <path d="M12 8.5v5" />
+        <path d="M12 17h.01" />
+      </>
+    ),
+    catalog: (
+      <>
+        <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h4l2 2H18a2 2 0 0 1 2 2v9.5A2.5 2.5 0 0 1 17.5 20h-11A2.5 2.5 0 0 1 4 17.5Z" />
+        <path d="M8 11h8" />
+        <path d="M8 15h5" />
+      </>
+    ),
+    promotions: (
+      <>
+        <path d="M4 13V8.5A2.5 2.5 0 0 1 6.5 6H9l8-3v16l-8-3H6.5A2.5 2.5 0 0 1 4 13.5Z" />
+        <path d="M9 16v4" />
+        <path d="M18 9h2" />
+        <path d="m18.5 5.5 1.5-1.5" />
+        <path d="m18.5 12.5 1.5 1.5" />
+      </>
+    ),
+    ranking: (
+      <>
+        <path d="M4 19h16" />
+        <path d="M7 16v-4" />
+        <path d="M12 16V7" />
+        <path d="M17 16v-7" />
+        <path d="m15 7 2-2 2 2" />
+      </>
+    ),
+    reports: (
+      <>
+        <path d="M5 19V5" />
+        <path d="M5 19h15" />
+        <path d="M9 15v-4" />
+        <path d="M13 15V8" />
+        <path d="M17 15v-2" />
+      </>
+    ),
+    support: (
+      <>
+        <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v6A2.5 2.5 0 0 1 16.5 15H10l-4 4v-4.6A2.5 2.5 0 0 1 5 12.5Z" />
+        <path d="M8.5 8.5h7" />
+        <path d="M8.5 11.5H13" />
+      </>
+    ),
+    users: (
+      <>
+        <path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+        <path d="M17 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
+        <path d="M3.5 20a5.5 5.5 0 0 1 11 0" />
+        <path d="M14.5 17.5A4.5 4.5 0 0 1 21 20" />
+      </>
+    ),
+    wallet: (
+      <>
+        <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a2 2 0 0 1 2 2v10.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5Z" />
+        <path d="M16 12h4v4h-4a2 2 0 0 1 0-4Z" />
+        <path d="M7 8h8" />
+      </>
+    ),
+    default: (
+      <>
+        <path d="M5 5h14v14H5Z" />
+        <path d="M9 9h6" />
+        <path d="M9 13h6" />
+      </>
+    ),
+  };
+
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      {paths[name] ?? paths.default}
+    </svg>
+  );
+}
+
+function adminModuleIconName(eyebrow: string) {
+  const key = eyebrow.toLowerCase();
+
+  if (["revenue", "wallets", "payments"].includes(key)) return "wallet";
+  if (["promotions"].includes(key)) return "promotions";
+  if (["reports", "monitoring", "listings"].includes(key)) return "reports";
+  if (["users", "sellers", "reviews"].includes(key)) return "users";
+  if (["approvals", "moderation", "security"].includes(key)) return "approvals";
+  if (["ranking"].includes(key)) return "ranking";
+  if (["support"].includes(key)) return "support";
+  if (["catalog"].includes(key)) return "catalog";
+
+  return "default";
+}
+
 function AdminDataUnavailable({ message }: { message: string }) {
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Admin workspace
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Dashboard unavailable</h1>
-          <p className="mt-2 max-w-3xl text-[var(--muted)]">{message}</p>
-        </div>
-        <Link
-          href="/admin"
-          className="action-primary px-4 py-2 text-sm font-semibold"
-        >
-          Retry
-        </Link>
-      </div>
+      <AdminPageHeader
+        eyebrow="Admin workspace"
+        title="Dashboard unavailable"
+        description={message}
+        badge="Data paused"
+        actions={
+          <Link
+            href="/admin"
+            className="action-primary px-4 py-2 text-sm font-semibold"
+          >
+            Retry
+          </Link>
+        }
+      />
 
       <section className="grid gap-4 lg:grid-cols-3">
         {[
@@ -194,9 +311,11 @@ const scopedDashboardLinks: Array<{
 async function ScopedAdminDashboard({
   accessToken,
   role,
+  searchParams,
 }: {
   accessToken: string;
   role: string;
+  searchParams: Awaited<AdminPageProps["searchParams"]>;
 }) {
   const canModerateListings = hasAdminPermission(role, "LISTINGS_MODERATE");
   const listings = canModerateListings
@@ -209,44 +328,45 @@ async function ScopedAdminDashboard({
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Admin workspace
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">
-            {humanizeAdminRole(role)}
-          </h1>
-          <p className="mt-2 text-[var(--muted)]">
-            Your workspace is scoped to the permissions assigned to this role.
-          </p>
-        </div>
-        <Link
-          href="/?view=customer"
-          target="_blank"
-          rel="noreferrer"
-          className="action-primary px-4 py-2 text-sm font-semibold"
-        >
-          View customer view
-        </Link>
-      </div>
+      <AdminPageHeader
+        eyebrow="Admin workspace"
+        title={humanizeAdminRole(role)}
+        description="Your workspace is scoped to the permissions assigned to this role."
+        badge={`${allowedLinks.length} modules`}
+      />
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <AdminActionFeedback
+        status={searchParams.moderation}
+        message={searchParams.message}
+        messages={{
+          updated: "Listing moderation updated.",
+          invalid: "Choose a listing and status before submitting.",
+        }}
+        successStatuses={["updated"]}
+      />
+
+      <section className="admin-card-grid grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {allowedLinks.map((item) => (
           <Link
             key={item.title}
             href={item.href}
-            className="admin-dashboard-card"
+            className="admin-dashboard-card admin-action-card"
           >
-            <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-              {item.eyebrow}
-            </p>
-            <h2 className="mt-2 text-xl font-bold text-[var(--foreground)]">
-              {item.title}
-            </h2>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              {item.description}
-            </p>
+            <div className="admin-card-body">
+              <div className="admin-card-head">
+                <span className="admin-card-icon">
+                  <AdminModuleIcon
+                    name={adminModuleIconName(item.eyebrow)}
+                    className="admin-card-icon-svg"
+                  />
+                </span>
+                <div>
+                  <p className="admin-card-eyebrow">{item.eyebrow}</p>
+                  <h2 className="admin-card-title">{item.title}</h2>
+                </div>
+              </div>
+              <p className="admin-card-copy">{item.description}</p>
+            </div>
           </Link>
         ))}
       </section>
@@ -260,8 +380,13 @@ async function ScopedAdminDashboard({
               listings are shown.
             </p>
           </div>
+          <AdminTableEnhancer
+            tableId="admin-scoped-moderation-table"
+            copyLabel="listing IDs"
+            stickyActions
+          />
           <div className="admin-table-wrap">
-            <table className="admin-table">
+            <table id="admin-scoped-moderation-table" className="admin-table">
               <thead>
                 <tr>
                   <th>Listing</th>
@@ -274,20 +399,23 @@ async function ScopedAdminDashboard({
               </thead>
               <tbody>
                 {(reviewQueue.length ? reviewQueue : listings).map((listing) => (
-                  <tr key={listing.id}>
-                    <td>
+                  <tr key={listing.id} data-row-id={listing.id}>
+                    <td data-label="Listing">
                       <span className="font-semibold">{listing.title}</span>
                     </td>
-                    <td>
-                      <span className="admin-status-badge">
+                    <td data-label="Status">
+                      <span
+                        className="admin-status-badge"
+                        data-status={listing.status.toLowerCase()}
+                      >
                         {listing.status}
                       </span>
                     </td>
-                    <td>{listing.subcategory}</td>
-                    <td>{listing.location}</td>
-                    <td>{listing.priceLabel}</td>
-                    <td>
-                      <div className="flex flex-wrap gap-2">
+                    <td data-label="Category">{listing.subcategory}</td>
+                    <td data-label="Location">{listing.location}</td>
+                    <td data-label="Price">{listing.priceLabel}</td>
+                    <td data-label="Actions">
+                      <div className="admin-row-actions">
                         {(["ACTIVE", "REJECTED", "DELETED"] as const).map(
                           (status) => (
                             <form key={status} action={moderateListingAction}>
@@ -297,13 +425,24 @@ async function ScopedAdminDashboard({
                                 value={listing.id}
                               />
                               <input type="hidden" name="status" value={status} />
-                              <button className="admin-table-action">
+                              <input type="hidden" name="returnTo" value="/admin" />
+                              <AdminSubmitButton
+                                className="admin-table-action"
+                                confirmMessage={`${
+                                  status === "ACTIVE"
+                                    ? "Approve"
+                                    : status === "REJECTED"
+                                      ? "Reject"
+                                      : "Delete"
+                                } "${listing.title}"? This changes the listing status for customers and the seller.`}
+                                pendingText="Updating..."
+                              >
                                 {status === "ACTIVE"
                                   ? "Approve"
                                   : status === "REJECTED"
                                     ? "Reject"
                                     : "Delete"}
-                              </button>
+                              </AdminSubmitButton>
                             </form>
                           ),
                         )}
@@ -314,8 +453,11 @@ async function ScopedAdminDashboard({
               </tbody>
             </table>
             {listings.length === 0 ? (
-              <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-                No listings are available for moderation.
+              <div className="admin-empty-state">
+                <p className="admin-empty-state-title">No listings found</p>
+                <p className="admin-empty-state-copy">
+                  New seller submissions and recent listings will appear here for moderation.
+                </p>
               </div>
             ) : null}
           </div>
@@ -325,7 +467,16 @@ async function ScopedAdminDashboard({
   );
 }
 
-export default async function AdminPage() {
+type AdminPageProps = {
+  searchParams: Promise<{
+    message?: string;
+    moderation?: string;
+    priority?: string;
+  }>;
+};
+
+export default async function AdminPage(props: AdminPageProps) {
+  const searchParams = await props.searchParams;
   const { accessToken, user } = await requireSessionContext("/admin");
 
   if (!hasAdminPermission(user.role, "ADMIN_DASHBOARD")) {
@@ -333,7 +484,13 @@ export default async function AdminPage() {
   }
 
   if (normalizeRole(user.role) !== "ADMIN") {
-    return <ScopedAdminDashboard accessToken={accessToken} role={user.role} />;
+    return (
+      <ScopedAdminDashboard
+        accessToken={accessToken}
+        role={user.role}
+        searchParams={searchParams}
+      />
+    );
   }
 
   let adminData: Awaited<ReturnType<typeof loadAdminDashboardData>>;
@@ -460,6 +617,7 @@ export default async function AdminPage() {
       description: "Review sellers waiting for an approved priority tier.",
       metric: pendingSellerApprovals.overview.pendingApprovals,
       metricLabel: "pending",
+      attention: pendingSellerApprovals.overview.pendingApprovals > 0,
     },
     {
       href: "#moderation",
@@ -468,6 +626,7 @@ export default async function AdminPage() {
       description: "Approve, reject, or remove marketplace listings.",
       metric: reviewQueue.length,
       metricLabel: "pending",
+      attention: reviewQueue.length > 0,
     },
     {
       href: "/messages",
@@ -484,6 +643,7 @@ export default async function AdminPage() {
       description: "Approve or reject written customer feedback.",
       metric: pendingReviews.length,
       metricLabel: "pending",
+      attention: pendingReviews.length > 0,
     },
     {
       href: "/admin/reports/active-listings",
@@ -532,6 +692,7 @@ export default async function AdminPage() {
       description: "Track revenue, engagement, queues, and safety alerts.",
       metric: monitoringReport.overview.openReports,
       metricLabel: "open",
+      attention: monitoringReport.overview.openReports > 0,
     },
     {
       href: "/admin/listing-reports",
@@ -540,6 +701,7 @@ export default async function AdminPage() {
       description: "Review submitted listing reports and action unsafe ads.",
       metric: listingReports.length,
       metricLabel: "open",
+      attention: listingReports.length > 0,
     },
     {
       href: "/admin/transactions",
@@ -562,65 +724,86 @@ export default async function AdminPage() {
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Admin workspace
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Dashboard</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            Manage the marketplace without switching through customer pages.
-          </p>
-        </div>
-        <Link
-          href="/?view=customer"
-          target="_blank"
-          rel="noreferrer"
-          className="action-primary px-4 py-2 text-sm font-semibold"
-        >
-          View customer view
-        </Link>
-      </div>
+      <AdminPageHeader
+        eyebrow="Admin workspace"
+        title="Dashboard"
+        description="Manage the marketplace without switching through customer pages."
+        badge={`${reviewQueue.length} pending reviews`}
+      />
+
+      <AdminActionFeedback
+        status={searchParams.priority ?? searchParams.moderation}
+        message={searchParams.message}
+        messages={{
+          updated: searchParams.priority
+            ? "Priority override updated."
+            : "Listing moderation updated.",
+          invalid: searchParams.priority
+            ? "Check the priority override fields and try again."
+            : "Choose a listing and status before submitting.",
+        }}
+        successStatuses={["updated"]}
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          ["Pending", reviewQueue.length],
-          ["Active", activeCount],
-          ["Rejected", rejectedCount],
-          ["Deleted", deletedCount],
-        ].map(([label, value]) => (
-          <div key={label} className="admin-stat-card">
-            <p className="text-sm text-[var(--muted)]">{label}</p>
-            <p className="mt-2 text-3xl font-bold">{value}</p>
+          { label: "Pending", value: reviewQueue.length, tone: "attention" },
+          { label: "Active", value: activeCount, tone: "success" },
+          { label: "Rejected", value: rejectedCount, tone: "danger" },
+          { label: "Deleted", value: deletedCount, tone: "neutral" },
+        ].map((item) => (
+          <div
+            key={item.label}
+            className={`admin-stat-card admin-kpi-card admin-kpi-card-${item.tone}`}
+          >
+            <p className="admin-kpi-label">
+              <span className="admin-kpi-status-dot" />
+              {item.label}
+            </p>
+            <p className="admin-kpi-value">{item.value}</p>
           </div>
         ))}
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
-        {dashboardLinks.map((item) => (
-          <Link
-            key={item.title}
-            href={item.href}
-            className="admin-dashboard-card"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-                  {item.eyebrow}
-                </p>
-                <h2 className="mt-2 text-xl font-bold text-[var(--foreground)]">
-                  {item.title}
-                </h2>
-                <p className="mt-2 text-sm text-[var(--muted)]">
-                  {item.description}
-                </p>
+      <section className="admin-card-grid grid gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
+        {dashboardLinks.map((item) => {
+          const attention = "attention" in item && item.attention;
+
+          return (
+            <Link
+              key={item.title}
+              href={item.href}
+              className={`admin-dashboard-card admin-action-card ${
+                attention ? "admin-attention-card" : ""
+              }`}
+            >
+              <div className="admin-card-body">
+                <div>
+                  <div className="admin-card-head">
+                    <span className="admin-card-icon">
+                      <AdminModuleIcon
+                        name={adminModuleIconName(item.eyebrow)}
+                        className="admin-card-icon-svg"
+                      />
+                    </span>
+                    <div>
+                      <p className="admin-card-eyebrow">{item.eyebrow}</p>
+                      <h2 className="admin-card-title">{item.title}</h2>
+                    </div>
+                  </div>
+                  <p className="admin-card-copy">{item.description}</p>
+                </div>
+                <span
+                  className={`admin-card-metric ${
+                    attention ? "admin-card-metric-attention" : ""
+                  }`}
+                >
+                  {item.metric} {item.metricLabel}
+                </span>
               </div>
-              <span className="rounded-md bg-[var(--accent-soft)] px-3 py-2 text-sm font-semibold text-[var(--foreground)]">
-                {item.metric} {item.metricLabel}
-              </span>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </section>
 
       <section id="ranking-preview" className="scroll-mt-24 grid gap-4">
@@ -763,9 +946,12 @@ export default async function AdminPage() {
                   className="surface-input"
                 />
               </label>
-              <button className="action-primary self-end px-4 py-2 text-sm font-semibold">
+              <AdminSubmitButton
+                className="action-primary self-end px-4 py-2 text-sm font-semibold"
+                pendingText="Saving priority..."
+              >
                 Save priority
-              </button>
+              </AdminSubmitButton>
             </form>
           ))}
           {activeListings.length === 0 ? (
@@ -792,8 +978,13 @@ export default async function AdminPage() {
             Manage categories
           </Link>
         </div>
+        <AdminTableEnhancer
+          tableId="admin-dashboard-moderation-table"
+          copyLabel="listing IDs"
+          stickyActions
+        />
         <div className="admin-table-wrap">
-          <table className="admin-table">
+          <table id="admin-dashboard-moderation-table" className="admin-table">
             <thead>
               <tr>
                 <th>Listing</th>
@@ -806,18 +997,23 @@ export default async function AdminPage() {
             </thead>
             <tbody>
               {(reviewQueue.length ? reviewQueue : listings).map((listing) => (
-                <tr key={listing.id}>
-                  <td>
+                <tr key={listing.id} data-row-id={listing.id}>
+                  <td data-label="Listing">
                     <span className="font-semibold">{listing.title}</span>
                   </td>
-                  <td>
-                    <span className="admin-status-badge">{listing.status}</span>
+                  <td data-label="Status">
+                    <span
+                      className="admin-status-badge"
+                      data-status={listing.status.toLowerCase()}
+                    >
+                      {listing.status}
+                    </span>
                   </td>
-                  <td>{listing.subcategory}</td>
-                  <td>{listing.location}</td>
-                  <td>{listing.priceLabel}</td>
-                  <td>
-                    <div className="flex flex-wrap gap-2">
+                  <td data-label="Category">{listing.subcategory}</td>
+                  <td data-label="Location">{listing.location}</td>
+                  <td data-label="Price">{listing.priceLabel}</td>
+                  <td data-label="Actions">
+                    <div className="admin-row-actions">
                       {(["ACTIVE", "REJECTED", "DELETED"] as const).map(
                         (status) => (
                           <form key={status} action={moderateListingAction}>
@@ -827,13 +1023,24 @@ export default async function AdminPage() {
                               value={listing.id}
                             />
                             <input type="hidden" name="status" value={status} />
-                            <button className="admin-table-action">
+                            <input type="hidden" name="returnTo" value="/admin" />
+                            <AdminSubmitButton
+                              className="admin-table-action"
+                              confirmMessage={`${
+                                status === "ACTIVE"
+                                  ? "Approve"
+                                  : status === "REJECTED"
+                                    ? "Reject"
+                                    : "Delete"
+                              } "${listing.title}"? This changes the listing status for customers and the seller.`}
+                              pendingText="Updating..."
+                            >
                               {status === "ACTIVE"
                                 ? "Approve"
                                 : status === "REJECTED"
                                   ? "Reject"
                                   : "Delete"}
-                            </button>
+                            </AdminSubmitButton>
                           </form>
                         ),
                       )}
@@ -844,8 +1051,11 @@ export default async function AdminPage() {
             </tbody>
           </table>
           {listings.length === 0 ? (
-            <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-              No listings are available for moderation.
+            <div className="admin-empty-state">
+              <p className="admin-empty-state-title">No listings found</p>
+              <p className="admin-empty-state-copy">
+                New seller submissions and recent listings will appear here for moderation.
+              </p>
             </div>
           ) : null}
         </div>

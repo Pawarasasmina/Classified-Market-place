@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { AdminReportEmailForm } from "@/components/marketplace/admin-report-email-form";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminMonitoringReport } from "@/lib/marketplace-api";
@@ -117,11 +119,11 @@ function barWidth(value: number, max: number) {
 
 function severityClass(severity: string) {
   if (severity === "high") {
-    return "border-red-300/40 bg-red-500/10 text-red-100";
+    return "border-red-300/40 bg-red-500/10 text-[var(--danger-text)]";
   }
 
   if (severity === "medium") {
-    return "border-amber-300/40 bg-amber-500/10 text-amber-100";
+    return "border-amber-300/40 bg-amber-500/10 text-[var(--warning-text)]";
   }
 
   return "border-[var(--line)] bg-[rgba(8,13,29,0.42)] text-[var(--foreground)]";
@@ -166,17 +168,14 @@ export default async function AdminReportsPage(props: AdminReportsPageProps) {
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Reports and monitoring
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Operations report</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            {formatDate(report.range.from)} to {formatDate(report.range.to)}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <AdminPageHeader
+        eyebrow="Reports and monitoring"
+        title="Operations report"
+        description={`${formatDate(report.range.from)} to ${formatDate(
+          report.range.to,
+        )}`}
+        actions={
+          <>
           {canEmailReports ? (
             <AdminReportEmailForm
               filters={{ days: selectedDays, topTake: 8 }}
@@ -245,8 +244,9 @@ export default async function AdminReportsPage(props: AdminReportsPageProps) {
           >
             Pending approvals
           </Link>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
@@ -522,8 +522,12 @@ export default async function AdminReportsPage(props: AdminReportsPageProps) {
               Listings with the highest views in the selected window.
             </p>
           </div>
+          <AdminTableEnhancer
+            tableId="admin-reports-top-listings-table"
+            copyLabel="listing IDs"
+          />
           <div className="admin-table-wrap">
-            <table className="admin-table">
+            <table id="admin-reports-top-listings-table" className="admin-table">
               <thead>
                 <tr>
                   <th>Listing</th>
@@ -536,8 +540,8 @@ export default async function AdminReportsPage(props: AdminReportsPageProps) {
               </thead>
               <tbody>
                 {report.topListings.map((listing) => (
-                  <tr key={listing.id}>
-                    <td>
+                  <tr key={listing.id} data-row-id={listing.id}>
+                    <td data-label="Listing">
                       <Link
                         href={`/listings/${listing.id}?view=customer`}
                         className="font-semibold"
@@ -549,22 +553,32 @@ export default async function AdminReportsPage(props: AdminReportsPageProps) {
                         {listing.sellerName ?? listing.sellerId}
                       </span>
                     </td>
-                    <td>
-                      <span className="admin-status-badge">
+                    <td data-label="Status">
+                      <span
+                        className="admin-status-badge"
+                        data-status={listing.status.toLowerCase()}
+                      >
                         {humanizeLabel(listing.status)}
                       </span>
                     </td>
-                    <td>{formatMetric(listing.viewCount)}</td>
-                    <td>{formatMetric(listing.saveCount)}</td>
-                    <td>{formatMetric(listing.inquiryCount)}</td>
-                    <td>{formatMetric(listing.reportCount)}</td>
+                    <td data-label="Views">{formatMetric(listing.viewCount)}</td>
+                    <td data-label="Saves">{formatMetric(listing.saveCount)}</td>
+                    <td data-label="Inquiries">
+                      {formatMetric(listing.inquiryCount)}
+                    </td>
+                    <td data-label="Reports">
+                      {formatMetric(listing.reportCount)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {report.topListings.length === 0 ? (
-              <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-                No listing views were recorded in this window.
+              <div className="admin-empty-state">
+                <p className="admin-empty-state-title">No top listings found</p>
+                <p className="admin-empty-state-copy">
+                  Listing engagement will appear here once views are recorded in the selected window.
+                </p>
               </div>
             ) : null}
           </div>
@@ -584,10 +598,13 @@ export default async function AdminReportsPage(props: AdminReportsPageProps) {
                 className="rounded-lg border border-[var(--line)] bg-[rgba(8,13,29,0.42)] p-4"
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="admin-status-badge">
+                  <span className="admin-status-badge" data-status="none">
                     {humanizeLabel(item.type)}
                   </span>
-                  <span className="admin-status-badge">
+                  <span
+                    className="admin-status-badge"
+                    data-status={item.status.toLowerCase()}
+                  >
                     {humanizeReportStatus(item.status)}
                   </span>
                 </div>
@@ -604,9 +621,12 @@ export default async function AdminReportsPage(props: AdminReportsPageProps) {
               </article>
             ))}
             {report.recentReports.length === 0 ? (
-              <p className="text-sm text-[var(--muted)]">
-                No reports have been submitted yet.
-              </p>
+              <div className="admin-empty-state rounded-lg border border-[var(--line)]">
+                <p className="admin-empty-state-title">No recent reports</p>
+                <p className="admin-empty-state-copy">
+                  Listing, conversation, and message reports will appear here as they are submitted.
+                </p>
+              </div>
             ) : null}
           </div>
         </div>

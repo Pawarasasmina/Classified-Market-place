@@ -1,11 +1,23 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminActionFeedback } from "@/components/marketplace/admin-form-feedback";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { CategoryManagement } from "@/components/marketplace/category-management";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminCategories } from "@/lib/marketplace-api";
 
-export default async function AdminSubcategoriesPage() {
+type AdminSubcategoriesPageProps = {
+  searchParams: Promise<{
+    category?: string;
+    message?: string;
+  }>;
+};
+
+export default async function AdminSubcategoriesPage(
+  props: AdminSubcategoriesPageProps,
+) {
+  const searchParams = await props.searchParams;
   const { accessToken, user } = await requireSessionContext(
     "/admin/categories/subcategories",
   );
@@ -19,24 +31,31 @@ export default async function AdminSubcategoriesPage() {
 
   return (
     <div className="page grid gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Admin dashboard
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Subcategories</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            Review inherited category questions, child-only overrides, and branch
-            structure in one place.
-          </p>
-        </div>
-        <Link
-          href="/admin/categories"
-          className="rounded-md border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
-        >
-          All categories
-        </Link>
-      </div>
+      <AdminPageHeader
+        eyebrow="Admin workspace"
+        title="Subcategories"
+        description="Review inherited category questions, child-only overrides, and branch structure in one place."
+        badge={`${categories.filter((category) => category.parentSlug).length} subcategories`}
+        actions={
+          <Link
+            href="/admin/categories"
+            className="action-secondary px-4 py-2 text-sm font-semibold"
+          >
+            All categories
+          </Link>
+        }
+      />
+
+      <AdminActionFeedback
+        status={searchParams.category}
+        message={searchParams.message}
+        messages={{
+          updated: "Category updated.",
+          deleted: "Category disabled.",
+          invalid: "Choose a category before submitting.",
+        }}
+        successStatuses={["updated", "deleted"]}
+      />
 
       <CategoryManagement
         categories={categories}

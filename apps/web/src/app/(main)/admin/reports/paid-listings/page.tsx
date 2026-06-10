@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { AdminReportEmailForm } from "@/components/marketplace/admin-report-email-form";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchPaidListingsReport } from "@/lib/marketplace-api";
@@ -99,17 +101,14 @@ export default async function PaidListingsReportPage(
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Listing report
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Paid listings</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            {formatDate(report.range.from)} to {formatDate(report.range.to)}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <AdminPageHeader
+        eyebrow="Listing report"
+        title="Paid listings"
+        description={`${formatDate(report.range.from)} to ${formatDate(
+          report.range.to,
+        )}`}
+        actions={
+          <>
           {canEmailReports ? (
             <AdminReportEmailForm
               filters={{ days: selectedDays, take: 100 }}
@@ -142,8 +141,9 @@ export default async function PaidListingsReportPage(
           >
             Operations report
           </Link>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
@@ -280,9 +280,15 @@ export default async function PaidListingsReportPage(
               </div>
             ))}
             {report.categories.length === 0 ? (
-              <p className="text-sm text-[var(--muted)]">
-                Paid listing categories will appear here.
-              </p>
+              <div className="admin-empty-state">
+                <p className="admin-empty-state-title">
+                  No paid listing categories
+                </p>
+                <p className="admin-empty-state-copy">
+                  Categories with paid listing activity will appear here once
+                  listing fee purchases settle.
+                </p>
+              </div>
             ) : null}
           </div>
         </div>
@@ -304,8 +310,12 @@ export default async function PaidListingsReportPage(
           </Link>
         </div>
 
+        <AdminTableEnhancer
+          tableId="admin-paid-listings-report-table"
+          copyLabel="listing IDs"
+        />
         <div className="admin-table-wrap">
-          <table className="admin-table">
+          <table id="admin-paid-listings-report-table" className="admin-table">
             <thead>
               <tr>
                 <th>Listing</th>
@@ -319,8 +329,8 @@ export default async function PaidListingsReportPage(
             </thead>
             <tbody>
               {report.listings.map((listing) => (
-                <tr key={listing.id}>
-                  <td>
+                <tr key={listing.id} data-row-id={listing.id}>
+                  <td data-label="Listing">
                     <Link
                       href={`/listings/${listing.id}?view=customer`}
                       target="_blank"
@@ -337,7 +347,7 @@ export default async function PaidListingsReportPage(
                       {humanizeLabel(listing.status)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Seller">
                     <Link
                       href={`/sellers/${listing.sellerId}?view=customer`}
                       target="_blank"
@@ -354,7 +364,7 @@ export default async function PaidListingsReportPage(
                       {formatMetric(listing.seller.reputationScore)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Payment">
                     <span className="font-semibold">
                       {formatMoney(listing.paymentRevenue)}
                     </span>
@@ -371,7 +381,7 @@ export default async function PaidListingsReportPage(
                       {formatMoney(listing.refundedAmount)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Priority">
                     <span className="font-semibold">
                       {listing.listingPaymentMode === "PAID"
                         ? "Paid listing"
@@ -390,7 +400,7 @@ export default async function PaidListingsReportPage(
                         : ""}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Engagement">
                     <span className="font-semibold">
                       {formatMetric(listing.viewCount)} views
                     </span>
@@ -400,7 +410,7 @@ export default async function PaidListingsReportPage(
                       {listing.inquiryConversionRate}%
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Risk">
                     <span className="font-semibold">
                       {formatMetric(listing.reportCount)} recent
                     </span>
@@ -408,7 +418,7 @@ export default async function PaidListingsReportPage(
                       {formatMetric(listing.lifetimeReportCount)} lifetime
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Boost">
                     {listing.activeBoostCount ? (
                       <>
                         <span className="font-semibold">
@@ -432,8 +442,18 @@ export default async function PaidListingsReportPage(
             </tbody>
           </table>
           {report.listings.length === 0 ? (
-            <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-              No paid listings match this window.
+            <div className="admin-empty-state">
+              <p className="admin-empty-state-title">No paid listings</p>
+              <p className="admin-empty-state-copy">
+                No paid listings match the selected filters. Try a wider date
+                window or inspect listing fee transactions.
+              </p>
+              <Link
+                href="/admin/transactions?type=LISTING_FEE"
+                className="action-secondary px-3 py-2 text-sm font-semibold"
+              >
+                Open listing fees
+              </Link>
             </div>
           ) : null}
         </div>
