@@ -675,6 +675,7 @@ export async function createCategory(
     name: string;
     slug?: string;
     description?: string;
+    imageUrl?: string;
     parentSlug?: string;
     listingExpiryDays?: number;
     schemaDefinition?: {
@@ -785,6 +786,7 @@ export async function updateCategory(
   payload: {
     name?: string;
     description?: string;
+    imageUrl?: string;
     parentSlug?: string;
     isActive?: boolean;
     listingExpiryDays?: number;

@@ -230,6 +230,7 @@ model Category {
   name              String
   slug              String                 @unique
   description       String?
+  imageUrl          String?
   schemaDefinition  Json?
   listingExpiryDays Int                    @default(30)
   isActive          Boolean                @default(true)

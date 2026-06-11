@@ -98,6 +98,7 @@ export function CategoryForm({
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [listingExpiryDays, setListingExpiryDays] = useState(
     presetParentSlug ? "30" : "30"
   );
@@ -253,6 +254,21 @@ export function CategoryForm({
             className="surface-input min-h-24 resize-none text-sm"
           />
           {fieldMessage(state, "description")}
+        </label>
+
+        <label className="admin-field md:col-span-2">
+          <span className="admin-field-label">Category image URL</span>
+          <input
+            name="imageUrl"
+            value={imageUrl}
+            onChange={(event) => setImageUrl(event.target.value)}
+            placeholder="https://images.example.com/category.jpg"
+            className="surface-input text-sm"
+          />
+          <p className="admin-field-help">
+            Shown on the marketplace home page category cards.
+          </p>
+          {fieldMessage(state, "imageUrl")}
         </label>
 
         <label className="admin-field">

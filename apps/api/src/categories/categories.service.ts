@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { defaultCategories } from './categories.seed';
+import { categoryImageUrls, defaultCategories } from './categories.seed';
 import {
   BulkCategoryImportRowDto,
   BulkUpsertCategoriesDto,
@@ -76,6 +76,7 @@ export class CategoriesService implements OnModuleInit {
         update: {
           name: category.name,
           description: category.description,
+          imageUrl: category.imageUrl ?? categoryImageUrls[category.slug],
           // Preserve admin-managed schema definitions once a category exists.
           schemaDefinition: undefined,
           listingExpiryDays: category.listingExpiryDays ?? 30,
@@ -86,6 +87,7 @@ export class CategoriesService implements OnModuleInit {
           name: category.name,
           slug: category.slug,
           description: category.description,
+          imageUrl: category.imageUrl ?? categoryImageUrls[category.slug],
           schemaDefinition: toJsonValue(category.schemaDefinition),
           listingExpiryDays: category.listingExpiryDays ?? 30,
           sortOrder: category.sortOrder ?? 0,
@@ -110,6 +112,7 @@ export class CategoriesService implements OnModuleInit {
         update: {
           name: category.name,
           description: category.description,
+          imageUrl: category.imageUrl ?? categoryImageUrls[category.slug],
           // Preserve admin-managed schema definitions once a category exists.
           schemaDefinition: undefined,
           parentId: parent.id,
@@ -121,6 +124,7 @@ export class CategoriesService implements OnModuleInit {
           name: category.name,
           slug: category.slug,
           description: category.description,
+          imageUrl: category.imageUrl ?? categoryImageUrls[category.slug],
           schemaDefinition: toJsonValue(category.schemaDefinition),
           parentId: parent.id,
           listingExpiryDays: category.listingExpiryDays ?? 30,
@@ -129,6 +133,18 @@ export class CategoriesService implements OnModuleInit {
         },
       });
     }
+
+    await Promise.all(
+      Object.entries(categoryImageUrls).map(([slug, imageUrl]) =>
+        this.prisma.category.updateMany({
+          where: {
+            slug,
+            OR: [{ imageUrl: null }, { imageUrl: '' }],
+          },
+          data: { imageUrl },
+        }),
+      ),
+    );
   }
 
   async findAll(includeInactive = false) {
@@ -170,6 +186,7 @@ export class CategoriesService implements OnModuleInit {
         name: dto.name.trim(),
         slug,
         description: dto.description,
+        imageUrl: dto.imageUrl,
         schemaDefinition: toJsonValue(
           dto.schemaDefinition ?? inheritedSchemaDefinition,
         ),
@@ -210,6 +227,7 @@ export class CategoriesService implements OnModuleInit {
         name: dto.name?.trim(),
         slug: nextSlug,
         description: dto.description,
+        imageUrl: dto.imageUrl,
         schemaDefinition: toJsonValue(
           dto.schemaDefinition ?? inheritedSchemaDefinition,
         ),

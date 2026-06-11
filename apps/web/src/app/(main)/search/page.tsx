@@ -63,20 +63,35 @@ export default async function SearchPage(props: SearchPageProps) {
   const sort = normalizeSort(searchParams.sort);
   const customerPreview = searchParams.view === "customer";
   const view = customerPreview ? "customer" : undefined;
-  const [categories, listings] = await Promise.all([
+  const listingQuery = {
+    search: q || undefined,
+    categorySlug: category || undefined,
+    location: location || undefined,
+    minPrice: numberParam(searchParams.minPrice),
+    maxPrice: numberParam(searchParams.maxPrice),
+    sort,
+  };
+  const [categories, matchingListings] = await Promise.all([
     fetchCategories(),
-    fetchListings({
-      search: q || undefined,
-      categorySlug: category || undefined,
-      location: location || undefined,
-      minPrice: numberParam(searchParams.minPrice),
-      maxPrice: numberParam(searchParams.maxPrice),
-      sort,
-    }),
+    fetchListings(listingQuery),
   ]);
   const categoryTree = buildMarketplaceCategoryTree(categories);
   const flatCategories = flattenMarketplaceCategoryTree(categoryTree);
   const selectedCategory = categories.find((item) => item.slug === category);
+  const relatedListings =
+    matchingListings.length || !selectedCategory
+      ? []
+      : await fetchListings({
+          ...listingQuery,
+          categorySlug: selectedCategory.parentSlug ?? undefined,
+          take: 12,
+        });
+  const listings = matchingListings.length ? matchingListings : relatedListings;
+  const isShowingRelatedListings =
+    matchingListings.length === 0 && relatedListings.length > 0;
+  const relatedScopeLabel = selectedCategory?.parentSlug
+    ? "the broader category"
+    : "recent marketplace listings";
   const activeFilters = [
     q ? `Keyword: ${q}` : null,
     selectedCategory?.name ? `Category: ${selectedCategory.name}` : null,
@@ -94,7 +109,13 @@ export default async function SearchPage(props: SearchPageProps) {
             {selectedCategory?.name ?? "All listings"}
           </h1>
           <p className="search-results-meta">
-            {listings.length} matching listing{listings.length === 1 ? "" : "s"}
+            {isShowingRelatedListings
+              ? `0 exact matches - showing ${relatedListings.length} related listing${
+                  relatedListings.length === 1 ? "" : "s"
+                }`
+              : `${matchingListings.length} matching listing${
+                  matchingListings.length === 1 ? "" : "s"
+                }`}
           </p>
         </div>
         {activeFilters.length ? (
@@ -249,6 +270,16 @@ export default async function SearchPage(props: SearchPageProps) {
         </aside>
 
         <div className="grid gap-5">
+          {isShowingRelatedListings ? (
+            <div className="panel">
+              <h2 className="text-lg font-black">Showing related listings</h2>
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                No active listings are assigned directly to{" "}
+                {selectedCategory?.name}. These items come from{" "}
+                {relatedScopeLabel} so the page does not feel empty.
+              </p>
+            </div>
+          ) : null}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {listings.length ? (
               listings.map((listing) => (

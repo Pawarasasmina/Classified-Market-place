@@ -358,6 +358,7 @@ const categorySchema = z.object({
   name: z.string().trim().min(2, "Category name is required."),
   slug: z.string().trim().optional(),
   description: z.string().trim().optional(),
+  imageUrl: z.string().trim().optional(),
   parentSlug: z.string().trim().optional(),
   listingExpiryDays: z.coerce.number().int().min(1).max(365).default(30),
 });
@@ -2296,6 +2297,7 @@ export async function createCategoryAction(
     name: formData.get("name"),
     slug: formData.get("slug"),
     description: formData.get("description"),
+    imageUrl: formData.get("imageUrl"),
     parentSlug: formData.get("parentSlug"),
     listingExpiryDays: formData.get("listingExpiryDays") || 30,
   });
@@ -2314,6 +2316,7 @@ export async function createCategoryAction(
       name: parsed.data.name,
       slug: cleanOptional(parsed.data.slug),
       description: cleanOptional(parsed.data.description),
+      imageUrl: cleanOptional(parsed.data.imageUrl),
       parentSlug: cleanOptional(parsed.data.parentSlug),
       listingExpiryDays: parsed.data.listingExpiryDays,
       schemaDefinition: parseCategorySchemaDefinition(formData),
@@ -2493,6 +2496,7 @@ export async function updateCategoryAction(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const name = cleanOptional(String(formData.get("name") ?? ""));
   const description = cleanOptional(String(formData.get("description") ?? ""));
+  const imageUrl = cleanOptional(String(formData.get("imageUrl") ?? ""));
   const listingExpiryDays = Number(formData.get("listingExpiryDays") ?? 30);
   const parentSlug = formData.has("parentSlug")
     ? String(formData.get("parentSlug") ?? "")
@@ -2508,6 +2512,7 @@ export async function updateCategoryAction(formData: FormData) {
     await updateCategory(accessToken, slug, {
       name,
       description,
+      imageUrl,
       parentSlug,
       isActive,
       listingExpiryDays: Number.isFinite(listingExpiryDays)

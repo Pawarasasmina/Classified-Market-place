@@ -28,6 +28,11 @@ export class CreateCategoryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(1000)
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
   parentSlug?: string;
 
   @IsOptional()
