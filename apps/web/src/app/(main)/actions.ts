@@ -22,6 +22,7 @@ import {
   deleteCategory,
   deleteBoostPackage,
   deleteListing,
+  deleteAllListings,
   forgotPassword,
   debitAdminWallet,
   deletePriorityRule,
@@ -66,6 +67,7 @@ import {
   removeSellerBadge,
   applyDefaultSellerPrivilegeQuotas,
   bulkImportCategories,
+  bulkImportListings,
   zeroAllSellerPrivilegeQuotas,
   upsertSellerRating,
   verifyEmailToken,
@@ -394,6 +396,49 @@ const bulkCategoryImportSchema = z.object({
       }),
     )
     .min(1, "Add at least one category row."),
+});
+
+const bulkListingImportSchema = z.object({
+  updateExisting: z.boolean().default(false),
+  rows: z
+    .array(
+      z.object({
+        listingId: z.string().uuid().optional(),
+        sellerId: z.string().uuid().optional(),
+        sellerEmail: z.string().trim().email().optional(),
+        sellerPhone: z.string().trim().optional(),
+        title: z.string().trim().min(1, "Listing title is required."),
+        description: z
+          .string()
+          .trim()
+          .min(1, "Listing description is required."),
+        price: z.number().min(0, "Price must be zero or greater."),
+        currency: z.string().trim().optional(),
+        location: z.string().trim().min(1, "Location is required."),
+        categorySlug: z.string().trim().min(1, "Category slug is required."),
+        attributes: z.record(z.string(), z.unknown()).optional(),
+        images: z
+          .array(
+            z.object({
+              url: z.string().trim().url(),
+              altText: z.string().trim().optional(),
+              isPrimary: z.boolean().optional(),
+            }),
+          )
+          .optional(),
+      }),
+    )
+    .min(1, "Add at least one listing row."),
+});
+
+const adminDeleteAllListingsSchema = z.object({
+  confirmation: z
+    .string()
+    .trim()
+    .refine((value) => value === "DELETE ALL LISTINGS", {
+      message: 'Type "DELETE ALL LISTINGS" exactly to continue.',
+    }),
+  returnTo: z.string().trim().startsWith("/").default("/admin/listings"),
 });
 
 const listingReportSchema = z.object({
@@ -1675,6 +1720,58 @@ export async function moderateListingAction(formData: FormData) {
   redirect(withQueryParam(returnTo, { moderation: "updated" }));
 }
 
+export async function deleteAllListingsAction(formData: FormData) {
+  const parsed = adminDeleteAllListingsSchema.safeParse({
+    confirmation: formData.get("confirmation"),
+    returnTo: formData.get("returnTo") || "/admin/listings",
+  });
+
+  const returnTo = getSafeNextPath(
+    parsed.success ? parsed.data.returnTo : formData.get("returnTo"),
+    "/admin/listings",
+  );
+
+  if (!parsed.success) {
+    redirect(
+      withQueryParam(returnTo, {
+        listingsBulk: "invalid",
+        message:
+          parsed.error.issues[0]?.message ??
+          'Type "DELETE ALL LISTINGS" exactly to continue.',
+      }),
+    );
+  }
+
+  const { accessToken } = await requireSessionContext(returnTo);
+  let result: { deleted: number };
+
+  try {
+    result = await deleteAllListings(accessToken);
+  } catch (error) {
+    redirect(
+      withQueryParam(returnTo, {
+        listingsBulk: "error",
+        message: getActionMessage(
+          error,
+          "We could not delete all listings.",
+        ),
+      }),
+    );
+  }
+
+  revalidatePath("/");
+  revalidatePath("/search");
+  revalidatePath("/admin");
+  revalidatePath("/admin/listings");
+
+  redirect(
+    withQueryParam(returnTo, {
+      listingsBulk: "deleted",
+      message: `${result.deleted} listings were permanently deleted.`,
+    }),
+  );
+}
+
 export async function creditAdminWalletAction(formData: FormData) {
   const parsed = adminWalletAdjustmentSchema.safeParse({
     userId: formData.get("userId"),
@@ -1760,6 +1857,10 @@ export async function debitAdminWalletAction(formData: FormData) {
 }
 
 export async function updateListingPriorityOverrideAction(formData: FormData) {
+  const returnTo = getSafeNextPath(
+    formData.get("returnTo"),
+    "/admin#priority-overrides",
+  );
   const scoreInput = cleanOptional(String(formData.get("score") ?? ""));
   const startsAtInput = cleanOptional(String(formData.get("startsAt") ?? ""));
   const startsAtDate = startsAtInput ? new Date(startsAtInput) : null;
@@ -1767,11 +1868,11 @@ export async function updateListingPriorityOverrideAction(formData: FormData) {
   const expiresAtDate = expiresAtInput ? new Date(expiresAtInput) : null;
 
   if (startsAtDate && Number.isNaN(startsAtDate.getTime())) {
-    redirect("/admin?priority=invalid#priority-overrides");
+    redirect(withQueryParam(returnTo, { priority: "invalid" }));
   }
 
   if (expiresAtDate && Number.isNaN(expiresAtDate.getTime())) {
-    redirect("/admin?priority=invalid#priority-overrides");
+    redirect(withQueryParam(returnTo, { priority: "invalid" }));
   }
 
   const parsed = listingPriorityOverrideSchema.safeParse({
@@ -1785,10 +1886,10 @@ export async function updateListingPriorityOverrideAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/admin?priority=invalid#priority-overrides");
+    redirect(withQueryParam(returnTo, { priority: "invalid" }));
   }
 
-  const { accessToken } = await requireSessionContext("/admin");
+  const { accessToken } = await requireSessionContext(returnTo);
 
   try {
     await updateListingPriorityOverride(accessToken, parsed.data.listingId, {
@@ -1801,7 +1902,7 @@ export async function updateListingPriorityOverrideAction(formData: FormData) {
     });
   } catch (error) {
     redirect(
-      withQueryParam("/admin#priority-overrides", {
+      withQueryParam(returnTo, {
         priority: "error",
         message: getActionMessage(
           error,
@@ -1814,7 +1915,8 @@ export async function updateListingPriorityOverrideAction(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/search");
   revalidatePath("/admin");
-  redirect("/admin?priority=updated#priority-overrides");
+  revalidatePath("/admin/listings");
+  redirect(withQueryParam(returnTo, { priority: "updated" }));
 }
 
 export async function createListingReportAction(formData: FormData) {
@@ -2298,6 +2400,91 @@ export async function bulkImportCategoriesAction(
         "We could not import the category spreadsheet.",
       ),
     };
+  }
+}
+
+export async function bulkImportListingsAction(formData: FormData) {
+  const returnTo = getSafeNextPath(formData.get("returnTo"), "/admin/listings");
+  const payloadRaw = String(formData.get("payload") ?? "");
+
+  if (!payloadRaw) {
+    redirect(
+      withQueryParam(returnTo, {
+        listingsBulk: "invalidImport",
+        message:
+          "Upload a CSV file and map the listing columns before importing.",
+      }),
+    );
+  }
+
+  let payload: unknown;
+
+  try {
+    payload = JSON.parse(payloadRaw);
+  } catch {
+    redirect(
+      withQueryParam(returnTo, {
+        listingsBulk: "invalidImport",
+        message: "The bulk import payload is invalid. Please reload the file.",
+      }),
+    );
+  }
+
+  const parsed = bulkListingImportSchema.safeParse(payload);
+
+  if (!parsed.success) {
+    redirect(
+      withQueryParam(returnTo, {
+        listingsBulk: "invalidImport",
+        message:
+          parsed.error.issues[0]?.message ?? "Check the bulk listing file.",
+      }),
+    );
+  }
+
+  const { accessToken } = await requireSessionContext("/admin/listings");
+
+  try {
+    const result = await bulkImportListings(accessToken, parsed.data);
+
+    revalidatePath("/");
+    revalidatePath("/search");
+    revalidatePath("/admin");
+    revalidatePath("/admin/listings");
+    revalidatePath(returnTo);
+
+    const summary = [
+      `${result.created} created`,
+      `${result.updated} updated`,
+      `${result.skipped} skipped`,
+    ].join(", ");
+    const failedReasonLines = result.errors.length
+      ? result.errors.slice(0, 10).join("\n")
+      : "";
+    const remainingReasons =
+      result.errors.length > 10
+        ? `\n+${result.errors.length - 10} more failed row reasons.`
+        : "";
+    const detailMessage = result.failed
+      ? `\nFailed reasons:\n${failedReasonLines}${remainingReasons}`
+      : "";
+
+    redirect(
+      withQueryParam(returnTo, {
+        listingsBulk: result.failed ? "importedPartial" : "imported",
+        message: `Bulk import finished. ${summary}. ${result.failed} failed.${detailMessage}`,
+      }),
+    );
+  } catch (error) {
+    redirect(
+      withQueryParam(returnTo, {
+        listingsBulk: "importError",
+        message: getActionMessage(
+          error,
+          "We could not import the listing spreadsheet.",
+        ),
+      }),
+    );
   }
 }
 

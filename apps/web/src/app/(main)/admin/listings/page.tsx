@@ -1,9 +1,13 @@
 import Link from "next/link";
-import { moderateListingAction } from "@/app/(main)/actions";
+import {
+  moderateListingAction,
+} from "@/app/(main)/actions";
 import {
   AdminActionFeedback,
   AdminSubmitButton,
 } from "@/components/marketplace/admin-form-feedback";
+import { AdminListingBulkTools } from "@/components/marketplace/admin-listing-bulk-tools";
+import { DeleteAllListingsDialog } from "@/components/marketplace/delete-all-listings-dialog";
 import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
 import { AdminTablePagination } from "@/components/marketplace/admin-table-pagination";
@@ -14,6 +18,7 @@ import {
   paginateAdminItems,
 } from "@/lib/admin-pagination";
 import { requireSessionContext } from "@/lib/auth-dal";
+import { updateListingPriorityOverrideAction } from "../../actions";
 import { fetchAdminListings } from "@/lib/marketplace-api";
 
 type AdminListingsPageProps = {
@@ -22,6 +27,8 @@ type AdminListingsPageProps = {
     status?: string;
     message?: string;
     moderation?: string;
+    priority?: string;
+    listingsBulk?: string;
     page?: string;
     pageSize?: string;
   }>;
@@ -66,7 +73,7 @@ function buildReturnTo(searchParams: Awaited<AdminListingsPageProps["searchParam
 export default async function AdminListingsPage(props: AdminListingsPageProps) {
   const searchParams = await props.searchParams;
   const { accessToken } = await requireSessionContext("/admin/listings");
-  const listings = await fetchAdminListings(accessToken, { take: 100 });
+  const listings = await fetchAdminListings(accessToken, { take: 1000 });
   const query = searchParams.q?.trim() ?? "";
   const status = listingStatusFilters.includes(
     searchParams.status as (typeof listingStatusFilters)[number],
@@ -128,6 +135,35 @@ export default async function AdminListingsPage(props: AdminListingsPageProps) {
         successStatuses={["updated"]}
       />
 
+      <AdminActionFeedback
+        status={searchParams.priority}
+        message={searchParams.message}
+        messages={{
+          updated: "Listing priority updated.",
+          invalid: "Check the priority fields and try again.",
+        }}
+        successStatuses={["updated"]}
+      />
+
+      <AdminActionFeedback
+        status={searchParams.listingsBulk}
+        message={searchParams.message}
+        flashStorageKey="admin:listingsBulkFlash"
+        messages={{
+          imported: "Listings bulk import finished.",
+          importedPartial: "Listings bulk import finished with some failed rows.",
+          importError: "We could not import the listing spreadsheet.",
+          invalidImport: "Check the listing import file and try again.",
+          deleted: "All listings were permanently deleted.",
+          invalid: 'Type "DELETE ALL LISTINGS" exactly to continue.',
+        }}
+        successStatuses={["deleted", "imported"]}
+        warningStatuses={["importedPartial"]}
+      />
+
+      <AdminListingBulkTools listings={listings} returnTo={returnTo} />
+      <DeleteAllListingsDialog returnTo={returnTo} />
+
       <form className="panel admin-filter-bar grid gap-3 md:grid-cols-[1.5fr_1fr_auto] md:items-end">
         <label className="grid gap-2 text-sm font-bold">
           Search listings
@@ -167,6 +203,7 @@ export default async function AdminListingsPage(props: AdminListingsPageProps) {
               <th>Seller</th>
               <th>Status</th>
               <th>Payment</th>
+              <th>Priority</th>
               <th>Boost</th>
               <th>Action</th>
             </tr>
@@ -227,6 +264,80 @@ export default async function AdminListingsPage(props: AdminListingsPageProps) {
                     <p className="mt-1 text-xs text-[var(--muted)]">
                       {listing.paidPriorityEnabled ? "Priority enabled" : "Standard priority"}
                     </p>
+                  </td>
+                  <td data-label="Priority">
+                    <details className="grid gap-2">
+                      <summary className="cursor-pointer text-sm font-semibold text-[var(--foreground)]">
+                        {listing.adminPriorityPinned
+                          ? "Pinned"
+                          : listing.adminPriorityPromoted
+                            ? "Promoted"
+                            : listing.adminPriorityScore != null
+                              ? `Score ${listing.adminPriorityScore}`
+                              : "Standard"}
+                      </summary>
+                      <form
+                        action={updateListingPriorityOverrideAction}
+                        className="grid min-w-[14rem] gap-2"
+                      >
+                        <input type="hidden" name="listingId" value={listing.id} />
+                        <input type="hidden" name="returnTo" value={returnTo} />
+                        <label className="flex items-center gap-2 text-xs font-semibold">
+                          <input
+                            name="paid"
+                            type="checkbox"
+                            value="true"
+                            defaultChecked={listing.paidPriorityEnabled}
+                          />
+                          Paid
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-semibold">
+                          <input
+                            name="promoted"
+                            type="checkbox"
+                            value="true"
+                            defaultChecked={listing.adminPriorityPromoted}
+                          />
+                          Promote
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-semibold">
+                          <input
+                            name="pinned"
+                            type="checkbox"
+                            value="true"
+                            defaultChecked={listing.adminPriorityPinned}
+                          />
+                          Pin
+                        </label>
+                        <input
+                          name="score"
+                          type="number"
+                          min="0"
+                          max="1000000"
+                          defaultValue={listing.adminPriorityScore ?? ""}
+                          className="surface-input text-xs"
+                          placeholder="Priority score"
+                        />
+                        <input
+                          name="startsAt"
+                          type="datetime-local"
+                          defaultValue={listing.adminPriorityStartsAt?.slice(0, 16)}
+                          className="surface-input text-xs"
+                        />
+                        <input
+                          name="expiresAt"
+                          type="datetime-local"
+                          defaultValue={listing.adminPriorityExpiresAt?.slice(0, 16)}
+                          className="surface-input text-xs"
+                        />
+                        <AdminSubmitButton
+                          className="admin-table-action"
+                          pendingText="Saving..."
+                        >
+                          Save priority
+                        </AdminSubmitButton>
+                      </form>
+                    </details>
                   </td>
                   <td data-label="Boost">
                     {listing.isBoosted ? (

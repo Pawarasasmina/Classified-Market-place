@@ -741,6 +741,45 @@ export async function bulkImportCategories(
   });
 }
 
+export async function bulkImportListings(
+  accessToken: string,
+  payload: {
+    rows: Array<{
+      listingId?: string;
+      sellerId?: string;
+      sellerEmail?: string;
+      sellerPhone?: string;
+      title: string;
+      description: string;
+      price: number;
+      currency?: string;
+      location: string;
+      categorySlug: string;
+      attributes?: Record<string, unknown>;
+      images?: Array<{
+        url: string;
+        altText?: string;
+        isPrimary?: boolean;
+      }>;
+    }>;
+    updateExisting?: boolean;
+  },
+) {
+  return apiRequest<{
+    created: number;
+    updated: number;
+    skipped: number;
+    processed: number;
+    failed: number;
+    errors: string[];
+  }>('/listings/admin/bulk', {
+    method: 'POST',
+    accessToken,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function updateCategory(
   accessToken: string,
   slug: string,
@@ -2296,4 +2335,12 @@ export async function updateListingPriorityOverride(
   );
 
   return mapListing(listing);
+}
+
+export async function deleteAllListings(accessToken: string) {
+  return apiRequest<{ deleted: number }>("/listings/admin/delete-all", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+  });
 }

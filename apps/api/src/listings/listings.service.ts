@@ -26,6 +26,10 @@ import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SellerProfilesService } from '../seller-profiles/seller-profiles.service';
 import { CompleteListingPaymentDto } from './dto/complete-listing-payment.dto';
+import {
+  BulkImportListingsDto,
+  BulkImportListingRowDto,
+} from './dto/bulk-import-listings.dto';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { CreatePriorityRuleDto } from './dto/create-priority-rule.dto';
 import { ListingImageInputDto } from './dto/listing-image-input.dto';
@@ -87,6 +91,17 @@ type PreparedListingImage = {
   sortOrder: number;
   isPrimary: boolean;
   mediaAssetId?: string;
+};
+
+type BulkImportSeller = {
+  id: string;
+  email: string;
+  phone: string | null;
+};
+
+type BulkImportCategory = ListingCategory & {
+  name: string;
+  isActive: boolean;
 };
 
 const bcryptLib = bcrypt as BcryptModule;
@@ -852,6 +867,185 @@ export class ListingsService implements OnModuleInit {
     this.validateListingAttributesForCategory(category, attributes);
   }
 
+  private resolveBulkImportSeller(
+    row: BulkImportListingRowDto,
+    {
+      existingSellerId,
+      sellersByEmail,
+      sellersById,
+      sellersByPhone,
+    }: {
+      existingSellerId?: string | null;
+      sellersByEmail: Map<string, BulkImportSeller>;
+      sellersById: Map<string, BulkImportSeller>;
+      sellersByPhone: Map<string, BulkImportSeller>;
+    },
+  ) {
+    const sellerId = row.sellerId?.trim();
+
+    if (sellerId) {
+      const seller = sellersById.get(sellerId);
+
+      if (!seller) {
+        throw new NotFoundException(`Seller "${sellerId}" was not found`);
+      }
+
+      return seller;
+    }
+
+    const sellerEmail = row.sellerEmail?.trim().toLowerCase();
+
+    if (sellerEmail) {
+      const seller = sellersByEmail.get(sellerEmail);
+
+      if (!seller) {
+        throw new NotFoundException(
+          `Seller email "${row.sellerEmail}" was not found`,
+        );
+      }
+
+      return seller;
+    }
+
+    const sellerPhone = row.sellerPhone?.trim();
+
+    if (sellerPhone) {
+      const seller = sellersByPhone.get(sellerPhone);
+
+      if (!seller) {
+        throw new NotFoundException(
+          `Seller phone "${row.sellerPhone}" was not found`,
+        );
+      }
+
+      return seller;
+    }
+
+    if (existingSellerId) {
+      return sellersById.get(existingSellerId) ?? null;
+    }
+
+    return null;
+  }
+
+  private normalizeBulkImportAttributes(
+    category: BulkImportCategory,
+    attributes: Record<string, unknown> | undefined,
+  ) {
+    if (!attributes) {
+      return undefined;
+    }
+
+    const schema = normalizeCategorySchemaFields(category.schemaDefinition);
+
+    const normalized = Object.entries(attributes).reduce<
+      Record<string, unknown>
+    >((acc, [key, rawValue]) => {
+      if (rawValue == null || rawValue === '') {
+        return acc;
+      }
+
+      const field = schema.find((item) => item.key === key);
+
+      if (!field) {
+        acc[key] = this.normalizeLooseBulkImportValue(rawValue);
+        return acc;
+      }
+
+      acc[key] = this.normalizeBulkImportAttributeValue(field, rawValue);
+      return acc;
+    }, {});
+
+    return Object.keys(normalized).length ? normalized : undefined;
+  }
+
+  private normalizeBulkImportAttributeValue(
+    field: CategorySchemaField,
+    rawValue: unknown,
+  ) {
+    if (field.type === 'toggle') {
+      if (typeof rawValue === 'boolean') {
+        return rawValue;
+      }
+
+      if (typeof rawValue === 'string') {
+        const normalized = rawValue.trim().toLowerCase();
+
+        if (['true', 'yes', '1', 'y'].includes(normalized)) {
+          return true;
+        }
+
+        if (['false', 'no', '0', 'n'].includes(normalized)) {
+          return false;
+        }
+      }
+
+      return rawValue;
+    }
+
+    if (field.type === 'number') {
+      if (typeof rawValue === 'number') {
+        return rawValue;
+      }
+
+      if (typeof rawValue === 'string') {
+        const numeric = Number(rawValue.trim());
+        return Number.isFinite(numeric) ? numeric : rawValue.trim();
+      }
+    }
+
+    if (typeof rawValue === 'string') {
+      return rawValue.trim();
+    }
+
+    return rawValue;
+  }
+
+  private normalizeLooseBulkImportValue(rawValue: unknown) {
+    if (typeof rawValue !== 'string') {
+      return rawValue;
+    }
+
+    const trimmed = rawValue.trim();
+    const normalized = trimmed.toLowerCase();
+
+    if (['true', 'yes', '1'].includes(normalized)) {
+      return true;
+    }
+
+    if (['false', 'no', '0'].includes(normalized)) {
+      return false;
+    }
+
+    const numeric = Number(trimmed);
+
+    if (trimmed && Number.isFinite(numeric)) {
+      return numeric;
+    }
+
+    return trimmed;
+  }
+
+  private buildBulkImportImages(images: ListingImageInputDto[] | undefined) {
+    if (!images?.length) {
+      return [];
+    }
+
+    const primaryIndex = Math.max(
+      images.findIndex((image) => image.isPrimary),
+      0,
+    );
+
+    return images
+      .map((image, index) => ({
+        url: image.url?.trim() ?? '',
+        altText: image.altText?.trim() || undefined,
+        sortOrder: index,
+        isPrimary: index === primaryIndex,
+      }))
+      .filter((image) => image.url);
+  }
+
   private async resolveDraftCategory(categorySlug?: string) {
     if (categorySlug) {
       return this.resolveCategory(categorySlug);
@@ -1107,6 +1301,205 @@ export class ListingsService implements OnModuleInit {
     await this.attachPreparedImagesToListing(listing.id, images);
 
     return this.attachSellerRatingSummary(listing);
+  }
+
+  async bulkImport(user: { id: string }, dto: BulkImportListingsDto) {
+    const rows = dto.rows ?? [];
+
+    if (!rows.length) {
+      throw new BadRequestException('At least one listing row is required');
+    }
+
+    const [categories, sellers, existingListings] = await Promise.all([
+      this.prisma.category.findMany({
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          listingExpiryDays: true,
+          schemaDefinition: true,
+          parentId: true,
+          isActive: true,
+        },
+      }),
+      this.prisma.user.findMany({
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+        },
+      }),
+      this.prisma.listing.findMany({
+        where: {
+          id: {
+            in: rows.flatMap((row) => (row.listingId ? [row.listingId] : [])),
+          },
+        },
+        include: {
+          images: true,
+        },
+      }),
+    ]);
+
+    const categoriesBySlug = new Map(
+      categories.map((category) => [category.slug, category]),
+    );
+    const sellersById = new Map(sellers.map((seller) => [seller.id, seller]));
+    const sellersByEmail = new Map(
+      sellers.map((seller) => [seller.email.trim().toLowerCase(), seller]),
+    );
+    const sellersByPhone = new Map(
+      sellers
+        .filter((seller) => seller.phone)
+        .map((seller) => [seller.phone?.trim() ?? '', seller]),
+    );
+    const existingListingsById = new Map(
+      existingListings.map((listing) => [listing.id, listing]),
+    );
+
+    const summary = {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      processed: rows.length,
+      failed: 0,
+      errors: [] as string[],
+    };
+
+    for (const [index, row] of rows.entries()) {
+      try {
+        const existing = row.listingId
+          ? (existingListingsById.get(row.listingId) ?? null)
+          : null;
+
+        if (existing && !dto.updateExisting) {
+          summary.skipped += 1;
+          continue;
+        }
+
+        if (row.listingId && !existing && dto.updateExisting) {
+          throw new BadRequestException(
+            `Listing "${row.listingId}" was not found for updating`,
+          );
+        }
+
+        const category = categoriesBySlug.get(row.categorySlug.trim());
+
+        if (!category) {
+          throw new NotFoundException(
+            `Category "${row.categorySlug}" was not found`,
+          );
+        }
+
+        if (!category.isActive) {
+          throw new BadRequestException(
+            `Category "${row.categorySlug}" is inactive`,
+          );
+        }
+
+        const seller =
+          this.resolveBulkImportSeller(row, {
+            existingSellerId: existing?.sellerId ?? null,
+            sellersByEmail,
+            sellersById,
+            sellersByPhone,
+          }) ?? null;
+
+        if (!seller) {
+          throw new BadRequestException(
+            'Seller ID, seller email, or seller phone is required',
+          );
+        }
+
+        const attributes = this.normalizeBulkImportAttributes(
+          category,
+          row.attributes,
+        );
+
+        await this.validateListingSubmission(category, attributes);
+
+        const lifecycle = this.getLifecycleDataForStatus(
+          ListingStatus.ACTIVE,
+          category,
+        );
+        const images = this.buildBulkImportImages(row.images);
+        const listingData: Prisma.ListingUncheckedCreateInput = {
+          title: row.title.trim(),
+          description: row.description.trim(),
+          price: new Prisma.Decimal(row.price),
+          currency: row.currency?.trim() || 'AED',
+          location: row.location.trim(),
+          status: ListingStatus.ACTIVE,
+          listingPaymentMode:
+            existing?.listingPaymentMode ?? ListingPaymentMode.FREE,
+          attributes: toJsonValue(attributes),
+          sellerId: seller.id,
+          categoryId: category.id,
+          paidPriorityEnabled: existing?.paidPriorityEnabled ?? false,
+          adminPriorityPromoted: existing?.adminPriorityPromoted ?? false,
+          adminPriorityPinned: existing?.adminPriorityPinned ?? false,
+          adminPriorityScore: existing?.adminPriorityScore ?? null,
+          adminPriorityStartsAt: existing?.adminPriorityStartsAt ?? null,
+          adminPriorityExpiresAt: existing?.adminPriorityExpiresAt ?? null,
+          reviewedById: user.id,
+          ...lifecycle,
+        };
+
+        if (existing) {
+          await this.prisma.listing.update({
+            where: { id: existing.id },
+            data: {
+              ...listingData,
+              images: {
+                deleteMany: {},
+                create: images.map((image) => ({
+                  url: image.url,
+                  altText: image.altText,
+                  sortOrder: image.sortOrder,
+                  isPrimary: image.isPrimary,
+                })),
+              },
+            },
+          });
+          summary.updated += 1;
+          continue;
+        }
+
+        await this.prisma.listing.create({
+          data: {
+            ...listingData,
+            images: images.length
+              ? {
+                  create: images.map((image) => ({
+                    url: image.url,
+                    altText: image.altText,
+                    sortOrder: image.sortOrder,
+                    isPrimary: image.isPrimary,
+                  })),
+                }
+              : undefined,
+          },
+        });
+        summary.created += 1;
+      } catch (error) {
+        summary.failed += 1;
+        summary.errors.push(
+          `Row ${index + 2}: ${
+            error instanceof Error ? error.message : 'Import failed'
+          }`,
+        );
+      }
+    }
+
+    return summary;
+  }
+
+  async deleteAll(_user: { id: string }) {
+    const result = await this.prisma.listing.deleteMany({});
+
+    return {
+      deleted: result.count,
+    };
   }
 
   async saveDraft(user: ActingUser, draftDto: SaveListingDraftDto) {
