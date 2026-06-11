@@ -337,18 +337,6 @@ export default async function HomePage(props: HomePageProps) {
                   </span>
                 </span>
               </Link>
-              <div className="home-category-link-list">
-                {column.links.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={link.featured ? "home-category-link-featured" : ""}
-                  >
-                    {link.label}
-                    {link.featured ? <span>New</span> : null}
-                  </Link>
-                ))}
-              </div>
             </div>
           ))}
         </div>
