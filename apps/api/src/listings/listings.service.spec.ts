@@ -54,6 +54,7 @@ describe('ListingsService normal-user posting', () => {
       create: jest.Mock;
     };
     user: {
+      findMany: jest.Mock;
       findUnique: jest.Mock;
       upsert: jest.Mock;
     };
@@ -157,6 +158,7 @@ describe('ListingsService normal-user posting', () => {
         create: jest.fn().mockResolvedValue({ id: 'wallet-ledger-1' }),
       },
       user: {
+        findMany: jest.fn().mockResolvedValue([]),
         findUnique: jest.fn(),
         upsert: jest.fn(),
       },
@@ -1917,6 +1919,141 @@ describe('ListingsService normal-user posting', () => {
       listingTitle: 'Clean phone',
       status: ListingStatus.ACTIVE,
     });
+  });
+
+  it('bulk imports new listings as admin-approved active records', async () => {
+    prisma.user.findMany.mockResolvedValue([
+      {
+        id: 'seller-1',
+        email: 'seller@example.com',
+        phone: '+971500000000',
+      },
+    ]);
+    prisma.category.findMany.mockResolvedValue([
+      {
+        id: 'category-1',
+        slug: 'electronics',
+        name: 'Electronics',
+        listingExpiryDays: 30,
+        schemaDefinition: {
+          fields: [
+            { key: 'brand', label: 'Brand', type: 'text', required: true },
+            {
+              key: 'condition',
+              label: 'Condition',
+              type: 'select',
+              options: ['New', 'Used'],
+            },
+          ],
+        },
+        parentId: null,
+        isActive: true,
+      },
+    ]);
+    prisma.listing.findMany.mockResolvedValue([]);
+
+    await service.bulkImport(
+      { id: 'admin-1' },
+      {
+        rows: [
+          {
+            sellerEmail: 'seller@example.com',
+            title: 'Bulk imported phone',
+            description: 'Imported by admin spreadsheet',
+            price: 1800,
+            currency: 'AED',
+            location: 'Dubai Marina',
+            categorySlug: 'electronics',
+            attributes: {
+              brand: 'Apple',
+              condition: 'Used',
+            },
+            images: [
+              {
+                url: 'https://cdn.example.com/listings/phone-front.jpg',
+                isPrimary: true,
+              },
+            ],
+          },
+        ],
+      },
+    );
+
+    expect(prisma.listing.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          sellerId: 'seller-1',
+          status: ListingStatus.ACTIVE,
+          reviewedById: 'admin-1',
+          images: {
+            create: [
+              expect.objectContaining({
+                url: 'https://cdn.example.com/listings/phone-front.jpg',
+                isPrimary: true,
+              }),
+            ],
+          },
+        }),
+      }),
+    );
+  });
+
+  it('bulk updates existing listings when updateExisting is enabled', async () => {
+    prisma.user.findMany.mockResolvedValue([
+      {
+        id: 'seller-1',
+        email: 'seller@example.com',
+        phone: null,
+      },
+    ]);
+    prisma.category.findMany.mockResolvedValue([
+      {
+        id: 'category-1',
+        slug: 'electronics',
+        name: 'Electronics',
+        listingExpiryDays: 30,
+        schemaDefinition: null,
+        parentId: null,
+        isActive: true,
+      },
+    ]);
+    prisma.listing.findMany.mockResolvedValue([
+      {
+        id: 'listing-1',
+        sellerId: 'seller-1',
+        images: [{ url: 'https://cdn.example.com/listings/old.jpg' }],
+      },
+    ]);
+
+    const result = await service.bulkImport(
+      { id: 'admin-1' },
+      {
+        updateExisting: true,
+        rows: [
+          {
+            listingId: 'listing-1',
+            title: 'Updated title',
+            description: 'Updated description',
+            price: 999,
+            location: 'Abu Dhabi',
+            categorySlug: 'electronics',
+            sellerId: 'seller-1',
+          },
+        ],
+      },
+    );
+
+    expect(prisma.listing.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'listing-1' },
+        data: expect.objectContaining({
+          title: 'Updated title',
+          status: ListingStatus.ACTIVE,
+          reviewedById: 'admin-1',
+        }),
+      }),
+    );
+    expect(result.updated).toBe(1);
   });
 
   it('lets admins set and clear a manual listing priority override', async () => {

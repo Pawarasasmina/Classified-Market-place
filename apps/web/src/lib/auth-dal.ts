@@ -9,17 +9,38 @@ import {
 } from "@/lib/marketplace-api";
 import { appendNextParam, getPhoneVerificationPath } from "@/lib/redirects";
 import {
+  clearAccessToken,
   getAccessToken,
   getRefreshToken,
   setSessionTokens,
 } from "@/lib/session";
+
+async function refreshSessionContext(refreshToken: string) {
+  try {
+    const refreshed = await refreshSession(refreshToken);
+    await setSessionTokens(refreshed).catch(() => null);
+    return {
+      accessToken: refreshed.accessToken,
+      user: refreshed.user,
+    };
+  } catch {
+    await clearAccessToken().catch(() => null);
+    return null;
+  }
+}
 
 export async function getSessionContext() {
   noStore();
   const accessToken = await getAccessToken();
 
   if (!accessToken) {
-    return null;
+    const refreshToken = await getRefreshToken();
+
+    if (!refreshToken) {
+      return null;
+    }
+
+    return refreshSessionContext(refreshToken);
   }
 
   try {
@@ -33,16 +54,7 @@ export async function getSessionContext() {
         return null;
       }
 
-      try {
-        const refreshed = await refreshSession(refreshToken);
-        await setSessionTokens(refreshed).catch(() => null);
-        return {
-          accessToken: refreshed.accessToken,
-          user: refreshed.user,
-        };
-      } catch {
-        return null;
-      }
+      return refreshSessionContext(refreshToken);
     }
 
     if (

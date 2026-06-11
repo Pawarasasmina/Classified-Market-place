@@ -23,6 +23,7 @@ import { MAX_LISTING_IMAGE_BYTES } from '../media/media.constants';
 import { MediaService } from '../media/media.service';
 import type { UploadedImageFile } from '../media/media.service';
 import { CompleteListingPaymentDto } from './dto/complete-listing-payment.dto';
+import { BulkImportListingsDto } from './dto/bulk-import-listings.dto';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { CreatePriorityRuleDto } from './dto/create-priority-rule.dto';
 import { ModerateListingDto } from './dto/moderate-listing.dto';
@@ -51,6 +52,23 @@ export class ListingsController {
   @Roles(...rolesForPermission('LISTINGS_READ'))
   findAllForAdmin(@Query() query: QueryListingsDto) {
     return this.listingsService.findAll(query, true);
+  }
+
+  @Post('admin/bulk')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...rolesForPermission('LISTINGS_MODERATE'))
+  bulkImport(
+    @CurrentUser() user: { id: string },
+    @Body() dto: BulkImportListingsDto,
+  ) {
+    return this.listingsService.bulkImport(user, dto);
+  }
+
+  @Post('admin/delete-all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...rolesForPermission('LISTINGS_MODERATE'))
+  deleteAll(@CurrentUser() user: { id: string }) {
+    return this.listingsService.deleteAll(user);
   }
 
   @Get('admin/priority-rules')
