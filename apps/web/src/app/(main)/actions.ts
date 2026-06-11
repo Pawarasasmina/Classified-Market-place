@@ -10,6 +10,7 @@ import {
   completeBoostPayment,
   completeListingPayment,
   completeWalletTopUp,
+  createAdvertisementBanner,
   creditAdminWallet,
   createSellerDocumentRequest,
   createCategory,
@@ -20,6 +21,7 @@ import {
   createListingReport,
   createPriorityRule,
   deleteCategory,
+  deleteAdvertisementBanner,
   deleteBoostPackage,
   deleteListing,
   deleteAllListings,
@@ -49,6 +51,7 @@ import {
   revokeAuthSession,
   saveListingDraft,
   updateAdminUser,
+  updateAdvertisementBanner,
   updateCategory,
   updateCurrentUser,
   updateMySellerProfile,
@@ -60,6 +63,7 @@ import {
   submitSellerDocument,
   switchToSeller,
   updateSellerFormDefinition,
+  uploadAdvertisementBannerImage,
   upsertSellerBadgeType,
   upsertSellerPrivilegeQuota,
   upsertSellerPrivilegeTier,
@@ -304,6 +308,52 @@ const boostPackageSchema = z.object({
   priorityEnabled: z.boolean().optional(),
   categoryIds: z.array(z.string()).optional(),
 });
+
+const advertisementBannerSchema = z
+  .object({
+    bannerId: z.string().trim().optional(),
+    title: z.string().trim().min(2, "Banner title is required."),
+    subtitle: z.string().trim().optional().nullable(),
+    kicker: z.string().trim().optional().nullable(),
+    body: z.string().trim().optional().nullable(),
+    imageUrl: z.string().trim().min(8, "Banner image URL is required."),
+    imageAlt: z.string().trim().optional().nullable(),
+    badgeLabel: z.string().trim().optional().nullable(),
+    metricValue: z.string().trim().optional().nullable(),
+    metricLabel: z.string().trim().optional().nullable(),
+    ctaLabel: z.string().trim().optional().nullable(),
+    ctaHref: z.string().trim().optional().nullable(),
+    secondaryCtaLabel: z.string().trim().optional().nullable(),
+    secondaryCtaHref: z.string().trim().optional().nullable(),
+    placement: z.string().trim().default("HOME"),
+    layout: z.enum(["WIDE", "FEATURE", "HALF"]).default("WIDE"),
+    backgroundColor: z.string().trim().optional().nullable(),
+    textColor: z.string().trim().optional().nullable(),
+    accentColor: z.string().trim().optional().nullable(),
+    rotationSeconds: z.coerce.number().int().min(3).max(30).default(6),
+    sortOrder: z.coerce.number().int().min(0).default(0),
+    isActive: z.boolean().optional(),
+    startsAt: z.string().trim().optional().nullable(),
+    endsAt: z.string().trim().optional().nullable(),
+  })
+  .superRefine((value, context) => {
+    if (value.startsAt && value.endsAt) {
+      const startsAt = new Date(value.startsAt);
+      const endsAt = new Date(value.endsAt);
+
+      if (
+        Number.isFinite(startsAt.getTime()) &&
+        Number.isFinite(endsAt.getTime()) &&
+        startsAt > endsAt
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["endsAt"],
+          message: "End time must be after start time.",
+        });
+      }
+    }
+  });
 
 const priorityRuleSchema = z
   .object({
@@ -657,6 +707,16 @@ function cleanNullable(value: FormDataEntryValue | null) {
 
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function normalizeNullableDateTime(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function parseCategorySchemaDefinition(formData: FormData) {
@@ -1505,6 +1565,208 @@ export async function deleteBoostPackageAction(formData: FormData) {
   revalidatePath("/admin/boost-packages");
   revalidatePath("/my-listings");
   redirect("/admin/boost-packages?package=deleted");
+}
+
+function isSelectedUploadFile(value: FormDataEntryValue | null): value is File {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "size" in value &&
+    "arrayBuffer" in value &&
+    typeof value.size === "number" &&
+    value.size > 0
+  );
+}
+
+async function resolveAdvertisementBannerImageUrl(
+  formData: FormData,
+  accessToken: string,
+) {
+  const imageFile = formData.get("imageFile");
+
+  if (!isSelectedUploadFile(imageFile)) {
+    return undefined;
+  }
+
+  const uploaded = await uploadAdvertisementBannerImage(accessToken, imageFile);
+  return uploaded.url;
+}
+
+function parseAdvertisementBannerForm(
+  formData: FormData,
+  uploadedImageUrl?: string,
+) {
+  return advertisementBannerSchema.safeParse({
+    bannerId: formData.get("bannerId"),
+    title: formData.get("title"),
+    subtitle: cleanNullable(formData.get("subtitle")),
+    kicker: cleanNullable(formData.get("kicker")),
+    body: cleanNullable(formData.get("body")),
+    imageUrl: uploadedImageUrl ?? formData.get("imageUrl"),
+    imageAlt: cleanNullable(formData.get("imageAlt")),
+    badgeLabel: cleanNullable(formData.get("badgeLabel")),
+    metricValue: cleanNullable(formData.get("metricValue")),
+    metricLabel: cleanNullable(formData.get("metricLabel")),
+    ctaLabel: cleanNullable(formData.get("ctaLabel")),
+    ctaHref: cleanNullable(formData.get("ctaHref")),
+    secondaryCtaLabel: cleanNullable(formData.get("secondaryCtaLabel")),
+    secondaryCtaHref: cleanNullable(formData.get("secondaryCtaHref")),
+    placement: formData.get("placement") || "HOME",
+    layout: formData.get("layout") || "WIDE",
+    backgroundColor: cleanNullable(formData.get("backgroundColor")),
+    textColor: cleanNullable(formData.get("textColor")),
+    accentColor: cleanNullable(formData.get("accentColor")),
+    rotationSeconds: formData.get("rotationSeconds") || 6,
+    sortOrder: formData.get("sortOrder") || 0,
+    isActive: formData.get("isActive") === "true",
+    startsAt: cleanNullable(formData.get("startsAt")),
+    endsAt: cleanNullable(formData.get("endsAt")),
+  });
+}
+
+function buildAdvertisementBannerPayload(
+  data: z.infer<typeof advertisementBannerSchema>,
+) {
+  return {
+    title: data.title,
+    subtitle: data.subtitle,
+    kicker: data.kicker,
+    body: data.body,
+    imageUrl: data.imageUrl,
+    imageAlt: data.imageAlt,
+    badgeLabel: data.badgeLabel,
+    metricValue: data.metricValue,
+    metricLabel: data.metricLabel,
+    ctaLabel: data.ctaLabel,
+    ctaHref: data.ctaHref,
+    secondaryCtaLabel: data.secondaryCtaLabel,
+    secondaryCtaHref: data.secondaryCtaHref,
+    placement: data.placement || "HOME",
+    layout: data.layout,
+    backgroundColor: data.backgroundColor,
+    textColor: data.textColor,
+    accentColor: data.accentColor,
+    rotationSeconds: data.rotationSeconds,
+    sortOrder: data.sortOrder,
+    isActive: data.isActive,
+    startsAt: normalizeNullableDateTime(data.startsAt),
+    endsAt: normalizeNullableDateTime(data.endsAt),
+  };
+}
+
+export async function createAdvertisementBannerAction(formData: FormData) {
+  const { accessToken } = await requireSessionContext("/admin/advertisements");
+
+  let uploadedImageUrl: string | undefined;
+  try {
+    uploadedImageUrl = await resolveAdvertisementBannerImageUrl(
+      formData,
+      accessToken,
+    );
+  } catch (error) {
+    redirect(
+      withQueryParam("/admin/advertisements", {
+        banner: "error",
+        message: getActionMessage(error, "We could not upload that image."),
+      }),
+    );
+  }
+
+  const parsed = parseAdvertisementBannerForm(formData, uploadedImageUrl);
+
+  if (!parsed.success) {
+    redirect("/admin/advertisements?banner=invalid");
+  }
+
+  try {
+    await createAdvertisementBanner(
+      accessToken,
+      buildAdvertisementBannerPayload(parsed.data),
+    );
+  } catch (error) {
+    redirect(
+      withQueryParam("/admin/advertisements", {
+        banner: "error",
+        message: getActionMessage(error, "We could not create that banner."),
+      }),
+    );
+  }
+
+  revalidatePath("/");
+  revalidatePath("/admin");
+  revalidatePath("/admin/advertisements");
+  redirect("/admin/advertisements?banner=created");
+}
+
+export async function updateAdvertisementBannerAction(formData: FormData) {
+  const { accessToken } = await requireSessionContext("/admin/advertisements");
+
+  let uploadedImageUrl: string | undefined;
+  try {
+    uploadedImageUrl = await resolveAdvertisementBannerImageUrl(
+      formData,
+      accessToken,
+    );
+  } catch (error) {
+    redirect(
+      withQueryParam("/admin/advertisements", {
+        banner: "error",
+        message: getActionMessage(error, "We could not upload that image."),
+      }),
+    );
+  }
+
+  const parsed = parseAdvertisementBannerForm(formData, uploadedImageUrl);
+
+  if (!parsed.success || !parsed.data.bannerId) {
+    redirect("/admin/advertisements?banner=invalid");
+  }
+
+  try {
+    await updateAdvertisementBanner(
+      accessToken,
+      parsed.data.bannerId,
+      buildAdvertisementBannerPayload(parsed.data),
+    );
+  } catch (error) {
+    redirect(
+      withQueryParam("/admin/advertisements", {
+        banner: "error",
+        message: getActionMessage(error, "We could not update that banner."),
+      }),
+    );
+  }
+
+  revalidatePath("/");
+  revalidatePath("/admin");
+  revalidatePath("/admin/advertisements");
+  redirect("/admin/advertisements?banner=updated");
+}
+
+export async function deleteAdvertisementBannerAction(formData: FormData) {
+  const bannerId = String(formData.get("bannerId") ?? "");
+
+  if (!bannerId) {
+    redirect("/admin/advertisements?banner=invalid");
+  }
+
+  const { accessToken } = await requireSessionContext("/admin/advertisements");
+
+  try {
+    await deleteAdvertisementBanner(accessToken, bannerId);
+  } catch (error) {
+    redirect(
+      withQueryParam("/admin/advertisements", {
+        banner: "error",
+        message: getActionMessage(error, "We could not disable that banner."),
+      }),
+    );
+  }
+
+  revalidatePath("/");
+  revalidatePath("/admin");
+  revalidatePath("/admin/advertisements");
+  redirect("/admin/advertisements?banner=deleted");
 }
 
 export async function createPriorityRuleAction(formData: FormData) {

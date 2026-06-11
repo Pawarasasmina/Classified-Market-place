@@ -117,6 +117,35 @@ export type ApiCategory = {
   };
 };
 
+export type ApiAdvertisementBanner = {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  kicker?: string | null;
+  body?: string | null;
+  imageUrl: string;
+  imageAlt?: string | null;
+  badgeLabel?: string | null;
+  metricValue?: string | null;
+  metricLabel?: string | null;
+  ctaLabel?: string | null;
+  ctaHref?: string | null;
+  secondaryCtaLabel?: string | null;
+  secondaryCtaHref?: string | null;
+  placement: string;
+  layout?: string | null;
+  backgroundColor?: string | null;
+  textColor?: string | null;
+  accentColor?: string | null;
+  rotationSeconds: number;
+  sortOrder: number;
+  isActive: boolean;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type ApiUser = {
   id: string;
   email: string;
@@ -1306,6 +1335,35 @@ export type MarketplaceCategory = {
   isActive: boolean;
 };
 
+export type MarketplaceAdvertisementBanner = {
+  id: string;
+  title: string;
+  subtitle: string;
+  kicker: string;
+  body: string;
+  imageUrl: string;
+  imageAlt: string;
+  badgeLabel: string;
+  metricValue: string;
+  metricLabel: string;
+  ctaLabel: string;
+  ctaHref: string;
+  secondaryCtaLabel: string;
+  secondaryCtaHref: string;
+  placement: string;
+  layout: "WIDE" | "FEATURE" | "HALF";
+  backgroundColor: string;
+  textColor: string;
+  accentColor: string;
+  rotationSeconds: number;
+  sortOrder: number;
+  isActive: boolean;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type MarketplaceListing = {
   id: string;
   categoryId: string;
@@ -2086,6 +2144,42 @@ export function mapCategory(category: ApiCategory): MarketplaceCategory {
     parentSlug: category.parent?.slug ?? null,
     children: category.children?.map(mapCategory),
     isActive: category.isActive,
+  };
+}
+
+export function mapAdvertisementBanner(
+  banner: ApiAdvertisementBanner,
+): MarketplaceAdvertisementBanner {
+  return {
+    id: banner.id,
+    title: banner.title,
+    subtitle: banner.subtitle ?? "",
+    kicker: banner.kicker ?? "Featured",
+    body: banner.body ?? "",
+    imageUrl: banner.imageUrl,
+    imageAlt: banner.imageAlt ?? banner.title,
+    badgeLabel: banner.badgeLabel ?? "",
+    metricValue: banner.metricValue ?? "",
+    metricLabel: banner.metricLabel ?? "",
+    ctaLabel: banner.ctaLabel ?? "Explore",
+    ctaHref: banner.ctaHref ?? "/search",
+    secondaryCtaLabel: banner.secondaryCtaLabel ?? "",
+    secondaryCtaHref: banner.secondaryCtaHref ?? "",
+    placement: banner.placement,
+    layout:
+      banner.layout === "FEATURE" || banner.layout === "HALF"
+        ? banner.layout
+        : "WIDE",
+    backgroundColor: banner.backgroundColor ?? "#f6f3ff",
+    textColor: banner.textColor ?? "#202124",
+    accentColor: banner.accentColor ?? "#6d46ff",
+    rotationSeconds: Math.min(Math.max(banner.rotationSeconds ?? 6, 3), 30),
+    sortOrder: banner.sortOrder ?? 0,
+    isActive: banner.isActive,
+    startsAt: banner.startsAt,
+    endsAt: banner.endsAt,
+    createdAt: banner.createdAt,
+    updatedAt: banner.updatedAt,
   };
 }
 

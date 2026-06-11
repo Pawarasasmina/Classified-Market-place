@@ -16,4 +16,5 @@ export type StoredImage = {
 
 export interface ImageStorageAdapter {
   storeListingImage(input: StoreImageInput): Promise<StoredImage>;
+  storeAdvertisementBannerImage(input: StoreImageInput): Promise<StoredImage>;
 }

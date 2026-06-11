@@ -473,6 +473,38 @@ model MarketplaceSetting {
   updatedAt DateTime @updatedAt
 }
 
+model AdvertisementBanner {
+  id                String   @id @default(uuid())
+  title             String
+  subtitle          String?
+  kicker            String?
+  body              String?  @db.Text
+  imageUrl          String   @db.Text
+  imageAlt          String?
+  badgeLabel        String?
+  metricValue       String?
+  metricLabel       String?
+  ctaLabel          String?
+  ctaHref           String?
+  secondaryCtaLabel String?
+  secondaryCtaHref  String?
+  placement         String   @default("HOME")
+  layout            String   @default("WIDE")
+  backgroundColor   String?
+  textColor         String?
+  accentColor       String?
+  rotationSeconds   Int      @default(6)
+  sortOrder         Int      @default(0)
+  isActive          Boolean  @default(true)
+  startsAt          DateTime?
+  endsAt            DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([placement, isActive, layout, sortOrder])
+  @@index([startsAt, endsAt])
+}
+
 model SavedListing {
   userId    String
   listingId String
