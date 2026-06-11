@@ -120,15 +120,13 @@ export function CategorySchemaEditor({
   }
 
   return (
-    <div className="grid gap-3 rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4">
+    <div className="admin-form-section">
       <input type="hidden" name={inputName} value={hiddenValue} readOnly />
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-bold text-[var(--foreground)]">
-            Dynamic questions
-          </p>
-          <p className="text-xs text-[var(--muted)]">
+        <div className="admin-form-section-head">
+          <p className="admin-form-section-title">Dynamic questions</p>
+          <p className="admin-form-section-copy">
             Text, number, dropdown, and yes/no toggle fields are stored in
             `schemaDefinition`.
           </p>
@@ -148,7 +146,7 @@ export function CategorySchemaEditor({
             <details
               key={field.id}
               open
-              className="rounded-md border border-[var(--line)] bg-white"
+              className="rounded-lg border border-[var(--line)] bg-[var(--surface)]"
             >
               <summary className="cursor-pointer list-none px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -196,39 +194,36 @@ export function CategorySchemaEditor({
                 </div>
               </summary>
 
-              <div className="grid gap-3 border-t border-[var(--line)] px-4 py-4 md:grid-cols-2">
-                <label className="grid gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-                    Label
-                  </span>
+              <div className="admin-form-grid border-t border-[var(--line)] px-4 py-4 md:grid-cols-2">
+                <label className="admin-field">
+                  <span className="admin-field-label">Label</span>
                   <input
                     value={field.label}
                     onChange={(event) =>
                       updateField(field.id, { label: event.target.value })
                     }
-                    className="rounded-md border border-[var(--line)] px-3 py-2 text-sm"
+                    className="surface-input text-sm"
                     placeholder="Mileage"
                   />
                 </label>
 
-                <label className="grid gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-                    Normalized key
-                  </span>
+                <label className="admin-field">
+                  <span className="admin-field-label">Normalized key</span>
                   <input
                     value={field.key}
                     onChange={(event) =>
                       updateField(field.id, { key: slugify(event.target.value) })
                     }
-                    className="rounded-md border border-[var(--line)] px-3 py-2 text-sm"
+                    className="surface-input text-sm"
                     placeholder="auto-generated-from-label"
                   />
+                  <span className="admin-field-help">
+                    Stored key used on listing forms and filters.
+                  </span>
                 </label>
 
-                <label className="grid gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-                    Field type
-                  </span>
+                <label className="admin-field">
+                  <span className="admin-field-label">Field type</span>
                   <select
                     value={field.type}
                     onChange={(event) =>
@@ -236,7 +231,7 @@ export function CategorySchemaEditor({
                         type: event.target.value as AttributeField["type"],
                       })
                     }
-                    className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm"
+                    className="surface-input text-sm"
                   >
                     <option value="text">Text</option>
                     <option value="number">Number</option>
@@ -245,40 +240,36 @@ export function CategorySchemaEditor({
                   </select>
                 </label>
 
-                <label className="grid gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-                    Placeholder
-                  </span>
+                <label className="admin-field">
+                  <span className="admin-field-label">Placeholder</span>
                   <input
                     value={field.placeholder ?? ""}
                     onChange={(event) =>
                       updateField(field.id, { placeholder: event.target.value })
                     }
-                    className="rounded-md border border-[var(--line)] px-3 py-2 text-sm"
+                    className="surface-input text-sm"
                     placeholder="Optional helper text"
                     disabled={field.type === "toggle"}
                   />
                 </label>
 
-                <label className="flex items-center gap-3 md:col-span-2">
+                <label className="admin-toggle md:col-span-2">
+                  <span className="admin-toggle-copy">
+                    <span>Required answer</span>
+                    <span>Buyer or seller must fill this field before saving.</span>
+                  </span>
                   <input
                     type="checkbox"
                     checked={Boolean(field.required)}
                     onChange={(event) =>
                       updateField(field.id, { required: event.target.checked })
                     }
-                    className="h-4 w-4 accent-[var(--brand)]"
                   />
-                  <span className="text-sm font-semibold text-[var(--foreground)]">
-                    Required answer
-                  </span>
                 </label>
 
                 {field.type === "select" ? (
-                  <label className="grid gap-2 md:col-span-2">
-                    <span className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
-                      Dropdown options
-                    </span>
+                  <label className="admin-field md:col-span-2">
+                    <span className="admin-field-label">Dropdown options</span>
                     <textarea
                       value={(field.options ?? []).join("\n")}
                       onChange={(event) =>
@@ -290,9 +281,12 @@ export function CategorySchemaEditor({
                         })
                       }
                       rows={4}
-                      className="rounded-md border border-[var(--line)] px-3 py-2 text-sm"
+                      className="surface-input text-sm"
                       placeholder={"New\nLike new\nUsed"}
                     />
+                    <span className="admin-field-help">
+                      Add one selectable option per line.
+                    </span>
                   </label>
                 ) : null}
               </div>

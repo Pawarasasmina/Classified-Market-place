@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminActiveBoostedListings } from "@/lib/marketplace-api";
@@ -31,26 +33,24 @@ export default async function AdminBoostsPage() {
 
   return (
     <div className="page grid gap-6">
-      <section className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Boost tracking
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Active Boosted Listings</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            Track live seller promotions and upcoming expiry windows.
-          </p>
-        </div>
-        <Link
-          href="/admin/boost-packages"
-          className="action-secondary px-4 py-3 text-sm font-bold"
-        >
-          Manage packages
-        </Link>
-      </section>
+      <AdminPageHeader
+        eyebrow="Boost tracking"
+        title="Active Boosted Listings"
+        description="Track live seller promotions and upcoming expiry windows."
+        badge={`${boosts.length} active`}
+        actions={
+          <Link
+            href="/admin/boost-packages"
+            className="action-secondary px-4 py-3 text-sm font-bold"
+          >
+            Manage packages
+          </Link>
+        }
+      />
 
+      <AdminTableEnhancer tableId="admin-boosts-table" copyLabel="boost IDs" />
       <div className="admin-table-wrap">
-        <table className="admin-table">
+        <table id="admin-boosts-table" className="admin-table">
           <thead>
             <tr>
               <th>Listing</th>
@@ -63,8 +63,8 @@ export default async function AdminBoostsPage() {
           </thead>
           <tbody>
             {boosts.map((boost) => (
-              <tr key={boost.id}>
-                <td>
+              <tr key={boost.id} data-row-id={boost.id}>
+                <td data-label="Listing">
                   <Link
                     href={`/listings/${boost.listing?.id ?? boost.listingId ?? ""}`}
                     className="font-semibold"
@@ -72,20 +72,35 @@ export default async function AdminBoostsPage() {
                     {boost.listing?.title ?? boost.listingId ?? boost.id}
                   </Link>
                 </td>
-                <td>{humanizeBoostPlacement(boost.placement)}</td>
-                <td>
-                  <span className="admin-status-badge">{boost.status}</span>
+                <td data-label="Placement">{humanizeBoostPlacement(boost.placement)}</td>
+                <td data-label="Status">
+                  <span
+                    className="admin-status-badge"
+                    data-status={boost.status.toLowerCase()}
+                  >
+                    {boost.status}
+                  </span>
                 </td>
-                <td>{formatDate(boost.startsAt)}</td>
-                <td>{formatDate(boost.endsAt)}</td>
-                <td>{boost.transaction?.status ?? "Unknown"}</td>
+                <td data-label="Starts">{formatDate(boost.startsAt)}</td>
+                <td data-label="Expires">{formatDate(boost.endsAt)}</td>
+                <td data-label="Payment">
+                  <span
+                    className="admin-status-badge"
+                    data-status={boost.transaction?.status?.toLowerCase() ?? "none"}
+                  >
+                    {boost.transaction?.status ?? "Unknown"}
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
         {boosts.length === 0 ? (
-          <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-            No active boosted listings right now.
+          <div className="admin-empty-state">
+            <p className="admin-empty-state-title">No active boosts</p>
+            <p className="admin-empty-state-copy">
+              Live seller promotions and upcoming expiry windows will appear here.
+            </p>
           </div>
         ) : null}
       </div>

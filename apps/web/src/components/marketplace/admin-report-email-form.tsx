@@ -17,14 +17,14 @@ type AdminReportEmailFormProps = {
 
 function statusClass(status?: string) {
   if (status === "success") {
-    return "border-emerald-300/40 bg-emerald-500/10 text-emerald-100";
+    return "border-emerald-300/40 bg-emerald-500/10 text-[var(--success-text)]";
   }
 
   if (status === "disabled") {
-    return "border-amber-300/40 bg-amber-500/10 text-amber-100";
+    return "border-amber-300/40 bg-amber-500/10 text-[var(--warning-text)]";
   }
 
-  return "border-red-300/40 bg-red-500/10 text-red-100";
+  return "border-red-300/40 bg-red-500/10 text-[var(--danger-text)]";
 }
 
 function SubmitButton() {

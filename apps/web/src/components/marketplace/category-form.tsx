@@ -157,24 +157,23 @@ export function CategoryForm({
     <form
       id="category-create-form"
       action={formAction}
-      className="rounded-md border border-[var(--line)] bg-white p-5 shadow-sm scroll-mt-6"
+      className="panel admin-form-card scroll-mt-6"
     >
       <input type="hidden" name="returnTo" value={returnTo} />
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            New category
+        <div className="admin-form-section-head">
+          <p className="admin-form-section-title">Add category or subcategory</p>
+          <p className="admin-form-section-copy">
+            Choose the level first, then define the public copy and dynamic
+            listing questions.
           </p>
-          <h3 className="mt-1 text-xl font-bold text-[var(--foreground)]">
-            Add category or subcategory
-          </h3>
         </div>
-        <span className="rounded-md bg-[var(--accent-soft)] px-3 py-2 text-sm font-semibold text-[var(--foreground)]">
+        <span className="admin-page-header-badge">
           {categories.length} total
         </span>
       </div>
 
-      <div className="mt-5 inline-grid grid-cols-2 rounded-md border border-[var(--line)] bg-[#f8faf8] p-1 text-sm font-semibold">
+      <div className="inline-grid w-fit grid-cols-2 rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-1 text-sm font-semibold">
         <button
           type="button"
           onClick={() => {
@@ -208,57 +207,56 @@ export function CategoryForm({
         </p>
       ) : null}
 
-      <div className="mt-5 grid gap-4 md:grid-cols-2">
-        <label className="grid gap-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
-            Name
-          </span>
+      <div className="admin-form-section">
+        <div className="admin-form-section-head">
+          <h3 className="admin-form-section-title">Basic details</h3>
+          <p className="admin-form-section-copy">
+            These values control the category label, URL, and listing expiry.
+          </p>
+        </div>
+        <div className="admin-form-grid md:grid-cols-2">
+        <label className="admin-field">
+          <span className="admin-field-label">Name</span>
           <input
             name="name"
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Vehicles"
-            className="rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+            className="surface-input text-sm"
           />
           {fieldMessage(state, "name")}
         </label>
 
-        <label className="grid gap-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
-            URL slug
-          </span>
+        <label className="admin-field">
+          <span className="admin-field-label">URL slug</span>
           <input
             name="slug"
             value={slug}
             onChange={(event) => setSlug(event.target.value)}
             placeholder={suggestedSlug || "auto-generated"}
-            className="rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+            className="surface-input text-sm"
           />
-          <p className="text-xs text-[var(--muted)]">
+          <p className="admin-field-help">
             Leave blank to generate from the category name.
           </p>
           {fieldMessage(state, "slug")}
         </label>
 
-        <label className="grid gap-2 md:col-span-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
-            Description
-          </span>
+        <label className="admin-field md:col-span-2">
+          <span className="admin-field-label">Description</span>
           <textarea
             name="description"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             rows={3}
             placeholder="Short description shown to buyers"
-            className="resize-none rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+            className="surface-input min-h-24 resize-none text-sm"
           />
           {fieldMessage(state, "description")}
         </label>
 
-        <label className="grid gap-2">
-          <span className="text-sm font-semibold text-[var(--foreground)]">
-            Listing expiry days
-          </span>
+        <label className="admin-field">
+          <span className="admin-field-label">Listing expiry days</span>
           <input
             name="listingExpiryDays"
             type="number"
@@ -266,9 +264,9 @@ export function CategoryForm({
             max="365"
             value={listingExpiryDays}
             onChange={(event) => setListingExpiryDays(event.target.value)}
-            className="rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+            className="surface-input text-sm"
           />
-          <p className="text-xs text-[var(--muted)]">
+          <p className="admin-field-help">
             Listings in this category expire after this many days once active.
           </p>
           {fieldMessage(state, "listingExpiryDays")}
@@ -279,8 +277,8 @@ export function CategoryForm({
             <input type="hidden" name="parentSlug" value={selectedParentSlug} />
             <div className="grid gap-4 md:grid-cols-2">
               {parentSelectors.map(({ key, level, options, value }) => (
-                <label key={key} className="grid gap-2">
-                  <span className="text-sm font-semibold text-[var(--foreground)]">
+                <label key={key} className="admin-field">
+                  <span className="admin-field-label">
                     {level === 0
                       ? "Parent category"
                       : level === 1
@@ -300,7 +298,7 @@ export function CategoryForm({
 
                       setParentPath(nextPath);
                     }}
-                    className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+                    className="surface-input text-sm"
                   >
                     <option value="">
                       {level === 0 ? "Choose parent category" : "Add directly here"}
@@ -323,15 +321,15 @@ export function CategoryForm({
         ) : (
           <input type="hidden" name="parentSlug" value="" />
         )}
-
-        <div className="md:col-span-2">
-          <CategorySchemaEditor
-            key={`create-schema-${selectedParentSlug || "root"}`}
-            inheritedFields={inheritedSchema}
-          />
         </div>
+      </div>
 
-        <div className={`flex items-end ${mode === "main" ? "md:col-span-2" : ""}`}>
+      <CategorySchemaEditor
+        key={`create-schema-${selectedParentSlug || "root"}`}
+        inheritedFields={inheritedSchema}
+      />
+
+        <div className="admin-form-actions">
           <button
             disabled={pending}
             className="action-primary w-full px-4 py-2 text-sm font-semibold disabled:opacity-60 md:w-fit"
@@ -343,7 +341,6 @@ export function CategoryForm({
                 : "Add main category"}
           </button>
         </div>
-      </div>
 
       {state.message ? (
         <p className="mt-4 rounded-md border border-[var(--line)] bg-[var(--brand-soft)] px-3 py-2 text-sm font-semibold text-[var(--brand-strong)]">

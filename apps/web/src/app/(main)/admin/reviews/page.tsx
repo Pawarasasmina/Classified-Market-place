@@ -4,6 +4,11 @@ import {
   deleteSellerReviewAction,
   moderateSellerReviewAction,
 } from "@/app/(main)/actions";
+import {
+  AdminActionFeedback,
+  AdminSubmitButton,
+} from "@/components/marketplace/admin-form-feedback";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminSellerReviews } from "@/lib/marketplace-api";
@@ -51,51 +56,34 @@ export default async function AdminReviewsPage(props: AdminReviewsPageProps) {
     : "PENDING";
   const reviews = await fetchAdminSellerReviews(accessToken, { status });
   const returnTo = buildReturnTo(searchParams);
-  const updateMessage =
-    searchParams.updated === "success"
-      ? "Seller review moderation updated."
-      : searchParams.updated === "deleted"
-        ? "Seller review deleted."
-      : searchParams.updated === "error"
-        ? (searchParams.message ?? "Could not update that seller review.")
-        : null;
-
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Trust and safety
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Seller review moderation</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            Approve useful customer reviews and reject written feedback that
-            violates marketplace standards, hide reviews, or delete review
-            text while keeping the star rating.
-          </p>
-        </div>
-        <Link
-          href="/admin"
-          className="action-secondary px-4 py-2 text-sm font-semibold"
-        >
-          Back to dashboard
-        </Link>
-      </div>
+      <AdminPageHeader
+        eyebrow="Trust and safety"
+        title="Seller review moderation"
+        description="Approve useful customer reviews and reject written feedback that violates marketplace standards, hide reviews, or delete review text while keeping the star rating."
+        badge={`${reviews.length} ${humanizeStatus(status).toLowerCase()}`}
+        actions={
+          <Link
+            href="/admin"
+            className="action-secondary px-4 py-2 text-sm font-semibold"
+          >
+            Back to dashboard
+          </Link>
+        }
+      />
 
-      {updateMessage ? (
-        <div
-          className={`rounded-md border px-4 py-3 text-sm font-semibold ${
-            searchParams.updated === "success" ||
-            searchParams.updated === "deleted"
-              ? "border-green-200 bg-green-50 text-green-800"
-              : "border-red-200 bg-red-50 text-red-700"
-          }`}
-        >
-          {updateMessage}
-        </div>
-      ) : null}
+      <AdminActionFeedback
+        status={searchParams.updated}
+        message={searchParams.message}
+        messages={{
+          success: "Seller review moderation updated.",
+          deleted: "Seller review deleted.",
+        }}
+        successStatuses={["success", "deleted"]}
+      />
 
-      <form className="panel grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+      <form className="panel admin-filter-bar grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
         <label className="grid gap-2 text-sm font-bold">
           Review status
           <select name="status" defaultValue={status} className="surface-input">
@@ -121,10 +109,13 @@ export default async function AdminReviewsPage(props: AdminReviewsPageProps) {
                     <h2 className="text-lg font-black">
                       {review.listing?.title ?? review.listingId}
                     </h2>
-                    <span className="admin-status-badge">
+                    <span
+                      className="admin-status-badge"
+                      data-status={(review.reviewStatus ?? "PENDING").toLowerCase()}
+                    >
                       {humanizeStatus(review.reviewStatus ?? "PENDING")}
                     </span>
-                    <span className="admin-status-badge">
+                    <span className="admin-status-badge" data-status="success">
                       {review.stars} / 5 stars
                     </span>
                   </div>
@@ -136,7 +127,7 @@ export default async function AdminReviewsPage(props: AdminReviewsPageProps) {
                     Updated {new Date(review.updatedAt).toLocaleString()}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2 lg:justify-end">
+                <div className="admin-row-actions">
                   <Link
                     href={`/listings/${review.listingId}?view=customer`}
                     target="_blank"
@@ -176,7 +167,7 @@ export default async function AdminReviewsPage(props: AdminReviewsPageProps) {
                 <>
                   <form
                     action={moderateSellerReviewAction}
-                    className="grid gap-3 border-t border-[var(--line)] pt-4 lg:grid-cols-[12rem_1fr_auto] lg:items-end"
+                    className="admin-filter-bar grid gap-3 border-t border-[var(--line)] pt-4 lg:grid-cols-[12rem_1fr_auto] lg:items-end"
                   >
                     <input type="hidden" name="ratingId" value={review.id} />
                     <input type="hidden" name="sellerId" value={review.sellerId} />
@@ -205,13 +196,16 @@ export default async function AdminReviewsPage(props: AdminReviewsPageProps) {
                         placeholder="Optional moderation note"
                       />
                     </label>
-                    <button className="action-primary px-4 py-3 text-sm font-black">
+                    <AdminSubmitButton
+                      className="action-primary px-4 py-3 text-sm font-black"
+                      pendingText="Saving decision..."
+                    >
                       Save decision
-                    </button>
+                    </AdminSubmitButton>
                   </form>
                   <form
                     action={deleteSellerReviewAction}
-                    className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] pt-4"
+                    className="admin-row-actions border-t border-[var(--line)] pt-4"
                   >
                     <input type="hidden" name="ratingId" value={review.id} />
                     <input type="hidden" name="sellerId" value={review.sellerId} />
@@ -221,17 +215,24 @@ export default async function AdminReviewsPage(props: AdminReviewsPageProps) {
                       Delete removes the written review only; the star rating
                       remains on the seller profile.
                     </p>
-                    <button className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-700 hover:bg-red-100">
+                    <AdminSubmitButton
+                      className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-700 hover:bg-red-100"
+                      confirmMessage="Delete this written review text? The star rating will remain, but the review content will be removed."
+                      pendingText="Deleting review..."
+                    >
                       Delete review text
-                    </button>
+                    </AdminSubmitButton>
                   </form>
                 </>
               ) : null}
             </article>
           ))
         ) : (
-          <div className="panel text-sm text-[var(--muted)]">
-            No seller reviews match this moderation status.
+          <div className="panel admin-empty-state">
+            <p className="admin-empty-state-title">No seller reviews found</p>
+            <p className="admin-empty-state-copy">
+              There are no seller reviews in this moderation status. Try another status filter.
+            </p>
           </div>
         )}
       </section>

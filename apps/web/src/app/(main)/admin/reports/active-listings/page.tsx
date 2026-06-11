@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { AdminReportEmailForm } from "@/components/marketplace/admin-report-email-form";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchActiveListingsReport } from "@/lib/marketplace-api";
@@ -84,17 +86,14 @@ export default async function ActiveListingsReportPage(
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Listing report
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Active listings</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            {formatDate(report.range.from)} to {formatDate(report.range.to)}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <AdminPageHeader
+        eyebrow="Listing report"
+        title="Active listings"
+        description={`${formatDate(report.range.from)} to ${formatDate(
+          report.range.to,
+        )}`}
+        actions={
+          <>
           {canEmailReports ? (
             <AdminReportEmailForm
               filters={{ days: selectedDays, take: 100 }}
@@ -121,8 +120,9 @@ export default async function ActiveListingsReportPage(
           >
             Operations report
           </Link>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
@@ -217,9 +217,13 @@ export default async function ActiveListingsReportPage(
               </div>
             ))}
             {report.categories.length === 0 ? (
-              <p className="text-sm text-[var(--muted)]">
-                Active listing categories will appear here.
-              </p>
+              <div className="admin-empty-state">
+                <p className="admin-empty-state-title">No active categories</p>
+                <p className="admin-empty-state-copy">
+                  Categories with active listings will appear here once active
+                  inventory is available.
+                </p>
+              </div>
             ) : null}
           </div>
         </div>
@@ -243,8 +247,12 @@ export default async function ActiveListingsReportPage(
           </Link>
         </div>
 
+        <AdminTableEnhancer
+          tableId="admin-active-listings-report-table"
+          copyLabel="listing IDs"
+        />
         <div className="admin-table-wrap">
-          <table className="admin-table">
+          <table id="admin-active-listings-report-table" className="admin-table">
             <thead>
               <tr>
                 <th>Listing</th>
@@ -258,8 +266,8 @@ export default async function ActiveListingsReportPage(
             </thead>
             <tbody>
               {report.listings.map((listing) => (
-                <tr key={listing.id}>
-                  <td>
+                <tr key={listing.id} data-row-id={listing.id}>
+                  <td data-label="Listing">
                     <Link
                       href={`/listings/${listing.id}?view=customer`}
                       target="_blank"
@@ -276,7 +284,7 @@ export default async function ActiveListingsReportPage(
                       {formatDate(listing.createdAt)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Seller">
                     <Link
                       href={`/sellers/${listing.sellerId}?view=customer`}
                       target="_blank"
@@ -293,7 +301,7 @@ export default async function ActiveListingsReportPage(
                       {formatMetric(listing.seller.reputationScore)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Priority">
                     <span className="font-semibold">
                       {listing.listingPaymentMode === "PAID" ||
                       listing.paidPriorityEnabled
@@ -311,7 +319,7 @@ export default async function ActiveListingsReportPage(
                         : ""}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Engagement">
                     <span className="font-semibold">
                       {formatMetric(listing.viewCount)} views
                     </span>
@@ -321,7 +329,7 @@ export default async function ActiveListingsReportPage(
                       {listing.inquiryConversionRate}%
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Lifetime">
                     <span className="font-semibold">
                       {formatMetric(listing.lifetimeViewCount)} views
                     </span>
@@ -330,7 +338,7 @@ export default async function ActiveListingsReportPage(
                       {formatMetric(listing.lifetimeInquiryCount)} inquiries
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Risk">
                     <span className="font-semibold">
                       {formatMetric(listing.reportCount)} recent
                     </span>
@@ -338,7 +346,7 @@ export default async function ActiveListingsReportPage(
                       {formatMetric(listing.lifetimeReportCount)} lifetime
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Boost">
                     {listing.activeBoostCount ? (
                       <>
                         <span className="font-semibold">
@@ -362,8 +370,18 @@ export default async function ActiveListingsReportPage(
             </tbody>
           </table>
           {report.listings.length === 0 ? (
-            <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-              No active listings are currently available.
+            <div className="admin-empty-state">
+              <p className="admin-empty-state-title">No active listings</p>
+              <p className="admin-empty-state-copy">
+                Active listing performance will appear here once approved
+                listings are available in the marketplace.
+              </p>
+              <Link
+                href="/admin"
+                className="action-secondary px-3 py-2 text-sm font-semibold"
+              >
+                Moderation dashboard
+              </Link>
             </div>
           ) : null}
         </div>

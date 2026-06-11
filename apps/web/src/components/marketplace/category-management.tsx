@@ -5,6 +5,8 @@ import {
   deleteCategoryAction,
   updateCategoryAction,
 } from "@/app/(main)/actions";
+import { AdminSubmitButton } from "@/components/marketplace/admin-form-feedback";
+import { CategoryBulkTools } from "@/components/marketplace/category-bulk-tools";
 import { CategorySchemaEditor } from "@/components/marketplace/category-schema-editor";
 import { type MarketplaceCategory } from "@/lib/marketplace";
 import { CategoryForm } from "./category-form";
@@ -348,7 +350,7 @@ function SelectedCategoryPanel({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/35 px-4 py-8 backdrop-blur-[2px]">
-      <div className="max-h-[calc(100vh-4rem)] w-full max-w-4xl overflow-y-auto rounded-2xl border border-[var(--line)] bg-white p-5 shadow-2xl">
+      <div className="max-h-[calc(100vh-4rem)] w-full max-w-4xl overflow-y-auto rounded-lg border border-[var(--line)] bg-[var(--surface)] p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-[var(--accent-soft)] text-[var(--foreground)]">
@@ -379,74 +381,72 @@ function SelectedCategoryPanel({
         </div>
 
         {canEdit ? (
-          <form action={updateCategoryAction} className="mt-5 grid gap-4">
+          <form action={updateCategoryAction} className="admin-form-card mt-5">
             <input type="hidden" name="slug" value={category.slug} />
             <input type="hidden" name="returnTo" value={returnTo} />
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="grid gap-2">
-                <span className="text-sm font-semibold text-[var(--foreground)]">
-                  Name
-                </span>
-                <input
-                  name="name"
-                  defaultValue={category.name}
-                  className="rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
-                />
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm font-semibold text-[var(--foreground)]">
-                  Parent
-                </span>
-                <select
-                  name="parentSlug"
-                  defaultValue={category.parentSlug ?? ""}
-                  className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
-                >
-                  <option value="">Top-level</option>
-                  {parentOptions.map((option) => (
-                    <option key={option.slug} value={option.slug}>
-                      {getCategoryPath(option, categories)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm font-semibold text-[var(--foreground)]">
-                  Description
-                </span>
-                <textarea
-                  name="description"
-                  defaultValue={category.description}
-                  rows={4}
-                  className="resize-none rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
-                />
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm font-semibold text-[var(--foreground)]">
-                  Status
-                </span>
-                <select
-                  name="isActive"
-                  defaultValue={String(category.isActive)}
-                  className="rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
-                >
-                  <option value="true">Active</option>
-                  <option value="false">Inactive</option>
-                </select>
-              </label>
-              <label className="grid gap-2">
-                <span className="text-sm font-semibold text-[var(--foreground)]">
-                  Listing expiry days
-                </span>
-                <input
-                  name="listingExpiryDays"
-                  type="number"
-                  min="1"
-                  max="365"
-                  defaultValue={category.listingExpiryDays}
-                  className="rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
-                />
-              </label>
+            <div className="admin-form-section">
+              <div className="admin-form-section-head">
+                <h3 className="admin-form-section-title">Category settings</h3>
+                <p className="admin-form-section-copy">
+                  Update naming, parent placement, active state, and listing expiry.
+                </p>
+              </div>
+              <div className="admin-form-grid md:grid-cols-2">
+                <label className="admin-field">
+                  <span className="admin-field-label">Name</span>
+                  <input
+                    name="name"
+                    defaultValue={category.name}
+                    className="surface-input text-sm"
+                  />
+                </label>
+                <label className="admin-field">
+                  <span className="admin-field-label">Parent</span>
+                  <select
+                    name="parentSlug"
+                    defaultValue={category.parentSlug ?? ""}
+                    className="surface-input text-sm"
+                  >
+                    <option value="">Top-level</option>
+                    {parentOptions.map((option) => (
+                      <option key={option.slug} value={option.slug}>
+                        {getCategoryPath(option, categories)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="admin-field md:col-span-2">
+                  <span className="admin-field-label">Description</span>
+                  <textarea
+                    name="description"
+                    defaultValue={category.description}
+                    rows={4}
+                    className="surface-input min-h-24 resize-none text-sm"
+                  />
+                </label>
+                <label className="admin-field">
+                  <span className="admin-field-label">Status</span>
+                  <select
+                    name="isActive"
+                    defaultValue={String(category.isActive)}
+                    className="surface-input text-sm"
+                  >
+                    <option value="true">Active</option>
+                    <option value="false">Inactive</option>
+                  </select>
+                </label>
+                <label className="admin-field">
+                  <span className="admin-field-label">Listing expiry days</span>
+                  <input
+                    name="listingExpiryDays"
+                    type="number"
+                    min="1"
+                    max="365"
+                    defaultValue={category.listingExpiryDays}
+                    className="surface-input text-sm"
+                  />
+                </label>
+              </div>
             </div>
 
             <CategorySchemaEditor
@@ -461,9 +461,12 @@ function SelectedCategoryPanel({
             />
 
             <div className="grid gap-2 sm:grid-cols-2">
-              <button className="action-primary px-4 py-2 text-sm font-semibold">
+              <AdminSubmitButton
+                className="action-primary px-4 py-2 text-sm font-semibold"
+                pendingText="Saving category..."
+              >
                 Save
-              </button>
+              </AdminSubmitButton>
               <button
                 type="button"
                 onClick={() => onAddSubcategory(category)}
@@ -483,9 +486,13 @@ function SelectedCategoryPanel({
           <form action={deleteCategoryAction} className="mt-3">
             <input type="hidden" name="slug" value={category.slug} />
             <input type="hidden" name="returnTo" value={returnTo} />
-            <button className="w-full rounded-md border border-[#e7b6a9] px-4 py-2 text-sm font-semibold text-[#9f321e] hover:bg-[#fff3ef]">
+            <AdminSubmitButton
+              className="w-full rounded-md border border-[#e7b6a9] px-4 py-2 text-sm font-semibold text-[#9f321e] hover:bg-[#fff3ef]"
+              confirmMessage={`Disable "${category.name}"? This can affect category visibility and listing placement.`}
+              pendingText="Disabling category..."
+            >
               Disable category
-            </button>
+            </AdminSubmitButton>
           </form>
         ) : null}
       </div>
@@ -565,27 +572,32 @@ export function CategoryManagement({
 
   return (
     <section className="grid gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+      <div className="panel flex flex-wrap items-end justify-between gap-4">
+        <div className="admin-form-section-head">
           <h2 className="text-xl font-semibold">Category Management</h2>
-          <p className="mt-2 text-sm text-[var(--muted)]">
+          <p className="admin-form-section-copy">
             {categories.length} categories across {treeDepth + 1} levels.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-sm font-semibold">
-          <span className="rounded-md border border-[var(--line)] bg-white px-3 py-2">
+          <span className="admin-page-header-badge">
             {categories.length} total
           </span>
-          <span className="rounded-md border border-[var(--line)] bg-white px-3 py-2">
+          <span className="admin-page-header-badge">
             {activeCategories.length} active
           </span>
-          <span className="rounded-md border border-[var(--line)] bg-white px-3 py-2">
+          <span className="admin-page-header-badge">
             {subcategories.length} child categories
           </span>
         </div>
       </div>
 
       <div className="grid gap-4">
+          <CategoryBulkTools
+            canEdit={canEdit}
+            categories={categories}
+            returnTo={returnTo}
+          />
           {canEdit ? (
             <CategoryForm
               key={presetParent?.version ?? "category-root-form"}
@@ -600,17 +612,21 @@ export function CategoryManagement({
             </div>
           )}
 
-          <div className="rounded-md border border-[var(--line)] bg-white p-4 shadow-sm">
+          <div className="admin-form-section">
+            <div className="admin-form-section-head">
+              <h3 className="admin-form-section-title">Find and filter</h3>
+              <p className="admin-form-section-copy">
+                Narrow the category tree before editing a branch.
+              </p>
+            </div>
             <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
-              <label className="grid gap-2">
-                <span className="text-sm font-semibold text-[var(--foreground)]">
-                  Find category
-                </span>
+              <label className="admin-field">
+                <span className="admin-field-label">Find category</span>
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search by name, slug, or description"
-                  className="rounded-md border border-[var(--line)] px-3 py-2 text-sm outline-none focus:border-[var(--brand)]"
+                  className="surface-input text-sm"
                 />
               </label>
 
@@ -618,14 +634,14 @@ export function CategoryManagement({
                 <button
                   type="button"
                   onClick={() => setExpandedSlugs(new Set(allExpandableSlugs))}
-                  className="rounded-md border border-[var(--line)] px-3 py-2 text-sm font-semibold hover:border-[var(--brand)]"
+                  className="action-secondary px-3 py-2 text-sm font-semibold"
                 >
                   Expand all
                 </button>
                 <button
                   type="button"
                   onClick={() => setExpandedSlugs(new Set())}
-                  className="rounded-md border border-[var(--line)] px-3 py-2 text-sm font-semibold hover:border-[var(--brand)]"
+                  className="action-secondary px-3 py-2 text-sm font-semibold"
                 >
                   Collapse all
                 </button>

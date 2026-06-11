@@ -1,7 +1,39 @@
 import Link from "next/link";
 import { moderateListingAction } from "@/app/(main)/actions";
+import {
+  AdminActionFeedback,
+  AdminSubmitButton,
+} from "@/components/marketplace/admin-form-feedback";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
+import { AdminTablePagination } from "@/components/marketplace/admin-table-pagination";
+import {
+  buildAdminPaginationHref,
+  getAdminPaginationHiddenFields,
+  getAdminPaginationState,
+  paginateAdminItems,
+} from "@/lib/admin-pagination";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminListings } from "@/lib/marketplace-api";
+
+type AdminListingsPageProps = {
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    message?: string;
+    moderation?: string;
+    page?: string;
+    pageSize?: string;
+  }>;
+};
+
+const listingStatusFilters = [
+  "Active",
+  "Pending",
+  "Paused",
+  "Rejected",
+  "Deleted",
+] as const;
 
 function getActionLabel(currentStatus: string, nextStatus: string) {
   if (nextStatus === "ACTIVE") {
@@ -19,35 +51,128 @@ function getActionLabel(currentStatus: string, nextStatus: string) {
   return "Delete";
 }
 
-export default async function AdminListingsPage() {
+function buildReturnTo(searchParams: Awaited<AdminListingsPageProps["searchParams"]>) {
+  const params = new URLSearchParams();
+
+  if (searchParams.q) params.set("q", searchParams.q);
+  if (searchParams.status) params.set("status", searchParams.status);
+  if (searchParams.page) params.set("page", searchParams.page);
+  if (searchParams.pageSize) params.set("pageSize", searchParams.pageSize);
+
+  const query = params.toString();
+  return query ? `/admin/listings?${query}` : "/admin/listings";
+}
+
+export default async function AdminListingsPage(props: AdminListingsPageProps) {
+  const searchParams = await props.searchParams;
   const { accessToken } = await requireSessionContext("/admin/listings");
   const listings = await fetchAdminListings(accessToken, { take: 100 });
+  const query = searchParams.q?.trim() ?? "";
+  const status = listingStatusFilters.includes(
+    searchParams.status as (typeof listingStatusFilters)[number],
+  )
+    ? searchParams.status
+    : "";
+  const filteredListings = listings.filter((listing) => {
+    const matchesStatus = !status || listing.status === status;
+    const searchable = [
+      listing.title,
+      listing.sellerDisplayName,
+      listing.subcategory,
+      listing.location,
+      listing.priceLabel,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const matchesQuery = !query || searchable.includes(query.toLowerCase());
+
+    return matchesStatus && matchesQuery;
+  });
+  const pagination = getAdminPaginationState(
+    searchParams,
+    filteredListings.length,
+  );
+  const paginatedListings = paginateAdminItems(filteredListings, pagination);
+  const paginationParams = {
+    q: query,
+    status,
+    pageSize: pagination.pageSize,
+  };
+  const returnTo = buildReturnTo(searchParams);
 
   return (
-    <div className="page grid gap-6">
-      <div className="panel-dark p-6">
-        <p className="section-eyebrow">Seller operations</p>
-        <h1 className="mt-2 text-3xl font-black text-white">Admin listings</h1>
-        <p className="mt-2 text-[#d7d9ea]">
-          Moderate listing lifecycle changes, review paid submissions, and open
-          seller records without leaving the listing queue.
-        </p>
-      </div>
+    <div className="page admin-dashboard grid gap-6">
+      <AdminPageHeader
+        eyebrow="Seller operations"
+        title="Admin listings"
+        description="Moderate listing lifecycle changes, review paid submissions, and open seller records without leaving the listing queue."
+        badge={`${filteredListings.length} shown`}
+        actions={
+          <Link
+            href="/admin/reports/active-listings"
+            className="action-secondary px-4 py-2 text-sm font-semibold"
+          >
+            Active listings report
+          </Link>
+        }
+      />
 
-      <div className="panel overflow-x-auto">
-        <table className="min-w-full text-sm">
+      <AdminActionFeedback
+        status={searchParams.moderation}
+        message={searchParams.message}
+        messages={{
+          updated: "Listing moderation updated.",
+          invalid: "Choose a listing and status before submitting.",
+        }}
+        successStatuses={["updated"]}
+      />
+
+      <form className="panel admin-filter-bar grid gap-3 md:grid-cols-[1.5fr_1fr_auto] md:items-end">
+        <label className="grid gap-2 text-sm font-bold">
+          Search listings
+          <input
+            name="q"
+            defaultValue={query}
+            className="surface-input"
+            placeholder="Title, seller, category, or location"
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-bold">
+          Status
+          <select name="status" defaultValue={status} className="surface-input">
+            <option value="">All statuses</option>
+            {listingStatusFilters.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className="action-primary px-4 py-3 text-sm font-black">
+          Filter
+        </button>
+      </form>
+
+      <AdminTableEnhancer
+        tableId="admin-listings-table"
+        copyLabel="listing IDs"
+        stickyActions
+      />
+      <div className="admin-table-wrap">
+        <table id="admin-listings-table" className="admin-table">
           <thead>
-            <tr className="border-b border-[var(--line)] text-left text-xs uppercase tracking-wide text-[var(--muted)]">
-              <th className="py-3 pr-4">Listing</th>
-              <th className="py-3 pr-4">Seller</th>
-              <th className="py-3 pr-4">Status</th>
-              <th className="py-3 pr-4">Payment</th>
-              <th className="py-3 pr-4">Boost</th>
-              <th className="py-3 pr-4">Action</th>
+            <tr>
+              <th>Listing</th>
+              <th>Seller</th>
+              <th>Status</th>
+              <th>Payment</th>
+              <th>Boost</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
-            {listings.map((listing) => {
+            {paginatedListings.map((listing) => {
               const currentStatus = listing.status.toUpperCase();
               const actions = ([
                 "ACTIVE",
@@ -57,8 +182,8 @@ export default async function AdminListingsPage() {
               ] as const).filter((status) => status !== currentStatus);
 
               return (
-                <tr key={listing.id} className="border-b border-[var(--line)] align-top">
-                  <td className="py-4 pr-4">
+                <tr key={listing.id} data-row-id={listing.id}>
+                  <td data-label="Listing">
                     {listing.status === "Active" ? (
                       <Link href={`/listings/${listing.id}`} className="font-bold">
                         {listing.title}
@@ -78,7 +203,7 @@ export default async function AdminListingsPage() {
                       </p>
                     ) : null}
                   </td>
-                  <td className="py-4 pr-4">
+                  <td data-label="Seller">
                     <p className="font-semibold">
                       {listing.sellerDisplayName ?? "Seller"}
                     </p>
@@ -89,14 +214,21 @@ export default async function AdminListingsPage() {
                       Open seller
                     </Link>
                   </td>
-                  <td className="py-4 pr-4">{listing.status}</td>
-                  <td className="py-4 pr-4">
+                  <td data-label="Status">
+                    <span
+                      className="admin-status-badge"
+                      data-status={listing.status.toLowerCase()}
+                    >
+                      {listing.status}
+                    </span>
+                  </td>
+                  <td data-label="Payment">
                     <p className="font-semibold">{listing.listingPaymentMode}</p>
                     <p className="mt-1 text-xs text-[var(--muted)]">
                       {listing.paidPriorityEnabled ? "Priority enabled" : "Standard priority"}
                     </p>
                   </td>
-                  <td className="py-4 pr-4">
+                  <td data-label="Boost">
                     {listing.isBoosted ? (
                       <>
                         <p className="font-semibold">{listing.boostLabel}</p>
@@ -108,13 +240,13 @@ export default async function AdminListingsPage() {
                       <span className="text-xs text-[var(--muted)]">No active boost</span>
                     )}
                   </td>
-                  <td className="py-4 pr-4">
-                    <div className="grid gap-2">
+                  <td data-label="Actions">
+                    <div className="admin-row-actions-grid">
                       {actions.map((status) => (
                         <form key={status} action={moderateListingAction} className="grid gap-2">
                           <input type="hidden" name="listingId" value={listing.id} />
                           <input type="hidden" name="status" value={status} />
-                          <input type="hidden" name="returnTo" value="/admin/listings" />
+                          <input type="hidden" name="returnTo" value={returnTo} />
                           {status === "REJECTED" ? (
                             <textarea
                               name="reason"
@@ -123,9 +255,16 @@ export default async function AdminListingsPage() {
                               className="surface-input min-w-[14rem] text-sm"
                             />
                           ) : null}
-                          <button className="admin-table-action">
+                          <AdminSubmitButton
+                            className="admin-table-action"
+                            confirmMessage={`${getActionLabel(
+                              currentStatus,
+                              status,
+                            )} "${listing.title}"? This changes the listing status for customers and the seller.`}
+                            pendingText="Updating..."
+                          >
                             {getActionLabel(currentStatus, status)}
-                          </button>
+                          </AdminSubmitButton>
                         </form>
                       ))}
                     </div>
@@ -135,12 +274,28 @@ export default async function AdminListingsPage() {
             })}
           </tbody>
         </table>
-        {listings.length === 0 ? (
-          <div className="p-4 text-sm text-[var(--muted)]">
-            No listings are available for moderation.
+        {filteredListings.length === 0 ? (
+          <div className="admin-empty-state">
+            <p className="admin-empty-state-title">No listings found</p>
+            <p className="admin-empty-state-copy">
+              Try clearing the search text or status filter to return to the full moderation queue.
+            </p>
           </div>
         ) : null}
       </div>
+      {filteredListings.length > 0 ? (
+        <AdminTablePagination
+          buildPageHref={(page, pageSize = pagination.pageSize) =>
+            buildAdminPaginationHref("/admin/listings", paginationParams, {
+              page,
+              pageSize,
+            })
+          }
+          hiddenFields={getAdminPaginationHiddenFields(paginationParams)}
+          itemLabel="listings"
+          pagination={pagination}
+        />
+      ) : null}
     </div>
   );
 }

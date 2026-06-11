@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { AdminReportEmailForm } from "@/components/marketplace/admin-report-email-form";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminSellerReport } from "@/lib/marketplace-api";
@@ -79,17 +81,14 @@ export default async function AdminSellerReportPage(
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Seller report
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Total sellers</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            {formatDate(report.range.from)} to {formatDate(report.range.to)}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <AdminPageHeader
+        eyebrow="Seller report"
+        title="Total sellers"
+        description={`${formatDate(report.range.from)} to ${formatDate(
+          report.range.to,
+        )}`}
+        actions={
+          <>
           {canEmailReports ? (
             <AdminReportEmailForm
               filters={{ days: selectedDays, take: 100 }}
@@ -122,8 +121,9 @@ export default async function AdminSellerReportPage(
           >
             Pending approvals
           </Link>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
@@ -218,8 +218,12 @@ export default async function AdminSellerReportPage(
           </Link>
         </div>
 
+        <AdminTableEnhancer
+          tableId="admin-seller-report-table"
+          copyLabel="seller IDs"
+        />
         <div className="admin-table-wrap">
-          <table className="admin-table">
+          <table id="admin-seller-report-table" className="admin-table">
             <thead>
               <tr>
                 <th>Seller</th>
@@ -233,8 +237,8 @@ export default async function AdminSellerReportPage(
             </thead>
             <tbody>
               {report.sellers.map((seller) => (
-                <tr key={seller.id}>
-                  <td>
+                <tr key={seller.id} data-row-id={seller.id}>
+                  <td data-label="Seller">
                     <Link
                       href={`/sellers/${seller.id}?view=customer`}
                       className="font-semibold"
@@ -250,8 +254,10 @@ export default async function AdminSellerReportPage(
                         : "Unverified contact"}
                     </span>
                   </td>
-                  <td>{humanizeLabel(seller.sellerPriorityTier)}</td>
-                  <td>
+                  <td data-label="Tier">
+                    {humanizeLabel(seller.sellerPriorityTier)}
+                  </td>
+                  <td data-label="Listings">
                     <span className="font-semibold">
                       {formatMetric(seller.totalListings)} total
                     </span>
@@ -261,7 +267,7 @@ export default async function AdminSellerReportPage(
                       {formatMetric(seller.paidListings)} paid
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Engagement">
                     <span className="font-semibold">
                       {formatMetric(seller.viewCount)} views
                     </span>
@@ -271,7 +277,7 @@ export default async function AdminSellerReportPage(
                       {seller.inquiryConversionRate}% conversion
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Ratings">
                     {seller.ratingCount ? (
                       <>
                         <span className="font-semibold">
@@ -286,7 +292,7 @@ export default async function AdminSellerReportPage(
                       "No ratings"
                     )}
                   </td>
-                  <td>
+                  <td data-label="Revenue">
                     <span className="font-semibold">
                       {formatMoney(seller.revenue)}
                     </span>
@@ -294,7 +300,7 @@ export default async function AdminSellerReportPage(
                       {formatMetric(seller.boostCount)} boosts
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Risk">
                     <span className="font-semibold">
                       {formatMetric(seller.reportCount)} reports
                     </span>
@@ -307,8 +313,18 @@ export default async function AdminSellerReportPage(
             </tbody>
           </table>
           {report.sellers.length === 0 ? (
-            <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-              No sellers have created listings yet.
+            <div className="admin-empty-state">
+              <p className="admin-empty-state-title">No seller activity</p>
+              <p className="admin-empty-state-copy">
+                Sellers with listing, engagement, revenue, and risk activity
+                will appear here once marketplace activity begins.
+              </p>
+              <Link
+                href="/admin/users"
+                className="action-secondary px-3 py-2 text-sm font-semibold"
+              >
+                Manage users
+              </Link>
             </div>
           ) : null}
         </div>

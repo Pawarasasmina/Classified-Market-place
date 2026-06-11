@@ -1,6 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
+import { AdminTablePagination } from "@/components/marketplace/admin-table-pagination";
 import { hasAdminPermission } from "@/lib/admin-permissions";
+import {
+  buildAdminPaginationHref,
+  getAdminPaginationHiddenFields,
+  getAdminPaginationState,
+  paginateAdminItems,
+} from "@/lib/admin-pagination";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminAuditLogs } from "@/lib/marketplace-api";
 
@@ -13,6 +22,8 @@ type AdminAuditLogsPageProps = {
     success?: string;
     from?: string;
     to?: string;
+    page?: string;
+    pageSize?: string;
   }>;
 };
 
@@ -79,6 +90,18 @@ export default async function AdminAuditLogsPage(
     to,
     take: 100,
   });
+  const pagination = getAdminPaginationState(searchParams, auditLogs.length);
+  const paginatedAuditLogs = paginateAdminItems(auditLogs, pagination);
+  const paginationParams = {
+    actorId,
+    action,
+    entityType,
+    entityId,
+    success: searchParams.success,
+    from,
+    to,
+    pageSize: pagination.pageSize,
+  };
   const failedCount = auditLogs.filter((log) => !log.success).length;
   const adminActionCount = auditLogs.filter(
     (log) => log.actorRole?.toUpperCase() === "ADMIN",
@@ -86,24 +109,20 @@ export default async function AdminAuditLogsPage(
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Security
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Audit logs</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            Review state-changing requests, admin actions, auth events, and
-            failed writes.
-          </p>
-        </div>
-        <Link
-          href="/admin"
-          className="action-secondary px-4 py-2 text-sm font-semibold"
-        >
-          Back to dashboard
-        </Link>
-      </div>
+      <AdminPageHeader
+        eyebrow="Security"
+        title="Audit logs"
+        description="Review state-changing requests, admin actions, auth events, and failed writes."
+        badge={`${auditLogs.length} events`}
+        actions={
+          <Link
+            href="/admin"
+            className="action-secondary px-4 py-2 text-sm font-semibold"
+          >
+            Back to dashboard
+          </Link>
+        }
+      />
 
       <section className="grid gap-3 sm:grid-cols-3">
         {[
@@ -118,7 +137,7 @@ export default async function AdminAuditLogsPage(
         ))}
       </section>
 
-      <form className="panel grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto] lg:items-end">
+      <form className="panel admin-filter-bar grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto] lg:items-end">
         <label className="grid gap-2 text-sm font-bold">
           Outcome
           <select
@@ -174,8 +193,9 @@ export default async function AdminAuditLogsPage(
         </button>
       </form>
 
+      <AdminTableEnhancer tableId="admin-audit-logs-table" copyLabel="log IDs" />
       <div className="admin-table-wrap">
-        <table className="admin-table">
+        <table id="admin-audit-logs-table" className="admin-table">
           <thead>
             <tr>
               <th>Event</th>
@@ -187,15 +207,15 @@ export default async function AdminAuditLogsPage(
             </tr>
           </thead>
           <tbody>
-            {auditLogs.map((log) => (
-              <tr key={log.id}>
-                <td>
+            {paginatedAuditLogs.map((log) => (
+              <tr key={log.id} data-row-id={log.id}>
+                <td data-label="Event">
                   <span className="font-semibold">{log.actionLabel}</span>
                   <span className="block text-xs text-[var(--muted)]">
                     {log.id}
                   </span>
                 </td>
-                <td>
+                <td data-label="Actor">
                   <span className="font-semibold">
                     {log.actorDisplayName ?? "System"}
                   </span>
@@ -203,7 +223,7 @@ export default async function AdminAuditLogsPage(
                     {log.actorEmail ?? log.actorId ?? "No actor"}
                   </span>
                 </td>
-                <td>
+                <td data-label="Target">
                   <span className="font-semibold">
                     {log.entityType ?? "resource"}
                   </span>
@@ -211,7 +231,7 @@ export default async function AdminAuditLogsPage(
                     {log.entityId ?? "No entity id"}
                   </span>
                 </td>
-                <td>
+                <td data-label="Request">
                   <code className="text-xs font-semibold">
                     {log.method} {log.path}
                   </code>
@@ -220,28 +240,47 @@ export default async function AdminAuditLogsPage(
                     {log.durationMs == null ? "No timing" : `${log.durationMs}ms`}
                   </span>
                 </td>
-                <td>
-                  <span className="admin-status-badge">
+                <td data-label="Outcome">
+                  <span
+                    className="admin-status-badge"
+                    data-status={log.success ? "succeeded" : "failed"}
+                  >
                     {log.outcomeLabel}
                   </span>
                   <span className="block text-xs text-[var(--muted)]">
                     {log.statusCode ?? "No status"}
                   </span>
                 </td>
-                <td>{formatDateTime(log.createdAt)}</td>
+                <td data-label="When">{formatDateTime(log.createdAt)}</td>
               </tr>
             ))}
           </tbody>
         </table>
         {auditLogs.length === 0 ? (
-          <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-            No audit logs match those filters.
+          <div className="admin-empty-state">
+            <p className="admin-empty-state-title">No audit logs found</p>
+            <p className="admin-empty-state-copy">
+              Try clearing one of the actor, action, entity, or outcome filters.
+            </p>
           </div>
         ) : null}
       </div>
+      {auditLogs.length > 0 ? (
+        <AdminTablePagination
+          buildPageHref={(page, pageSize = pagination.pageSize) =>
+            buildAdminPaginationHref("/admin/audit-logs", paginationParams, {
+              page,
+              pageSize,
+            })
+          }
+          hiddenFields={getAdminPaginationHiddenFields(paginationParams)}
+          itemLabel="events"
+          pagination={pagination}
+        />
+      ) : null}
 
       <section className="grid gap-3">
-        {auditLogs.slice(0, 20).map((log) => (
+        {paginatedAuditLogs.map((log) => (
           <details key={log.id} className="panel">
             <summary className="cursor-pointer font-semibold">
               {log.actionLabel} / {formatDateTime(log.createdAt)}

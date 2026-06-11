@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { updateAdminUserAction } from "@/app/(main)/actions";
+import { AdminSubmitButton } from "@/components/marketplace/admin-form-feedback";
 import type { AdminUser } from "@/lib/marketplace";
 
 type AdminUserCardProps = {
@@ -133,7 +134,12 @@ export function AdminUserCard({
         </div>
         <div className="admin-user-form-footer">
           <span>Joined {formatDate(user.createdAt)}</span>
-          <button>Save user</button>
+          <AdminSubmitButton
+            confirmMessage={`Save account, role, verification, or profile changes for ${user.displayName}?`}
+            pendingText="Saving user..."
+          >
+            Save user
+          </AdminSubmitButton>
         </div>
       </form>
     </article>

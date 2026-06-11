@@ -3,6 +3,11 @@ import {
   reviewSellerDocumentAction,
   reviewSellerProfileAction,
 } from "@/app/(main)/actions";
+import {
+  AdminActionFeedback,
+  AdminSubmitButton,
+} from "@/components/marketplace/admin-form-feedback";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { requireSessionContext } from "@/lib/auth-dal";
 import {
   fetchAdminSellerPrivileges,
@@ -108,7 +113,7 @@ function SellerAnswers({ seller }: { seller: ApiSellerProfile }) {
   }
 
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] p-4">
+    <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] p-4">
       <p className="text-sm font-black uppercase tracking-[0.18em] text-[var(--muted)]">
         Seller profile answers
       </p>
@@ -116,7 +121,7 @@ function SellerAnswers({ seller }: { seller: ApiSellerProfile }) {
         {seller.formDefinition.fields.map((field) => (
           <div
             key={field.key}
-            className="rounded-2xl border border-[var(--line)] bg-white p-3"
+            className="rounded-lg border border-[var(--line)] bg-white p-3"
           >
             <p className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
               {field.label}
@@ -142,7 +147,7 @@ function SellerDocumentReviews({ seller }: { seller: ApiSellerProfile }) {
         <form
           key={submission.id}
           action={reviewSellerDocumentAction}
-          className="grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] p-4"
+          className="grid gap-3 rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] p-4"
         >
           <input type="hidden" name="returnTo" value="/admin/sellers/approvals" />
           <input
@@ -172,7 +177,7 @@ function SellerDocumentReviews({ seller }: { seller: ApiSellerProfile }) {
             />
           </div>
           {submission.answers && Object.keys(submission.answers).length ? (
-            <div className="grid gap-2 rounded-2xl border border-[var(--line)] bg-white p-3 text-sm">
+            <div className="grid gap-2 rounded-lg border border-[var(--line)] bg-white p-3 text-sm">
               <p className="font-bold text-[var(--foreground)]">
                 Submitted answers
               </p>
@@ -185,7 +190,7 @@ function SellerDocumentReviews({ seller }: { seller: ApiSellerProfile }) {
             </div>
           ) : null}
           {submission.files?.length ? (
-            <div className="grid gap-2 rounded-2xl border border-[var(--line)] bg-white p-3 text-sm">
+            <div className="grid gap-2 rounded-lg border border-[var(--line)] bg-white p-3 text-sm">
               <p className="font-bold text-[var(--foreground)]">Submitted files</p>
               {submission.files.map((file, index) => (
                 <div key={`${submission.id}-file-${index}`}>
@@ -212,7 +217,7 @@ function SellerDocumentReviews({ seller }: { seller: ApiSellerProfile }) {
               <option value="APPROVED">APPROVED</option>
               <option value="REJECTED">REJECTED</option>
             </select>
-            <div className="rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-sm text-[var(--muted)]">
+            <div className="rounded-lg border border-[var(--line)] bg-white px-4 py-3 text-sm text-[var(--muted)]">
               Reviewed: {formatDateTime(submission.reviewedAt)}
             </div>
             <textarea
@@ -230,9 +235,13 @@ function SellerDocumentReviews({ seller }: { seller: ApiSellerProfile }) {
               placeholder="Reason if document is rejected"
             />
           </div>
-          <button className="action-secondary px-4 py-3 text-sm font-bold">
+          <AdminSubmitButton
+            className="action-secondary px-4 py-3 text-sm font-bold"
+            confirmMessage="Save this document review decision? This may approve or reject the submitted document."
+            pendingText="Saving document review..."
+          >
             Review document
-          </button>
+          </AdminSubmitButton>
         </form>
       ))}
     </div>
@@ -284,7 +293,7 @@ function SellerPendingCard({
         ].map(([label, value]) => (
           <div
             key={label}
-            className="rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] p-4"
+            className="rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] p-4"
           >
             <p className="text-sm text-[var(--muted)]">{label}</p>
             <p className="mt-2 text-3xl font-black">{value}</p>
@@ -296,7 +305,7 @@ function SellerPendingCard({
         seller.unresolvedRequiredDocuments?.length) && (
         <section className="grid gap-3 xl:grid-cols-2">
           {seller.missingRequiredFields?.length ? (
-            <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4">
+            <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-4">
               <p className="text-sm font-black uppercase tracking-[0.16em] text-[var(--foreground)]">
                 Missing required fields
               </p>
@@ -313,7 +322,7 @@ function SellerPendingCard({
             </div>
           ) : null}
           {seller.unresolvedRequiredDocuments?.length ? (
-            <div className="rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4">
+            <div className="rounded-lg border border-rose-400/30 bg-rose-500/10 p-4">
               <p className="text-sm font-black uppercase tracking-[0.16em] text-[var(--foreground)]">
                 Required documents unresolved
               </p>
@@ -337,7 +346,7 @@ function SellerPendingCard({
       <div className="grid gap-4 xl:grid-cols-[1.35fr_0.95fr]">
         <form
           action={reviewSellerProfileAction}
-          className="grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] p-4"
+          className="grid gap-3 rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] p-4"
         >
           <input type="hidden" name="returnTo" value="/admin/sellers/approvals" />
           <input type="hidden" name="sellerProfileId" value={seller.id} />
@@ -386,14 +395,18 @@ function SellerPendingCard({
             placeholder="Reason if this request is declined"
             className="surface-input min-h-24 w-full text-sm"
           />
-          <button className="action-primary px-4 py-3 text-sm font-bold">
+          <AdminSubmitButton
+            className="action-primary px-4 py-3 text-sm font-bold"
+            confirmMessage={`Save the seller decision for ${seller.user.displayName}? This may approve, reject, or suspend their seller profile.`}
+            pendingText="Saving seller decision..."
+          >
             Save seller decision
-          </button>
+          </AdminSubmitButton>
         </form>
 
         <form
           action={createSellerDocumentRequestAction}
-          className="grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] p-4"
+          className="grid gap-3 rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] p-4"
         >
           <input type="hidden" name="returnTo" value="/admin/sellers/approvals" />
           <input type="hidden" name="sellerProfileId" value={seller.id} />
@@ -430,9 +443,12 @@ function SellerPendingCard({
             />
             Required document
           </label>
-          <button className="action-secondary px-4 py-3 text-sm font-bold">
+          <AdminSubmitButton
+            className="action-secondary px-4 py-3 text-sm font-bold"
+            pendingText="Sending request..."
+          >
             Send document request
-          </button>
+          </AdminSubmitButton>
         </form>
       </div>
 
@@ -451,7 +467,7 @@ function SellerHistoryCard({
   const badgeTone = tone === "approved" ? "approved" : "rejected";
 
   return (
-    <article className="rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] p-4">
+    <article className="rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-black">{seller.user.displayName}</h3>
@@ -494,7 +510,19 @@ function SellerHistoryCard({
   );
 }
 
-export default async function AdminSellerApprovalsPage() {
+type AdminSellerApprovalsPageProps = {
+  searchParams: Promise<{
+    documentRequest?: string;
+    documentReview?: string;
+    message?: string;
+    reviewed?: string;
+  }>;
+};
+
+export default async function AdminSellerApprovalsPage(
+  props: AdminSellerApprovalsPageProps,
+) {
+  const searchParams = await props.searchParams;
   const { accessToken } = await requireSessionContext("/admin/sellers/approvals");
   const [sellers, tiers] = await Promise.all([
     fetchAdminSellerProfiles(accessToken, { take: 100 }),
@@ -525,20 +553,28 @@ export default async function AdminSellerApprovalsPage() {
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel-dark grid gap-6 p-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="section-eyebrow">Seller Operations</p>
-            <h1 className="mt-2 text-3xl font-black text-[var(--foreground)]">
-              Seller approvals
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">
-              Review current seller profile requests, manage supporting
-              documents, and keep a visible history of approved and declined
-              decisions.
-            </p>
-          </div>
-        </div>
+      <AdminPageHeader
+        eyebrow="Seller operations"
+        title="Seller approvals"
+        description="Review current seller profile requests, manage supporting documents, and keep a visible history of approved and declined decisions."
+        badge={`${pendingSellers.length} pending`}
+      />
+      <AdminActionFeedback
+        status={
+          searchParams.reviewed ??
+          searchParams.documentRequest ??
+          searchParams.documentReview
+        }
+        message={searchParams.message}
+        messages={{
+          success: "Seller review decision saved.",
+          created: "Document request sent.",
+          saved: "Document review saved.",
+          invalid: "Check the seller review fields and try again.",
+        }}
+        successStatuses={["success", "created", "saved"]}
+      />
+      <div className="panel grid gap-6">
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
             ["Pending requests", pendingSellers.length],
@@ -554,7 +590,7 @@ export default async function AdminSellerApprovalsPage() {
           ].map(([label, value]) => (
             <div
               key={label}
-              className="rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] p-4"
+              className="rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] p-4"
             >
               <p className="text-sm text-[var(--muted)]">{label}</p>
               <p className="mt-2 text-3xl font-black text-[var(--foreground)]">
@@ -615,7 +651,7 @@ export default async function AdminSellerApprovalsPage() {
                 />
               ))
             ) : (
-              <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] p-4 text-sm text-[var(--muted)]">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] p-4 text-sm text-[var(--muted)]">
                 No approved seller requests yet.
               </div>
             )}
@@ -644,7 +680,7 @@ export default async function AdminSellerApprovalsPage() {
                 />
               ))
             ) : (
-              <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] p-4 text-sm text-[var(--muted)]">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-strong)] p-4 text-sm text-[var(--muted)]">
                 No declined seller requests yet.
               </div>
             )}

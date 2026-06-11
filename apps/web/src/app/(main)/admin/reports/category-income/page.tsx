@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { AdminReportEmailForm } from "@/components/marketplace/admin-report-email-form";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchCategoryIncomeReport } from "@/lib/marketplace-api";
@@ -108,17 +110,14 @@ export default async function CategoryIncomeReportPage(
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Revenue report
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Category-wise income</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            {formatDate(report.range.from)} to {formatDate(report.range.to)}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <AdminPageHeader
+        eyebrow="Revenue report"
+        title="Category-wise income"
+        description={`${formatDate(report.range.from)} to ${formatDate(
+          report.range.to,
+        )}`}
+        actions={
+          <>
           {canEmailReports ? (
             <AdminReportEmailForm
               filters={{ days: selectedDays, take: 100 }}
@@ -157,8 +156,9 @@ export default async function CategoryIncomeReportPage(
           >
             Operations report
           </Link>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
@@ -306,9 +306,13 @@ export default async function CategoryIncomeReportPage(
               </div>
             ))}
             {report.commerce.revenueByProvider.length === 0 ? (
-              <p className="text-sm text-[var(--muted)]">
-                Provider revenue will appear here.
-              </p>
+              <div className="admin-empty-state">
+                <p className="admin-empty-state-title">No provider revenue</p>
+                <p className="admin-empty-state-copy">
+                  Successful listing fee and boost payments will be grouped by
+                  provider here.
+                </p>
+              </div>
             ) : null}
           </div>
         </div>
@@ -361,10 +365,13 @@ export default async function CategoryIncomeReportPage(
               </div>
             ))}
             {report.categories.length === 0 ? (
-              <p className="text-sm text-[var(--muted)]">
-                Category income will appear once paid listings or boosts are
-                sold.
-              </p>
+              <div className="admin-empty-state">
+                <p className="admin-empty-state-title">No category income</p>
+                <p className="admin-empty-state-copy">
+                  Paid listings and boosts will populate category revenue once
+                  purchases settle in this window.
+                </p>
+              </div>
             ) : null}
           </div>
         </div>
@@ -418,8 +425,15 @@ export default async function CategoryIncomeReportPage(
           </Link>
         </div>
 
+        <AdminTableEnhancer
+          tableId="admin-category-income-listings-table"
+          copyLabel="listing IDs"
+        />
         <div className="admin-table-wrap">
-          <table className="admin-table">
+          <table
+            id="admin-category-income-listings-table"
+            className="admin-table"
+          >
             <thead>
               <tr>
                 <th>Listing</th>
@@ -432,8 +446,8 @@ export default async function CategoryIncomeReportPage(
             </thead>
             <tbody>
               {report.topListings.map((listing) => (
-                <tr key={listing.id}>
-                  <td>
+                  <tr key={listing.id} data-row-id={listing.id}>
+                  <td data-label="Listing">
                     <Link
                       href={`/listings/${listing.id}?view=customer`}
                       target="_blank"
@@ -447,8 +461,8 @@ export default async function CategoryIncomeReportPage(
                       {humanizeLabel(listing.listingPaymentMode)}
                     </span>
                   </td>
-                  <td>{listing.category.name}</td>
-                  <td>
+                  <td data-label="Category">{listing.category.name}</td>
+                  <td data-label="Seller">
                     <Link
                       href={`/sellers/${listing.seller.id}?view=customer`}
                       target="_blank"
@@ -463,7 +477,7 @@ export default async function CategoryIncomeReportPage(
                       )}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Revenue">
                     <span className="font-semibold">
                       {formatMoney(listing.revenue)}
                     </span>
@@ -472,7 +486,7 @@ export default async function CategoryIncomeReportPage(
                       {formatMoney(listing.boostRevenue)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Payments">
                     <span className="font-semibold">
                       {formatMetric(listing.transactionCount)}
                     </span>
@@ -480,7 +494,7 @@ export default async function CategoryIncomeReportPage(
                       Pending {formatMoney(listing.pendingRevenue)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Engagement">
                     <span className="font-semibold">
                       {formatMetric(listing.viewCount)} views
                     </span>
@@ -494,8 +508,18 @@ export default async function CategoryIncomeReportPage(
             </tbody>
           </table>
           {report.topListings.length === 0 ? (
-            <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-              No category income matches this window.
+            <div className="admin-empty-state">
+              <p className="admin-empty-state-title">No income listings</p>
+              <p className="admin-empty-state-copy">
+                No listings contributed category income for the selected
+                filters. Try a wider window or review the ledger.
+              </p>
+              <Link
+                href="/admin/transactions"
+                className="action-secondary px-3 py-2 text-sm font-semibold"
+              >
+                Open ledger
+              </Link>
             </div>
           ) : null}
         </div>

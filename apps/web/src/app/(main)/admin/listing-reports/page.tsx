@@ -1,7 +1,20 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { updateListingReportAction } from "@/app/(main)/actions";
+import {
+  AdminActionFeedback,
+  AdminSubmitButton,
+} from "@/components/marketplace/admin-form-feedback";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
+import { CopyIdButton } from "@/components/marketplace/admin-table-enhancements";
+import { AdminTablePagination } from "@/components/marketplace/admin-table-pagination";
 import { hasAdminPermission } from "@/lib/admin-permissions";
+import {
+  buildAdminPaginationHref,
+  getAdminPaginationHiddenFields,
+  getAdminPaginationState,
+  paginateAdminItems,
+} from "@/lib/admin-pagination";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminListingReports } from "@/lib/marketplace-api";
 import {
@@ -17,6 +30,8 @@ type AdminListingReportsPageProps = {
     reporterId?: string;
     status?: ApiReportStatus;
     updated?: string;
+    page?: string;
+    pageSize?: string;
   }>;
 };
 
@@ -42,6 +57,8 @@ function buildReturnTo(searchParams: Awaited<AdminListingReportsPageProps["searc
   if (searchParams.status) params.set("status", searchParams.status);
   if (searchParams.listingId) params.set("listingId", searchParams.listingId);
   if (searchParams.reporterId) params.set("reporterId", searchParams.reporterId);
+  if (searchParams.page) params.set("page", searchParams.page);
+  if (searchParams.pageSize) params.set("pageSize", searchParams.pageSize);
 
   const query = params.toString();
   return query ? `/admin/listing-reports?${query}` : "/admin/listing-reports";
@@ -79,46 +96,40 @@ export default async function AdminListingReportsPage(
     reporterId,
     take: 100,
   });
+  const pagination = getAdminPaginationState(searchParams, reports.length);
+  const paginatedReports = paginateAdminItems(reports, pagination);
+  const paginationParams = {
+    status,
+    listingId,
+    reporterId,
+    pageSize: pagination.pageSize,
+  };
   const returnTo = buildReturnTo(searchParams);
-  const updateMessage =
-    searchParams.updated === "success"
-      ? "Report workflow updated."
-      : searchParams.updated === "error"
-        ? (searchParams.message ?? "Could not update that report.")
-        : null;
-
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Trust and safety
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Listing reports</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            Review buyer reports, leave internal notes, and action listings
-            when needed.
-          </p>
-        </div>
-        <Link
-          href="/admin"
-          className="action-secondary px-4 py-2 text-sm font-semibold"
-        >
-          Back to dashboard
-        </Link>
-      </div>
+      <AdminPageHeader
+        eyebrow="Trust and safety"
+        title="Listing reports"
+        description="Review buyer reports, leave internal notes, and action listings when needed."
+        badge={`${reports.length} reports`}
+        actions={
+          <Link
+            href="/admin"
+            className="action-secondary px-4 py-2 text-sm font-semibold"
+          >
+            Back to dashboard
+          </Link>
+        }
+      />
 
-      {updateMessage ? (
-        <div
-          className={`rounded-md border px-4 py-3 text-sm font-semibold ${
-            searchParams.updated === "success"
-              ? "border-green-200 bg-green-50 text-green-800"
-              : "border-red-200 bg-red-50 text-red-700"
-          }`}
-        >
-          {updateMessage}
-        </div>
-      ) : null}
+      <AdminActionFeedback
+        status={searchParams.updated}
+        message={searchParams.message}
+        messages={{
+          success: "Report workflow updated.",
+        }}
+        successStatuses={["success"]}
+      />
 
       <section className="grid gap-3 sm:grid-cols-4">
         {[
@@ -140,7 +151,7 @@ export default async function AdminListingReportsPage(
         ))}
       </section>
 
-      <form className="panel grid gap-3 lg:grid-cols-[1fr_1.3fr_1.3fr_auto] lg:items-end">
+      <form className="panel admin-filter-bar grid gap-3 lg:grid-cols-[1fr_1.3fr_1.3fr_auto] lg:items-end">
         <label className="grid gap-2 text-sm font-bold">
           Status
           <select
@@ -181,7 +192,7 @@ export default async function AdminListingReportsPage(
 
       <section className="grid gap-4">
         {reports.length ? (
-          reports.map((report) => (
+          paginatedReports.map((report) => (
             <article key={report.id} className="panel grid gap-4">
               <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
                 <div>
@@ -189,11 +200,17 @@ export default async function AdminListingReportsPage(
                     <h2 className="text-lg font-black">
                       {report.listingTitle ?? report.listingId}
                     </h2>
-                    <span className="admin-status-badge">
+                    <span
+                      className="admin-status-badge"
+                      data-status={report.status.toLowerCase()}
+                    >
                       {report.statusLabel}
                     </span>
                     {report.listingStatus ? (
-                      <span className="admin-status-badge">
+                      <span
+                        className="admin-status-badge"
+                        data-status={report.listingStatus.toLowerCase()}
+                      >
                         Listing {report.listingStatus}
                       </span>
                     ) : null}
@@ -202,9 +219,12 @@ export default async function AdminListingReportsPage(
                     {report.reason} / Submitted {report.createdLabel} by{" "}
                     {report.reporterDisplayName ?? report.reporterId}
                   </p>
-                  <p className="mt-1 text-xs text-[var(--muted)]">
-                    {report.reporterEmail ?? report.reporterId}
-                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+                    <span>{report.reporterEmail ?? report.reporterId}</span>
+                    <CopyIdButton id={report.id} label="Copy report ID" />
+                    <CopyIdButton id={report.listingId} label="Copy listing ID" />
+                    <CopyIdButton id={report.reporterId} label="Copy reporter ID" />
+                  </div>
                 </div>
                 <Link
                   href={`/listings/${report.listingId}?view=customer`}
@@ -234,7 +254,7 @@ export default async function AdminListingReportsPage(
               {canUpdateReports ? (
                 <form
                   action={updateListingReportAction}
-                  className="grid gap-3 border-t border-[var(--line)] pt-4 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end"
+                  className="admin-filter-bar grid gap-3 border-t border-[var(--line)] pt-4 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end"
                 >
                   <input type="hidden" name="reportId" value={report.id} />
                   <input type="hidden" name="listingId" value={report.listingId} />
@@ -274,22 +294,43 @@ export default async function AdminListingReportsPage(
                       placeholder="Internal moderation notes"
                     />
                   </label>
-                  <button className="action-primary px-4 py-3 text-sm font-black">
+                  <AdminSubmitButton
+                    className="action-primary px-4 py-3 text-sm font-black"
+                    confirmMessage={`Save this report review for "${report.listingTitle ?? report.listingId}"? Any selected listing action will be applied immediately.`}
+                    pendingText="Saving review..."
+                  >
                     Save review
-                  </button>
+                  </AdminSubmitButton>
                 </form>
               ) : null}
             </article>
           ))
         ) : (
-          <div className="panel py-12 text-center">
-            <h2 className="text-xl font-black">No listing reports found</h2>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              Submitted listing reports will appear here.
+          <div className="panel admin-empty-state">
+            <h2 className="admin-empty-state-title">No listing reports found</h2>
+            <p className="admin-empty-state-copy">
+              Submitted reports will appear here. Clear the status, listing, or reporter filters to check every queue.
             </p>
           </div>
         )}
       </section>
+      {reports.length > 0 ? (
+        <AdminTablePagination
+          buildPageHref={(page, pageSize = pagination.pageSize) =>
+            buildAdminPaginationHref(
+              "/admin/listing-reports",
+              paginationParams,
+              {
+                page,
+                pageSize,
+              },
+            )
+          }
+          hiddenFields={getAdminPaginationHiddenFields(paginationParams)}
+          itemLabel="reports"
+          pagination={pagination}
+        />
+      ) : null}
     </div>
   );
 }

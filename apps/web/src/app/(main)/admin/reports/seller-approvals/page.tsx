@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { updateAdminUserAction } from "@/app/(main)/actions";
+import {
+  AdminActionFeedback,
+  AdminSubmitButton,
+} from "@/components/marketplace/admin-form-feedback";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { AdminReportEmailForm } from "@/components/marketplace/admin-report-email-form";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
@@ -12,6 +17,7 @@ type PendingSellerApprovalsPageProps = {
     days?: string;
     email?: string;
     message?: string;
+    user?: string;
   }>;
 };
 
@@ -79,17 +85,13 @@ export default async function PendingSellerApprovalsPage(
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Seller approvals
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Pending seller approvals</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            Sellers with listings who are still waiting for an approval tier.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <AdminPageHeader
+        eyebrow="Seller approvals"
+        title="Pending seller approvals"
+        description="Sellers with listings who are still waiting for an approval tier."
+        badge={`${report.overview.pendingApprovals} pending`}
+        actions={
+          <>
           {canEmailReports ? (
             <AdminReportEmailForm
               filters={{ days: selectedDays, take: 100 }}
@@ -116,8 +118,19 @@ export default async function PendingSellerApprovalsPage(
           >
             Total sellers
           </Link>
-        </div>
-      </div>
+          </>
+        }
+      />
+
+      <AdminActionFeedback
+        status={searchParams.user}
+        message={searchParams.message}
+        messages={{
+          updated: "Seller approval tier saved.",
+          invalid: "Choose an approval tier before submitting.",
+        }}
+        successStatuses={["updated"]}
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
@@ -319,22 +332,32 @@ export default async function PendingSellerApprovalsPage(
                     Approval moves the seller out of this queue and unlocks
                     their selected priority tier in search ranking.
                   </div>
-                  <button className="action-primary px-4 py-3 text-sm font-black">
+                  <AdminSubmitButton
+                    className="action-primary px-4 py-3 text-sm font-black"
+                    confirmMessage={`Approve ${seller.displayName} for the selected seller tier?`}
+                    pendingText="Approving seller..."
+                  >
                     Approve seller
-                  </button>
+                  </AdminSubmitButton>
                 </form>
               ) : null}
             </article>
           ))}
 
           {report.approvals.length === 0 ? (
-            <div className="panel py-12 text-center">
-              <h2 className="text-xl font-black">
+            <div className="admin-empty-state panel">
+              <p className="admin-empty-state-title">
                 No pending seller approvals
-              </h2>
-              <p className="mt-2 text-sm text-[var(--muted)]">
+              </p>
+              <p className="admin-empty-state-copy">
                 Sellers with listings and no approval tier will appear here.
               </p>
+              <Link
+                href="/admin/users"
+                className="action-secondary px-3 py-2 text-sm font-semibold"
+              >
+                Manage users
+              </Link>
             </div>
           ) : null}
         </div>

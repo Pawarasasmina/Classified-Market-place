@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { AdminReportEmailForm } from "@/components/marketplace/admin-report-email-form";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchWalletPaymentsReport } from "@/lib/marketplace-api";
@@ -110,17 +112,14 @@ export default async function WalletPaymentsReportPage(
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Payments report
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Wallet payments</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            {formatDate(report.range.from)} to {formatDate(report.range.to)}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <AdminPageHeader
+        eyebrow="Payments report"
+        title="Wallet payments"
+        description={`${formatDate(report.range.from)} to ${formatDate(
+          report.range.to,
+        )}`}
+        actions={
+          <>
           {canEmailReports ? (
             <AdminReportEmailForm
               filters={{ days: selectedDays, take: 100 }}
@@ -153,8 +152,9 @@ export default async function WalletPaymentsReportPage(
           >
             Operations report
           </Link>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
@@ -292,9 +292,13 @@ export default async function WalletPaymentsReportPage(
               </div>
             ))}
             {report.movement.byType.length === 0 ? (
-              <p className="text-sm text-[var(--muted)]">
-                Wallet ledger movement will appear here.
-              </p>
+              <div className="admin-empty-state">
+                <p className="admin-empty-state-title">No wallet movement</p>
+                <p className="admin-empty-state-copy">
+                  Credit and debit activity will appear here once wallet ledger
+                  entries are recorded in the selected window.
+                </p>
+              </div>
             ) : null}
           </div>
         </div>
@@ -316,8 +320,12 @@ export default async function WalletPaymentsReportPage(
           </Link>
         </div>
 
+        <AdminTableEnhancer
+          tableId="admin-wallet-payments-table"
+          copyLabel="user IDs"
+        />
         <div className="admin-table-wrap">
-          <table className="admin-table">
+          <table id="admin-wallet-payments-table" className="admin-table">
             <thead>
               <tr>
                 <th>Seller</th>
@@ -329,8 +337,8 @@ export default async function WalletPaymentsReportPage(
             </thead>
             <tbody>
               {report.wallets.map((wallet) => (
-                <tr key={wallet.id}>
-                  <td>
+                <tr key={wallet.id} data-row-id={wallet.userId}>
+                  <td data-label="Seller">
                     <Link
                       href={`/sellers/${wallet.userId}?view=customer`}
                       target="_blank"
@@ -347,7 +355,7 @@ export default async function WalletPaymentsReportPage(
                       / Reputation {formatMetric(wallet.user.reputationScore)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Balance">
                     <span className="font-semibold">
                       {formatMoney(wallet.balance, wallet.currency)}
                     </span>
@@ -355,7 +363,7 @@ export default async function WalletPaymentsReportPage(
                       Updated {formatDate(wallet.updatedAt)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Movement">
                     <span className="font-semibold">
                       {formatSignedMoney(wallet.netMovement, wallet.currency)}
                     </span>
@@ -364,7 +372,7 @@ export default async function WalletPaymentsReportPage(
                       Out {formatMoney(wallet.debitTotal, wallet.currency)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Latest Activity">
                     <span className="font-semibold">
                       {wallet.latestLedgerType
                         ? humanizeLabel(wallet.latestLedgerType)
@@ -375,7 +383,7 @@ export default async function WalletPaymentsReportPage(
                       {formatMetric(wallet.ledgerEntryCount)} entries
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Recent Ledger">
                     <div className="grid gap-1">
                       {wallet.ledger.slice(0, 3).map((entry) => (
                         <span key={entry.id} className="text-xs">
@@ -400,8 +408,18 @@ export default async function WalletPaymentsReportPage(
             </tbody>
           </table>
           {report.wallets.length === 0 ? (
-            <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-              No wallet accounts are available.
+            <div className="admin-empty-state">
+              <p className="admin-empty-state-title">No wallet accounts</p>
+              <p className="admin-empty-state-copy">
+                Seller wallet balances and recent ledger entries will appear
+                here once accounts are created.
+              </p>
+              <Link
+                href="/admin/transactions"
+                className="action-secondary px-3 py-2 text-sm font-semibold"
+              >
+                Open transactions
+              </Link>
             </div>
           ) : null}
         </div>

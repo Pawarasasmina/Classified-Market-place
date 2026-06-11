@@ -1,6 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
+import { AdminTablePagination } from "@/components/marketplace/admin-table-pagination";
 import { hasAdminPermission } from "@/lib/admin-permissions";
+import {
+  buildAdminPaginationHref,
+  getAdminPaginationHiddenFields,
+  getAdminPaginationState,
+  paginateAdminItems,
+} from "@/lib/admin-pagination";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminTransactions } from "@/lib/marketplace-api";
 import {
@@ -14,6 +23,8 @@ type AdminTransactionsPageProps = {
     type?: ApiTransactionType;
     userId?: string;
     listingId?: string;
+    page?: string;
+    pageSize?: string;
   }>;
 };
 
@@ -72,30 +83,38 @@ export default async function AdminTransactionsPage(
     listingId,
     take: 100,
   });
+  const pagination = getAdminPaginationState(
+    searchParams,
+    transactions.length,
+  );
+  const paginatedTransactions = paginateAdminItems(transactions, pagination);
+  const paginationParams = {
+    status,
+    type,
+    userId,
+    listingId,
+    pageSize: pagination.pageSize,
+  };
   const succeededTotal = transactions
     .filter((transaction) => transaction.status === "SUCCEEDED")
     .reduce((sum, transaction) => sum + transaction.amountValue, 0);
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Payments
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Transaction ledger</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            Audit boost purchases, failed payments, refunds, and provider
-            references.
-          </p>
-        </div>
-        <Link
-          href="/admin"
-          className="action-secondary px-4 py-2 text-sm font-semibold"
-        >
-          Back to dashboard
-        </Link>
-      </div>
+      <AdminPageHeader
+        eyebrow="Payments"
+        title="Transaction ledger"
+        description="Audit boost purchases, failed payments, refunds, and provider references."
+        badge={`${transactions.length} transactions`}
+        actions={
+          <Link
+            href="/admin"
+            className="action-secondary px-4 py-2 text-sm font-semibold"
+          >
+            Back to dashboard
+          </Link>
+        }
+      />
 
       <section className="grid gap-3 sm:grid-cols-3">
         {[
@@ -113,7 +132,7 @@ export default async function AdminTransactionsPage(
         ))}
       </section>
 
-      <form className="panel grid gap-3 lg:grid-cols-[1fr_1fr_1.3fr_1.3fr_auto] lg:items-end">
+      <form className="panel admin-filter-bar grid gap-3 lg:grid-cols-[1fr_1fr_1.3fr_1.3fr_auto] lg:items-end">
         <label className="grid gap-2 text-sm font-bold">
           Status
           <select
@@ -167,8 +186,12 @@ export default async function AdminTransactionsPage(
         </button>
       </form>
 
+      <AdminTableEnhancer
+        tableId="admin-transactions-table"
+        copyLabel="transaction IDs"
+      />
       <div className="admin-table-wrap">
-        <table className="admin-table">
+        <table id="admin-transactions-table" className="admin-table">
           <thead>
             <tr>
               <th>Transaction</th>
@@ -181,15 +204,15 @@ export default async function AdminTransactionsPage(
             </tr>
           </thead>
           <tbody>
-            {transactions.map((transaction) => (
-              <tr key={transaction.id}>
-                <td>
+            {paginatedTransactions.map((transaction) => (
+              <tr key={transaction.id} data-row-id={transaction.id}>
+                <td data-label="Transaction">
                   <span className="font-semibold">{transaction.typeLabel}</span>
                   <span className="block text-xs text-[var(--muted)]">
                     {transaction.id}
                   </span>
                 </td>
-                <td>
+                <td data-label="User">
                   <span className="font-semibold">
                     {transaction.userDisplayName ?? transaction.userId}
                   </span>
@@ -197,32 +220,51 @@ export default async function AdminTransactionsPage(
                     {transaction.userEmail ?? transaction.userId}
                   </span>
                 </td>
-                <td>
+                <td data-label="Listing">
                   {transaction.listingTitle ?? transaction.listingId ?? "None"}
                 </td>
-                <td>
-                  <span className="admin-status-badge">
+                <td data-label="Status">
+                  <span
+                    className="admin-status-badge"
+                    data-status={transaction.status.toLowerCase()}
+                  >
                     {transaction.statusLabel}
                   </span>
                 </td>
-                <td>{transaction.amountLabel}</td>
-                <td>
+                <td data-label="Amount">{transaction.amountLabel}</td>
+                <td data-label="Provider">
                   {transaction.provider ?? "None"}
                   <span className="block text-xs text-[var(--muted)]">
                     {transaction.providerRef ?? "No ref"}
                   </span>
                 </td>
-                <td>{transaction.createdLabel}</td>
+                <td data-label="Date">{transaction.createdLabel}</td>
               </tr>
             ))}
           </tbody>
         </table>
         {transactions.length === 0 ? (
-          <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-            No transactions match those filters.
+          <div className="admin-empty-state">
+            <p className="admin-empty-state-title">No transactions found</p>
+            <p className="admin-empty-state-copy">
+              Adjust the status, type, user, or listing filters to broaden the ledger.
+            </p>
           </div>
         ) : null}
       </div>
+      {transactions.length > 0 ? (
+        <AdminTablePagination
+          buildPageHref={(page, pageSize = pagination.pageSize) =>
+            buildAdminPaginationHref("/admin/transactions", paginationParams, {
+              page,
+              pageSize,
+            })
+          }
+          hiddenFields={getAdminPaginationHiddenFields(paginationParams)}
+          itemLabel="transactions"
+          pagination={pagination}
+        />
+      ) : null}
     </div>
   );
 }

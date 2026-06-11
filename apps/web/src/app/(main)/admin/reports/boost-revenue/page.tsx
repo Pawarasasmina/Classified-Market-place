@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { AdminReportEmailForm } from "@/components/marketplace/admin-report-email-form";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchBoostRevenueReport } from "@/lib/marketplace-api";
@@ -105,17 +107,14 @@ export default async function BoostRevenueReportPage(
 
   return (
     <div className="page admin-dashboard grid gap-6">
-      <div className="panel flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--brand-strong)]">
-            Revenue report
-          </p>
-          <h1 className="mt-1 text-2xl font-bold">Boost revenue</h1>
-          <p className="mt-2 text-[var(--muted)]">
-            {formatDate(report.range.from)} to {formatDate(report.range.to)}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <AdminPageHeader
+        eyebrow="Revenue report"
+        title="Boost revenue"
+        description={`${formatDate(report.range.from)} to ${formatDate(
+          report.range.to,
+        )}`}
+        actions={
+          <>
           {canEmailReports ? (
             <AdminReportEmailForm
               filters={{ days: selectedDays, take: 100 }}
@@ -148,8 +147,9 @@ export default async function BoostRevenueReportPage(
           >
             Operations report
           </Link>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
@@ -265,9 +265,13 @@ export default async function BoostRevenueReportPage(
               </div>
             ))}
             {report.boosts.placements.length === 0 ? (
-              <p className="text-sm text-[var(--muted)]">
-                Placement revenue will appear here.
-              </p>
+              <div className="admin-empty-state">
+                <p className="admin-empty-state-title">No placement revenue</p>
+                <p className="admin-empty-state-copy">
+                  Boost revenue by placement will appear here once sellers buy
+                  active boost placements.
+                </p>
+              </div>
             ) : null}
           </div>
         </div>
@@ -297,9 +301,13 @@ export default async function BoostRevenueReportPage(
               </div>
             ))}
             {report.commerce.revenueByProvider.length === 0 ? (
-              <p className="text-sm text-[var(--muted)]">
-                Provider revenue will appear here.
-              </p>
+              <div className="admin-empty-state">
+                <p className="admin-empty-state-title">No provider revenue</p>
+                <p className="admin-empty-state-copy">
+                  Successful boost payments will be grouped by payment provider
+                  here.
+                </p>
+              </div>
             ) : null}
           </div>
         </div>
@@ -341,9 +349,13 @@ export default async function BoostRevenueReportPage(
               </div>
             ))}
             {report.packages.length === 0 ? (
-              <p className="text-sm text-[var(--muted)]">
-                Boost package revenue will appear here.
-              </p>
+              <div className="admin-empty-state">
+                <p className="admin-empty-state-title">No package revenue</p>
+                <p className="admin-empty-state-copy">
+                  Purchased boost packages will appear here with settled
+                  revenue, active boosts, and view totals.
+                </p>
+              </div>
             ) : null}
           </div>
         </div>
@@ -355,8 +367,12 @@ export default async function BoostRevenueReportPage(
               Listings producing the most boost revenue.
             </p>
           </div>
+          <AdminTableEnhancer
+            tableId="admin-boost-top-listings-table"
+            copyLabel="listing IDs"
+          />
           <div className="admin-table-wrap">
-            <table className="admin-table">
+            <table id="admin-boost-top-listings-table" className="admin-table">
               <thead>
                 <tr>
                   <th>Listing</th>
@@ -367,8 +383,8 @@ export default async function BoostRevenueReportPage(
               </thead>
               <tbody>
                 {report.topListings.map((listing) => (
-                  <tr key={listing.id}>
-                    <td>
+                  <tr key={listing.id} data-row-id={listing.id}>
+                    <td data-label="Listing">
                       <Link
                         href={`/listings/${listing.id}?view=customer`}
                         target="_blank"
@@ -382,16 +398,22 @@ export default async function BoostRevenueReportPage(
                         {humanizeLabel(listing.status)}
                       </span>
                     </td>
-                    <td>{formatMoney(listing.revenue)}</td>
-                    <td>{formatMetric(listing.boosts)}</td>
-                    <td>{formatMetric(listing.viewCount)}</td>
+                    <td data-label="Revenue">{formatMoney(listing.revenue)}</td>
+                    <td data-label="Boosts">{formatMetric(listing.boosts)}</td>
+                    <td data-label="Views">{formatMetric(listing.viewCount)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {report.topListings.length === 0 ? (
-              <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-                Boosted listings will appear here.
+              <div className="admin-empty-state">
+                <p className="admin-empty-state-title">
+                  No boosted listings yet
+                </p>
+                <p className="admin-empty-state-copy">
+                  Listings generating boost revenue will appear here for the
+                  selected reporting window.
+                </p>
               </div>
             ) : null}
           </div>
@@ -414,8 +436,12 @@ export default async function BoostRevenueReportPage(
           </Link>
         </div>
 
+        <AdminTableEnhancer
+          tableId="admin-boost-revenue-rows-table"
+          copyLabel="boost IDs"
+        />
         <div className="admin-table-wrap">
-          <table className="admin-table">
+          <table id="admin-boost-revenue-rows-table" className="admin-table">
             <thead>
               <tr>
                 <th>Boost</th>
@@ -428,8 +454,8 @@ export default async function BoostRevenueReportPage(
             </thead>
             <tbody>
               {report.rows.map((boost) => (
-                <tr key={boost.id}>
-                  <td>
+                <tr key={boost.id} data-row-id={boost.id}>
+                  <td data-label="Boost">
                     <span className="font-semibold">
                       {boost.package?.name ??
                         humanizeBoostPlacement(boost.placement)}
@@ -439,7 +465,7 @@ export default async function BoostRevenueReportPage(
                       {humanizeLabel(boost.status)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Listing">
                     <Link
                       href={`/listings/${boost.listing.id}?view=customer`}
                       target="_blank"
@@ -452,7 +478,7 @@ export default async function BoostRevenueReportPage(
                       {boost.listing.category?.name ?? "Uncategorized"}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Seller">
                     <Link
                       href={`/sellers/${boost.purchaser.id}?view=customer`}
                       target="_blank"
@@ -469,7 +495,7 @@ export default async function BoostRevenueReportPage(
                       {formatMetric(boost.purchaser.reputationScore)}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Payment">
                     {boost.transaction ? (
                       <>
                         <span className="font-semibold">
@@ -490,7 +516,7 @@ export default async function BoostRevenueReportPage(
                       "No transaction"
                     )}
                   </td>
-                  <td>
+                  <td data-label="Window">
                     <span className="font-semibold">
                       {formatDate(boost.startsAt)}
                     </span>
@@ -498,14 +524,24 @@ export default async function BoostRevenueReportPage(
                       Ends {formatDate(boost.endsAt)}
                     </span>
                   </td>
-                  <td>{formatMetric(boost.viewCount)}</td>
+                  <td data-label="Views">{formatMetric(boost.viewCount)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           {report.rows.length === 0 ? (
-            <div className="border-t border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-              No boost purchases match this window.
+            <div className="admin-empty-state">
+              <p className="admin-empty-state-title">No boost purchases</p>
+              <p className="admin-empty-state-copy">
+                No boost orders match the selected filters. Try a wider date
+                window or review the boost ledger.
+              </p>
+              <Link
+                href="/admin/transactions?type=BOOST_PURCHASE"
+                className="action-secondary px-3 py-2 text-sm font-semibold"
+              >
+                Open boost ledger
+              </Link>
             </div>
           ) : null}
         </div>

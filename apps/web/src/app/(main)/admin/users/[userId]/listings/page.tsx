@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { moderateListingAction } from "@/app/(main)/actions";
+import {
+  AdminActionFeedback,
+  AdminSubmitButton,
+} from "@/components/marketplace/admin-form-feedback";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
+import { AdminTableEnhancer } from "@/components/marketplace/admin-table-enhancements";
 import { AdminListingTools } from "@/components/marketplace/admin-listing-tools";
 import { requireSessionContext } from "@/lib/auth-dal";
 import {
@@ -10,13 +16,18 @@ import {
 
 type AdminUserListingsPageProps = {
   params: Promise<{ userId: string }>;
+  searchParams: Promise<{
+    message?: string;
+    moderation?: string;
+  }>;
 };
 
 export default async function AdminUserListingsPage(
   props: AdminUserListingsPageProps
 ) {
-  const [{ userId }, session] = await Promise.all([
+  const [{ userId }, searchParams, session] = await Promise.all([
     props.params,
+    props.searchParams,
     requireSessionContext("/admin/users"),
   ]);
   const { accessToken, user } = session;
@@ -32,24 +43,38 @@ export default async function AdminUserListingsPage(
 
   return (
     <div className="admin-dashboard page">
-      <section className="admin-hero">
-        <div className="admin-hero-copy">
-          <span className="admin-kicker">User listings</span>
-          <h1>{managedUser.displayName}</h1>
-          <p>{listings.length} listings under this account.</p>
-        </div>
-        <div className="admin-hero-actions">
-          <Link href={`/admin/users/${managedUser.id}`} className="admin-panel-link">
-            User details
-          </Link>
-          <Link
-            href={`/admin/users/${managedUser.id}/bookings`}
-            className="admin-primary-link"
-          >
-            Bookings
-          </Link>
-        </div>
-      </section>
+      <AdminPageHeader
+        eyebrow="User listings"
+        title={managedUser.displayName}
+        description="All listing statuses for this user are shown here."
+        badge={`${listings.length} listings`}
+        actions={
+          <>
+            <Link
+              href={`/admin/users/${managedUser.id}`}
+              className="action-secondary px-4 py-2 text-sm font-semibold"
+            >
+              User details
+            </Link>
+            <Link
+              href={`/admin/users/${managedUser.id}/bookings`}
+              className="action-primary px-4 py-2 text-sm font-semibold"
+            >
+              Bookings
+            </Link>
+          </>
+        }
+      />
+
+      <AdminActionFeedback
+        status={searchParams.moderation}
+        message={searchParams.message}
+        messages={{
+          updated: "Listing moderation updated.",
+          invalid: "Choose a listing and status before submitting.",
+        }}
+        successStatuses={["updated"]}
+      />
 
       <section className="admin-management-panel">
         <div className="admin-panel-header">
@@ -62,8 +87,16 @@ export default async function AdminUserListingsPage(
             <span>{listings.length} shown</span>
           </div>
         </div>
+        <AdminTableEnhancer
+          tableId="admin-user-listings-table"
+          copyLabel="listing IDs"
+          stickyActions
+        />
         <div className="admin-table-wrap">
-          <table className="admin-table admin-user-listings-table">
+          <table
+            id="admin-user-listings-table"
+            className="admin-table admin-user-listings-table"
+          >
             <thead>
               <tr>
                 <th>Listing</th>
@@ -85,15 +118,15 @@ export default async function AdminUserListingsPage(
                 ] as const).filter((status) => status !== currentStatus);
 
                 return (
-                  <tr key={listing.id}>
-                    <td className="admin-listing-cell">
+                  <tr key={listing.id} data-row-id={listing.id}>
+                    <td className="admin-listing-cell" data-label="Listing">
                       <strong>{listing.title}</strong>
                       <span>
                         ID {listing.id.slice(0, 8)} / {listing.postedLabel}
                       </span>
                       <AdminListingTools listing={listing} />
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <span
                         className="admin-status-badge"
                         data-status={listing.status.toLowerCase()}
@@ -101,18 +134,37 @@ export default async function AdminUserListingsPage(
                         {listing.status}
                       </span>
                     </td>
-                    <td>{listing.subcategory}</td>
-                    <td>{listing.location}</td>
-                    <td>{listing.priceLabel}</td>
-                    <td className="admin-actions-cell">
+                    <td data-label="Category">{listing.subcategory}</td>
+                    <td data-label="Location">{listing.location}</td>
+                    <td data-label="Price">{listing.priceLabel}</td>
+                    <td className="admin-actions-cell" data-label="Action">
                       <div>
                         {actions.map((status) => (
                           <form key={status} action={moderateListingAction}>
                             <input type="hidden" name="listingId" value={listing.id} />
                             <input type="hidden" name="status" value={status} />
-                            <button
+                            <input
+                              type="hidden"
+                              name="returnTo"
+                              value={`/admin/users/${managedUser.id}/listings`}
+                            />
+                            <AdminSubmitButton
                               className="admin-table-action"
+                              confirmMessage={`${
+                                status === "ACTIVE"
+                                  ? currentStatus === "PENDING"
+                                    ? "Approve"
+                                    : currentStatus === "PAUSED"
+                                      ? "Show again"
+                                      : "Activate"
+                                  : status === "PAUSED"
+                                    ? "Pause"
+                                    : status === "REJECTED"
+                                      ? "Reject"
+                                      : "Delete"
+                              } "${listing.title}"? This changes the listing status for customers and the seller.`}
                               data-intent={status.toLowerCase()}
+                              pendingText="Updating..."
                             >
                               {status === "ACTIVE"
                                 ? currentStatus === "PENDING"
@@ -124,8 +176,8 @@ export default async function AdminUserListingsPage(
                                   ? "Pause"
                                   : status === "REJECTED"
                                     ? "Reject"
-                                    : "Delete"}
-                            </button>
+                                  : "Delete"}
+                            </AdminSubmitButton>
                           </form>
                         ))}
                       </div>

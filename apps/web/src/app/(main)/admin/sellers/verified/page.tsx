@@ -1,25 +1,50 @@
 import { reviewVerifiedSellerAction } from "@/app/(main)/actions";
+import {
+  AdminActionFeedback,
+  AdminSubmitButton,
+} from "@/components/marketplace/admin-form-feedback";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { requireSessionContext } from "@/lib/auth-dal";
 import { fetchAdminSellerProfiles } from "@/lib/marketplace-api";
 
-export default async function AdminSellerVerifiedPage() {
+type AdminSellerVerifiedPageProps = {
+  searchParams: Promise<{
+    message?: string;
+    verifiedReview?: string;
+  }>;
+};
+
+export default async function AdminSellerVerifiedPage(
+  props: AdminSellerVerifiedPageProps,
+) {
+  const searchParams = await props.searchParams;
   const { accessToken } = await requireSessionContext("/admin/sellers/verified");
   const sellers = await fetchAdminSellerProfiles(accessToken, { take: 100 });
+  const visibleSellers = sellers.filter(
+    (seller) =>
+      seller.verifiedSellerStatus === "REQUESTED" ||
+      seller.verifiedSellerStatus === "VERIFIED" ||
+      seller.verifiedSellerStatus === "REJECTED",
+  );
 
   return (
     <div className="page grid gap-6">
-      <div className="panel-dark p-6">
-        <p className="section-eyebrow">Seller Operations</p>
-        <h1 className="mt-2 text-3xl font-black text-white">Verified seller queue</h1>
-      </div>
-      {sellers
-        .filter(
-          (seller) =>
-            seller.verifiedSellerStatus === "REQUESTED" ||
-            seller.verifiedSellerStatus === "VERIFIED" ||
-            seller.verifiedSellerStatus === "REJECTED",
-        )
-        .map((seller) => (
+      <AdminPageHeader
+        eyebrow="Seller operations"
+        title="Verified seller queue"
+        description="Review verified seller requests and keep verification decisions visible."
+        badge={`${visibleSellers.length} in queue`}
+      />
+      <AdminActionFeedback
+        status={searchParams.verifiedReview}
+        message={searchParams.message}
+        messages={{
+          saved: "Verified seller decision saved.",
+          invalid: "Choose a seller and verified status before submitting.",
+        }}
+        successStatuses={["saved"]}
+      />
+      {visibleSellers.map((seller) => (
           <form key={seller.id} action={reviewVerifiedSellerAction} className="panel grid gap-3">
             <input type="hidden" name="returnTo" value="/admin/sellers/verified" />
             <input type="hidden" name="sellerProfileId" value={seller.id} />
@@ -45,9 +70,12 @@ export default async function AdminSellerVerifiedPage() {
               rows={3}
               className="surface-input min-h-24 w-full text-sm"
             />
-            <button className="action-primary px-4 py-3 text-sm font-bold">
+            <AdminSubmitButton
+              confirmMessage={`Save the verified seller decision for ${seller.user.displayName}?`}
+              pendingText="Saving decision..."
+            >
               Save verified decision
-            </button>
+            </AdminSubmitButton>
           </form>
         ))}
     </div>

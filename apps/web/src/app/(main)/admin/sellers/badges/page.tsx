@@ -3,13 +3,30 @@ import {
   removeSellerBadgeAction,
   upsertSellerBadgeTypeAction,
 } from "@/app/(main)/actions";
+import {
+  AdminActionFeedback,
+  AdminSubmitButton,
+} from "@/components/marketplace/admin-form-feedback";
+import { AdminFormSection } from "@/components/marketplace/admin-form-section";
+import { AdminPageHeader } from "@/components/marketplace/admin-page-header";
 import { requireSessionContext } from "@/lib/auth-dal";
 import {
   fetchAdminSellerBadges,
   fetchAdminSellerProfiles,
 } from "@/lib/marketplace-api";
 
-export default async function AdminSellerBadgesPage() {
+type AdminSellerBadgesPageProps = {
+  searchParams: Promise<{
+    badge?: string;
+    badgeAssign?: string;
+    message?: string;
+  }>;
+};
+
+export default async function AdminSellerBadgesPage(
+  props: AdminSellerBadgesPageProps,
+) {
+  const searchParams = await props.searchParams;
   const { accessToken } = await requireSessionContext("/admin/sellers/badges");
   const [badges, sellers] = await Promise.all([
     fetchAdminSellerBadges(accessToken),
@@ -18,21 +35,67 @@ export default async function AdminSellerBadgesPage() {
 
   return (
     <div className="page grid gap-6">
-      <div className="panel-dark p-6">
-        <p className="section-eyebrow">Seller Operations</p>
-        <h1 className="mt-2 text-3xl font-black text-white">Seller badges</h1>
-      </div>
-      <form action={upsertSellerBadgeTypeAction} className="panel grid gap-3 md:grid-cols-3">
+      <AdminPageHeader
+        eyebrow="Seller operations"
+        title="Seller badges"
+        description="Create badge types, tune badge visibility, and assign badges to seller profiles."
+        badge={`${badges.length} badge types`}
+      />
+      <AdminActionFeedback
+        status={searchParams.badge ?? searchParams.badgeAssign}
+        message={searchParams.message}
+        messages={{
+          saved: searchParams.badge
+            ? "Badge type saved."
+            : "Badge assigned to seller.",
+          removed: "Badge removed from seller.",
+          invalid: "Choose a seller and badge before submitting.",
+        }}
+        successStatuses={["saved", "removed"]}
+      />
+      <form action={upsertSellerBadgeTypeAction} className="panel admin-form-card">
         <input type="hidden" name="returnTo" value="/admin/sellers/badges" />
-        <input name="label" placeholder="Badge label" className="surface-input w-full text-sm" />
-        <input name="slug" placeholder="Slug" className="surface-input w-full text-sm" />
-        <input name="icon" placeholder="Icon" className="surface-input w-full text-sm" />
-        <input name="backgroundColor" placeholder="Background color" className="surface-input w-full text-sm" />
-        <input name="textColor" placeholder="Text color" className="surface-input w-full text-sm" />
-        <input name="description" placeholder="Description" className="surface-input w-full text-sm md:col-span-3" />
-        <button className="action-primary px-4 py-3 text-sm font-bold md:col-span-3">
+        <AdminFormSection
+          title="Badge content"
+          copy="Create the label, slug, and short description before tuning the badge colors."
+        >
+          <div className="admin-form-grid md:grid-cols-3">
+            <label className="admin-field">
+              <span className="admin-field-label">Badge label</span>
+              <input name="label" placeholder="Badge label" className="surface-input w-full text-sm" />
+            </label>
+            <label className="admin-field">
+              <span className="admin-field-label">Slug</span>
+              <input name="slug" placeholder="Slug" className="surface-input w-full text-sm" />
+            </label>
+            <label className="admin-field">
+              <span className="admin-field-label">Icon</span>
+              <input name="icon" placeholder="Icon" className="surface-input w-full text-sm" />
+            </label>
+            <label className="admin-field md:col-span-3">
+              <span className="admin-field-label">Description</span>
+              <input name="description" placeholder="Description" className="surface-input w-full text-sm" />
+            </label>
+          </div>
+        </AdminFormSection>
+        <AdminFormSection
+          title="Preview styling"
+          copy="Use hex values to keep badge colors consistent with marketplace surfaces."
+        >
+          <div className="admin-form-grid md:grid-cols-2">
+            <label className="admin-field">
+              <span className="admin-field-label">Background color</span>
+              <input name="backgroundColor" placeholder="#eef2ff" className="surface-input w-full text-sm" />
+            </label>
+            <label className="admin-field">
+              <span className="admin-field-label">Text color</span>
+              <input name="textColor" placeholder="#1f2937" className="surface-input w-full text-sm" />
+            </label>
+          </div>
+        </AdminFormSection>
+        <AdminSubmitButton pendingText="Saving badge type...">
           Save badge type
-        </button>
+        </AdminSubmitButton>
       </form>
       <div className="grid gap-4 lg:grid-cols-2">
         {badges.map((badge) => (
@@ -52,80 +115,125 @@ export default async function AdminSellerBadgesPage() {
                 Preview
               </span>
             </div>
-            <form action={upsertSellerBadgeTypeAction} className="grid gap-3">
+            <form action={upsertSellerBadgeTypeAction} className="admin-form-card admin-form-card-compact">
               <input type="hidden" name="returnTo" value="/admin/sellers/badges" />
               <input type="hidden" name="id" value={badge.id} />
-              <input
-                name="label"
-                defaultValue={badge.label}
-                className="surface-input w-full text-sm"
-              />
-              <input
-                name="slug"
-                defaultValue={badge.slug}
-                className="surface-input w-full text-sm"
-              />
-              <input
-                name="icon"
-                defaultValue={badge.icon ?? ""}
-                className="surface-input w-full text-sm"
-              />
-              <input
-                name="backgroundColor"
-                defaultValue={badge.backgroundColor ?? ""}
-                className="surface-input w-full text-sm"
-              />
-              <input
-                name="textColor"
-                defaultValue={badge.textColor ?? ""}
-                className="surface-input w-full text-sm"
-              />
-              <textarea
-                name="description"
-                defaultValue={badge.description ?? ""}
-                rows={3}
-                className="surface-input min-h-20 w-full text-sm"
-              />
-              <div className="flex flex-wrap gap-3 text-sm font-semibold">
-                <label className="flex items-center gap-2">
-                  <input type="hidden" name="isActive" value="false" />
-                  <input
-                    type="checkbox"
-                    name="isActive"
-                    value="true"
-                    defaultChecked={badge.isActive}
-                    className="h-4 w-4 accent-[var(--brand)]"
-                  />
-                  Active
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    name="isHidden"
-                    value="true"
-                    defaultChecked={badge.isHidden}
-                    className="h-4 w-4 accent-[var(--brand)]"
-                  />
-                  Hidden
-                </label>
-              </div>
-              <button className="action-secondary px-4 py-3 text-sm font-bold">
+              <AdminFormSection title="Badge settings" copy="Update the badge label and visibility without leaving this card.">
+                <div className="admin-form-grid md:grid-cols-2">
+                  <label className="admin-field">
+                    <span className="admin-field-label">Label</span>
+                    <input
+                      name="label"
+                      defaultValue={badge.label}
+                      className="surface-input w-full text-sm"
+                    />
+                  </label>
+                  <label className="admin-field">
+                    <span className="admin-field-label">Slug</span>
+                    <input
+                      name="slug"
+                      defaultValue={badge.slug}
+                      className="surface-input w-full text-sm"
+                    />
+                  </label>
+                  <label className="admin-field">
+                    <span className="admin-field-label">Icon</span>
+                    <input
+                      name="icon"
+                      defaultValue={badge.icon ?? ""}
+                      className="surface-input w-full text-sm"
+                    />
+                  </label>
+                  <label className="admin-field">
+                    <span className="admin-field-label">Background color</span>
+                    <input
+                      name="backgroundColor"
+                      defaultValue={badge.backgroundColor ?? ""}
+                      className="surface-input w-full text-sm"
+                    />
+                  </label>
+                  <label className="admin-field">
+                    <span className="admin-field-label">Text color</span>
+                    <input
+                      name="textColor"
+                      defaultValue={badge.textColor ?? ""}
+                      className="surface-input w-full text-sm"
+                    />
+                  </label>
+                  <label className="admin-field md:col-span-2">
+                    <span className="admin-field-label">Description</span>
+                    <textarea
+                      name="description"
+                      defaultValue={badge.description ?? ""}
+                      rows={3}
+                      className="surface-input min-h-20 w-full text-sm"
+                    />
+                  </label>
+                </div>
+                <div className="admin-form-grid sm:grid-cols-2">
+                  <label className="admin-toggle">
+                    <span className="admin-toggle-copy">
+                      <span>Active</span>
+                      <span>Allow this badge type to be assigned.</span>
+                    </span>
+                    <span>
+                      <input type="hidden" name="isActive" value="false" />
+                      <input
+                        type="checkbox"
+                        name="isActive"
+                        value="true"
+                        defaultChecked={badge.isActive}
+                      />
+                    </span>
+                  </label>
+                  <label className="admin-toggle">
+                    <span className="admin-toggle-copy">
+                      <span>Hidden</span>
+                      <span>Keep assigned badges out of public display.</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      name="isHidden"
+                      value="true"
+                      defaultChecked={badge.isHidden}
+                    />
+                  </label>
+                </div>
+              </AdminFormSection>
+              <AdminSubmitButton
+                className="action-secondary px-4 py-3 text-sm font-bold"
+                pendingText="Saving badge..."
+              >
                 Save badge settings
-              </button>
+              </AdminSubmitButton>
             </form>
-            <form action={assignSellerBadgeAction} className="grid gap-3">
+            <form action={assignSellerBadgeAction} className="admin-form-section">
+              <div className="admin-form-section-head">
+                <h3 className="admin-form-section-title">Assign to seller</h3>
+                <p className="admin-form-section-copy">
+                  Select a seller profile and attach this badge.
+                </p>
+              </div>
               <input type="hidden" name="returnTo" value="/admin/sellers/badges" />
               <input type="hidden" name="badgeTypeId" value={badge.id} />
-              <select name="sellerProfileId" className="surface-input w-full text-sm">
-                {sellers.map((seller) => (
-                  <option key={seller.id} value={seller.id}>
-                    {seller.user.displayName}
-                  </option>
-                ))}
-              </select>
-              <button className="action-secondary px-4 py-3 text-sm font-bold">
-                Assign badge
-              </button>
+              <div className="admin-form-grid sm:grid-cols-[1fr_auto]">
+                <label className="admin-field">
+                  <span className="admin-field-label">Seller</span>
+                  <select name="sellerProfileId" className="surface-input w-full text-sm">
+                    {sellers.map((seller) => (
+                      <option key={seller.id} value={seller.id}>
+                        {seller.user.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <AdminSubmitButton
+                  className="action-secondary px-4 py-3 text-sm font-bold sm:self-end"
+                  pendingText="Assigning badge..."
+                >
+                  Assign badge
+                </AdminSubmitButton>
+              </div>
             </form>
             {sellers.flatMap((seller) =>
               (seller.badges ?? [])
@@ -140,9 +248,13 @@ export default async function AdminSellerBadgesPage() {
                     <input type="hidden" name="sellerProfileId" value={seller.id} />
                     <input type="hidden" name="assignmentId" value={assignment.id} />
                     <span>{seller.user.displayName}</span>
-                    <button className="text-sm font-bold text-[#b93820]">
+                    <AdminSubmitButton
+                      className="text-sm font-bold text-[#b93820]"
+                      confirmMessage={`Remove this badge from ${seller.user.displayName}?`}
+                      pendingText="Removing..."
+                    >
                       Remove
-                    </button>
+                    </AdminSubmitButton>
                   </form>
                 )),
             )}

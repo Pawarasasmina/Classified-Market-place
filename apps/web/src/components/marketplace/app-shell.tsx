@@ -335,6 +335,93 @@ function getDesktopSecondaryNavLinks(user: SessionUser | null) {
   );
 }
 
+function AdminSidebarIcon({
+  name,
+  className,
+}: {
+  name: string;
+  className?: string;
+}) {
+  const paths: Record<string, ReactNode> = {
+    account: (
+      <>
+        <path d="M12 12.5a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z" />
+        <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+      </>
+    ),
+    catalog: (
+      <>
+        <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15.5A2.5 2.5 0 0 1 17.5 21H6.5A2.5 2.5 0 0 1 4 18.5Z" />
+        <path d="M8 7h8" />
+        <path d="M8 11h8" />
+        <path d="M8 15h5" />
+      </>
+    ),
+    communication: (
+      <>
+        <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v6A2.5 2.5 0 0 1 16.5 15H10l-4 4v-4.6A2.5 2.5 0 0 1 5 12.5Z" />
+        <path d="M8.5 8.5h7" />
+        <path d="M8.5 11.5H13" />
+      </>
+    ),
+    growth: (
+      <>
+        <path d="M4 19h16" />
+        <path d="M7 16v-5" />
+        <path d="M12 16V7" />
+        <path d="M17 16v-8" />
+        <path d="m15 6 2-2 2 2" />
+      </>
+    ),
+    reports: (
+      <>
+        <path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+        <path d="M14 3v5h5" />
+        <path d="M9 15h6" />
+        <path d="M9 18h3" />
+        <path d="M9 11h1" />
+      </>
+    ),
+    sellers: (
+      <>
+        <path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+        <path d="M17 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
+        <path d="M3.5 20a5.5 5.5 0 0 1 11 0" />
+        <path d="M14.5 17.5A4.5 4.5 0 0 1 21 20" />
+      </>
+    ),
+    workspace: (
+      <>
+        <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h15A1.5 1.5 0 0 1 22 5.5v6A1.5 1.5 0 0 1 20.5 13h-15A1.5 1.5 0 0 1 4 11.5Z" />
+        <path d="M4 17h6" />
+        <path d="M14 17h8" />
+        <path d="M4 21h12" />
+      </>
+    ),
+    default: (
+      <>
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </>
+    ),
+  };
+
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      {paths[name] ?? paths.default}
+    </svg>
+  );
+}
+
 function AdminSidebar({
   pathname,
   role,
@@ -347,79 +434,99 @@ function AdminSidebar({
     sections.find((section) =>
       section.items.some((item) => isActive(pathname, item.href)),
     )?.id ?? sections[0]?.id ?? "";
-  const [mobileState, setMobileState] = useState({
-    open: false,
-    pathname,
-    sectionId: activeSectionId,
-  });
-  const [desktopSectionId, setDesktopSectionId] = useState("");
-  const mobileOpen =
-    mobileState.pathname === pathname ? mobileState.open : false;
-  const mobileSectionId =
-    mobileState.pathname === pathname &&
-    sections.some((section) => section.id === mobileState.sectionId)
-      ? mobileState.sectionId
-      : activeSectionId;
+  const activeSection =
+    sections.find((section) => section.id === activeSectionId) ?? sections[0];
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileSectionId, setMobileSectionId] = useState(activeSectionId);
+  const [desktopHoverSectionId, setDesktopHoverSectionId] = useState("");
+  const [desktopPinnedSectionId, setDesktopPinnedSectionId] = useState("");
+  const desktopSectionId = desktopPinnedSectionId || desktopHoverSectionId;
 
   return (
     <>
       <div className="admin-sidebar-mobile">
         <button
           type="button"
-          onClick={() =>
-            setMobileState({
-              open: !mobileOpen,
-              pathname,
-              sectionId: mobileSectionId,
-            })
-          }
+          onClick={() => setMobileOpen((current) => !current)}
           className="admin-sidebar-mobile-toggle"
           aria-expanded={mobileOpen}
           aria-controls="admin-sidebar-mobile-panel"
         >
-          <span>
-            <span className="admin-sidebar-mobile-label">
-              Admin navigation
-            </span>
-            <span className="admin-sidebar-mobile-detail">
-              Open admin pages
+          <span className="admin-sidebar-link-content">
+            <AdminSidebarIcon
+              name={activeSection?.id ?? "workspace"}
+              className="admin-sidebar-icon"
+            />
+            <span>
+              <span className="admin-sidebar-mobile-label">Admin menu</span>
+              <span className="admin-sidebar-mobile-detail">
+                {activeSection?.label ?? "Open admin pages"}
+              </span>
             </span>
           </span>
           <span className="admin-sidebar-mobile-arrow">
-            {mobileOpen ? "Hide" : "Open"}
+            {mobileOpen ? "Close" : "Menu"}
           </span>
         </button>
         {mobileOpen ? (
-          <div
-            id="admin-sidebar-mobile-panel"
-            className="admin-sidebar-panel admin-sidebar-panel-mobile"
-          >
-            <AdminSidebarMobileSections
-              pathname={pathname}
-              sections={sections}
-              activeSectionId={mobileSectionId}
-              onToggleSection={(sectionId) =>
-                setMobileState({
-                  open: true,
-                  pathname,
-                  sectionId: mobileSectionId === sectionId ? "" : sectionId,
-                })
-              }
+          <div className="admin-sidebar-drawer-layer" role="presentation">
+            <button
+              type="button"
+              className="admin-sidebar-drawer-backdrop"
+              aria-label="Close admin navigation"
+              onClick={() => setMobileOpen(false)}
             />
+            <aside
+              id="admin-sidebar-mobile-panel"
+              className="admin-sidebar-panel admin-sidebar-panel-mobile admin-sidebar-drawer"
+              aria-label="Admin navigation"
+              aria-modal="true"
+              role="dialog"
+            >
+              <div className="admin-sidebar-drawer-head">
+                <div>
+                  <p className="admin-sidebar-group-label">Admin menu</p>
+                  <h2 className="admin-sidebar-title">Navigation</h2>
+                </div>
+                <button
+                  type="button"
+                  className="admin-sidebar-drawer-close"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+              <AdminSidebarMobileSections
+                pathname={pathname}
+                sections={sections}
+                activeSectionId={mobileSectionId || activeSectionId}
+                onNavigate={() => setMobileOpen(false)}
+                onToggleSection={(sectionId) =>
+                  setMobileSectionId((current) =>
+                    current === sectionId ? "" : sectionId,
+                  )
+                }
+              />
+            </aside>
           </div>
         ) : null}
       </div>
       <aside
         className="admin-sidebar-desktop"
-        onMouseLeave={() => setDesktopSectionId("")}
-        onPointerLeave={() => setDesktopSectionId("")}
+        onMouseLeave={() => setDesktopHoverSectionId("")}
+        onPointerLeave={() => setDesktopHoverSectionId("")}
       >
         <div className="admin-sidebar-desktop-shell">
           <AdminSidebarDesktopSections
             pathname={pathname}
             sections={sections}
             activeSectionId={desktopSectionId}
-            onFocusSection={setDesktopSectionId}
+            onFocusSection={setDesktopHoverSectionId}
+            onPinSection={(sectionId) =>
+              setDesktopPinnedSectionId((current) =>
+                current === sectionId ? "" : sectionId,
+              )
+            }
           />
         </div>
       </aside>
@@ -432,11 +539,13 @@ function AdminSidebarDesktopSections({
   sections,
   activeSectionId,
   onFocusSection,
+  onPinSection,
 }: {
   pathname: string;
   sections: ReturnType<typeof getAdminNavigationSections>;
   activeSectionId: string;
   onFocusSection: (sectionId: string) => void;
+  onPinSection: (sectionId: string) => void;
 }) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const [submenuTop, setSubmenuTop] = useState(0);
@@ -464,6 +573,7 @@ function AdminSidebarDesktopSections({
             const hasActiveItem = section.items.some((item) =>
               isActive(pathname, item.href),
             );
+            const selected = activeSectionId === section.id;
             return (
               <button
                 key={section.id}
@@ -471,11 +581,24 @@ function AdminSidebarDesktopSections({
                 onMouseEnter={(event) => handleOpenSection(section.id, event)}
                 onPointerEnter={(event) => handleOpenSection(section.id, event)}
                 onFocus={(event) => handleOpenSection(section.id, event)}
+                onClick={(event) => {
+                  handleOpenSection(section.id, event);
+                  onPinSection(section.id);
+                }}
+                aria-expanded={selected}
                 className={`admin-sidebar-main-link ${
-                  hasActiveItem ? "admin-sidebar-main-link-active" : ""
+                  hasActiveItem || selected
+                    ? "admin-sidebar-main-link-active"
+                    : ""
                 }`}
               >
-                <span>{section.label}</span>
+                <span className="admin-sidebar-link-content">
+                  <AdminSidebarIcon
+                    name={section.id}
+                    className="admin-sidebar-icon"
+                  />
+                  <span>{section.label}</span>
+                </span>
                 <span className="admin-sidebar-main-link-count">&gt;</span>
               </button>
             );
@@ -498,7 +621,13 @@ function AdminSidebarDesktopSections({
                     : ""
                 }`}
               >
-                {item.label}
+                <span className="admin-sidebar-link-content">
+                  <AdminSidebarIcon
+                    name={activeSection.id}
+                    className="admin-sidebar-icon admin-sidebar-icon-small"
+                  />
+                  <span>{item.label}</span>
+                </span>
               </Link>
             ))}
           </div>
@@ -512,11 +641,13 @@ function AdminSidebarMobileSections({
   pathname,
   sections,
   activeSectionId,
+  onNavigate,
   onToggleSection,
 }: {
   pathname: string;
   sections: ReturnType<typeof getAdminNavigationSections>;
   activeSectionId: string;
+  onNavigate: () => void;
   onToggleSection: (sectionId: string) => void;
 }) {
   return (
@@ -541,7 +672,15 @@ function AdminSidebarMobileSections({
               aria-expanded={expanded}
             >
               <span className="admin-sidebar-section-head">
-                <span className="admin-sidebar-section-label">{section.label}</span>
+                <span className="admin-sidebar-link-content">
+                  <AdminSidebarIcon
+                    name={section.id}
+                    className="admin-sidebar-icon"
+                  />
+                  <span className="admin-sidebar-section-label">
+                    {section.label}
+                  </span>
+                </span>
               </span>
               <span className="admin-sidebar-mobile-count">
                 {expanded ? "Hide" : section.items.length}
@@ -558,8 +697,15 @@ function AdminSidebarMobileSections({
                         ? "admin-sidebar-nav-link-active"
                         : ""
                     }`}
+                    onClick={onNavigate}
                   >
-                    {item.label}
+                    <span className="admin-sidebar-link-content">
+                      <AdminSidebarIcon
+                        name={section.id}
+                        className="admin-sidebar-icon admin-sidebar-icon-small"
+                      />
+                      <span>{item.label}</span>
+                    </span>
                   </Link>
                 ))}
               </div>
@@ -644,8 +790,12 @@ export function MarketplaceShell({
     : adminLogin
       ? []
       : getCustomerNavLinks(user);
-  const desktopPrimaryNavLinks = getDesktopPrimaryNavLinks(user);
-  const desktopSecondaryNavLinks = getDesktopSecondaryNavLinks(user);
+  const desktopPrimaryNavLinks = adminExperience
+    ? []
+    : getDesktopPrimaryNavLinks(user);
+  const desktopSecondaryNavLinks = adminExperience
+    ? []
+    : getDesktopSecondaryNavLinks(user);
   const hasDesktopSecondaryActive = desktopSecondaryNavLinks.some((link) =>
     isActive(pathname, link.href),
   );
@@ -908,7 +1058,11 @@ export function MarketplaceShell({
         {adminShell ? (
           <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
             <div className="admin-workspace">
-              <AdminSidebar pathname={pathname} role={user?.role} />
+              <AdminSidebar
+                key={`${pathname}:${user?.role ?? "guest"}`}
+                pathname={pathname}
+                role={user?.role}
+              />
               <div className="admin-workspace-content">{children}</div>
             </div>
           </div>
