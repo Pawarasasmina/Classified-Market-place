@@ -4,6 +4,7 @@ import {
   type ButtonHTMLAttributes,
   type MouseEvent,
   type ReactNode,
+  useState,
   useEffect,
 } from "react";
 import { useFormStatus } from "react-dom";
@@ -56,6 +57,7 @@ type AdminActionFeedbackProps = {
   messages?: Record<string, string>;
   successStatuses?: string[];
   warningStatuses?: string[];
+  flashStorageKey?: string;
   queryKey?: string;
 };
 
@@ -65,11 +67,40 @@ export function AdminActionFeedback({
   messages = {},
   successStatuses = ["success", "created", "updated", "deleted", "saved"],
   warningStatuses = [],
+  flashStorageKey,
   queryKey,
 }: AdminActionFeedbackProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [storedFlash, setStoredFlash] = useState<{
+    status?: string | null;
+    message?: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!flashStorageKey || status) {
+      return;
+    }
+
+    try {
+      const raw = window.sessionStorage.getItem(flashStorageKey);
+
+      if (!raw) {
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as {
+        status?: string | null;
+        message?: string | null;
+      };
+
+      setStoredFlash(parsed);
+      window.sessionStorage.removeItem(flashStorageKey);
+    } catch {
+      window.sessionStorage.removeItem(flashStorageKey);
+    }
+  }, [flashStorageKey, status]);
 
   useEffect(() => {
     if (!status || !queryKey || !searchParams.has(queryKey)) {
@@ -84,18 +115,21 @@ export function AdminActionFeedback({
     router.replace(nextUrl, { scroll: false });
   }, [pathname, queryKey, router, searchParams, status]);
 
-  if (!status) {
+  const activeStatus = status ?? storedFlash?.status ?? null;
+  const activeMessage = message ?? storedFlash?.message ?? null;
+
+  if (!activeStatus) {
     return null;
   }
 
-  const isSuccess = successStatuses.includes(status);
-  const isWarning = warningStatuses.includes(status);
+  const isSuccess = successStatuses.includes(activeStatus);
+  const isWarning = warningStatuses.includes(activeStatus);
   const fallback = isSuccess
     ? "Changes saved."
     : isWarning
       ? "Completed with warnings."
       : "Could not complete that action. Please try again.";
-  const copy = message || messages[status] || fallback;
+  const copy = activeMessage || messages[activeStatus] || fallback;
 
   return (
     <div

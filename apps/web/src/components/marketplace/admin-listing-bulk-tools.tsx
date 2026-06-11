@@ -1,8 +1,6 @@
 "use client";
 
 import { useMemo, useState, type ChangeEvent } from "react";
-import { bulkImportListingsAction } from "@/app/(main)/actions";
-import { AdminSubmitButton } from "@/components/marketplace/admin-form-feedback";
 import { type MarketplaceListing } from "@/lib/marketplace";
 
 type ImportFieldKey =
@@ -55,6 +53,28 @@ type ImageColumnGroup = {
   url?: string;
   altText?: string;
 };
+
+type ImportProgressState = {
+  created: number;
+  failed: number;
+  inFlight: boolean;
+  processedRows: number;
+  skipped: number;
+  totalRows: number;
+  updated: number;
+};
+
+type BulkImportResult = {
+  created: number;
+  updated: number;
+  skipped: number;
+  processed: number;
+  failed: number;
+  errors: string[];
+};
+
+const LISTINGS_BULK_FLASH_KEY = "admin:listingsBulkFlash";
+const IMPORT_CHUNK_SIZE = 20;
 
 const importFieldOptions: Array<{
   description: string;
@@ -470,6 +490,26 @@ function flattenListingExportRows(listings: MarketplaceListing[]) {
   });
 }
 
+function buildBulkImportMessage(result: BulkImportResult) {
+  const summary = [
+    `${result.created} created`,
+    `${result.updated} updated`,
+    `${result.skipped} skipped`,
+  ].join(", ");
+  const failedReasonLines = result.errors.length
+    ? result.errors.slice(0, 10).join("\n")
+    : "";
+  const remainingReasons =
+    result.errors.length > 10
+      ? `\n+${result.errors.length - 10} more failed row reasons.`
+      : "";
+  const detailMessage = result.failed
+    ? `\nFailed reasons:\n${failedReasonLines}${remainingReasons}`
+    : "";
+
+  return `Bulk import finished. ${summary}. ${result.failed} failed.${detailMessage}`;
+}
+
 export function AdminListingBulkTools({
   listings,
   returnTo,
@@ -479,6 +519,16 @@ export function AdminListingBulkTools({
 }) {
   const [parsedSheet, setParsedSheet] = useState<ParsedSheet | null>(null);
   const [fileName, setFileName] = useState("");
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importProgress, setImportProgress] = useState<ImportProgressState>({
+    created: 0,
+    failed: 0,
+    inFlight: false,
+    processedRows: 0,
+    skipped: 0,
+    totalRows: 0,
+    updated: 0,
+  });
   const [updateExisting, setUpdateExisting] = useState(false);
   const [mappings, setMappings] = useState<Record<ImportFieldKey, string>>(() =>
     importFieldOptions.reduce<Record<ImportFieldKey, string>>(
@@ -527,10 +577,108 @@ export function AdminListingBulkTools({
   const imageGroupCount = parsedSheet
     ? getImageColumnGroups(parsedSheet.headers).length
     : 0;
-  const payload = JSON.stringify({
-    rows: readyRows,
-    updateExisting,
-  });
+  const progressPercent = importProgress.totalRows
+    ? Math.min(
+        100,
+        Math.round((importProgress.processedRows / importProgress.totalRows) * 100),
+      )
+    : 0;
+
+  async function handleBulkImport() {
+    if (!readyRows.length || importProgress.inFlight) {
+      return;
+    }
+
+    setImportError(null);
+    setImportProgress({
+      created: 0,
+      failed: 0,
+      inFlight: true,
+      processedRows: 0,
+      skipped: 0,
+      totalRows: readyRows.length,
+      updated: 0,
+    });
+
+    const aggregate: BulkImportResult = {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      processed: 0,
+      failed: 0,
+      errors: [],
+    };
+
+    try {
+      for (let index = 0; index < readyRows.length; index += IMPORT_CHUNK_SIZE) {
+        const chunk = readyRows.slice(index, index + IMPORT_CHUNK_SIZE);
+        const response = await fetch("/api/admin/listings/bulk-import", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            rows: chunk,
+            updateExisting,
+          }),
+        });
+
+        const data = (await response.json().catch(() => null)) as
+          | (BulkImportResult & { message?: string })
+          | { message?: string }
+          | null;
+
+        if (!response.ok) {
+          throw new Error(
+            data?.message || "We could not import the listing spreadsheet.",
+          );
+        }
+
+        const chunkResult = data as BulkImportResult;
+        aggregate.created += chunkResult.created;
+        aggregate.updated += chunkResult.updated;
+        aggregate.skipped += chunkResult.skipped;
+        aggregate.processed += chunkResult.processed;
+        aggregate.failed += chunkResult.failed;
+        aggregate.errors.push(...chunkResult.errors);
+
+        setImportProgress({
+          created: aggregate.created,
+          failed: aggregate.failed,
+          inFlight: true,
+          processedRows: Math.min(index + chunk.length, readyRows.length),
+          skipped: aggregate.skipped,
+          totalRows: readyRows.length,
+          updated: aggregate.updated,
+        });
+      }
+
+      window.sessionStorage.setItem(
+        LISTINGS_BULK_FLASH_KEY,
+        JSON.stringify({
+          status: aggregate.failed ? "importedPartial" : "imported",
+          message: buildBulkImportMessage(aggregate),
+        }),
+      );
+      window.location.assign(returnTo);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "We could not import the listing spreadsheet.";
+
+      window.sessionStorage.setItem(
+        LISTINGS_BULK_FLASH_KEY,
+        JSON.stringify({
+          status: "importError",
+          message,
+        }),
+      );
+      setImportError(message);
+      setImportProgress((current) => ({ ...current, inFlight: false }));
+      window.location.assign(returnTo);
+    }
+  }
 
   return (
     <section className="panel grid gap-5">
@@ -594,6 +742,7 @@ export function AdminListingBulkTools({
               <input
                 type="file"
                 accept=".csv,.txt"
+                disabled={importProgress.inFlight}
                 onChange={(event) => void handleFileChange(event)}
                 className="hidden"
               />
@@ -680,13 +829,7 @@ export function AdminListingBulkTools({
             </div>
 
             <div className="grid gap-4">
-              <form
-                action={bulkImportListingsAction}
-                className="rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] p-4"
-              >
-                <input type="hidden" name="returnTo" value={returnTo} />
-                <input type="hidden" name="payload" value={payload} />
-
+              <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-black uppercase tracking-[0.18em] text-[var(--muted)]">
@@ -703,6 +846,7 @@ export function AdminListingBulkTools({
                     <input
                       type="checkbox"
                       checked={updateExisting}
+                      disabled={importProgress.inFlight}
                       onChange={(event) =>
                         setUpdateExisting(event.target.checked)
                       }
@@ -711,16 +855,83 @@ export function AdminListingBulkTools({
                   </label>
                 </div>
 
+                {importProgress.inFlight ? (
+                  <div className="mt-4 rounded-2xl border border-[var(--line)] bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-black text-[var(--foreground)]">
+                          Importing rows
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-[var(--muted)]">
+                          {importProgress.processedRows} / {importProgress.totalRows} rows processed
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-[var(--line)] px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-[var(--brand-strong)]">
+                        {progressPercent}%
+                      </span>
+                    </div>
+                    <div className="mt-4 h-3 overflow-hidden rounded-full bg-[var(--surface-strong)]">
+                      <div
+                        className="h-full rounded-full bg-[linear-gradient(90deg,var(--brand)_0%,var(--brand-strong)_100%)] transition-[width] duration-300 ease-out"
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                      <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2">
+                        <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-[var(--muted)]">
+                          Created
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-[var(--foreground)]">
+                          {importProgress.created}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2">
+                        <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-[var(--muted)]">
+                          Updated
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-[var(--foreground)]">
+                          {importProgress.updated}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2">
+                        <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-[var(--muted)]">
+                          Skipped
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-[var(--foreground)]">
+                          {importProgress.skipped}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2">
+                        <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-[var(--muted)]">
+                          Failed
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-[var(--foreground)]">
+                          {importProgress.failed}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {importError ? (
+                  <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold whitespace-pre-line text-red-700">
+                    {importError}
+                  </div>
+                ) : null}
+
                 <div className="mt-4">
-                  <AdminSubmitButton
-                    disabled={readyRows.length === 0}
-                    className="action-primary w-full px-4 py-3 text-sm font-bold"
-                    pendingText="Importing listings..."
+                  <button
+                    type="button"
+                    disabled={readyRows.length === 0 || importProgress.inFlight}
+                    onClick={() => void handleBulkImport()}
+                    className="action-primary w-full px-4 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    Import listings in bulk
-                  </AdminSubmitButton>
+                    {importProgress.inFlight
+                      ? `Importing ${importProgress.processedRows} / ${importProgress.totalRows} rows`
+                      : "Import listings in bulk"}
+                  </button>
                 </div>
-              </form>
+              </div>
 
               <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] p-4">
                 <div className="flex items-center justify-between gap-3">

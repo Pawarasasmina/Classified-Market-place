@@ -148,6 +148,7 @@ export default async function AdminListingsPage(props: AdminListingsPageProps) {
       <AdminActionFeedback
         status={searchParams.listingsBulk}
         message={searchParams.message}
+        flashStorageKey="admin:listingsBulkFlash"
         messages={{
           imported: "Listings bulk import finished.",
           importedPartial: "Listings bulk import finished with some failed rows.",
