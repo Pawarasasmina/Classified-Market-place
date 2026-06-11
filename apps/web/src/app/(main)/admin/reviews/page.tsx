@@ -51,8 +51,10 @@ export default async function AdminReviewsPage(props: AdminReviewsPageProps) {
   }
 
   const canModerateReviews = hasAdminPermission(user.role, "REVIEWS_MODERATE");
-  const status = reviewStatuses.includes(searchParams.status as ApiSellerReviewStatus)
-    ? searchParams.status
+  const status: ApiSellerReviewStatus = reviewStatuses.includes(
+    searchParams.status as ApiSellerReviewStatus,
+  )
+    ? (searchParams.status as ApiSellerReviewStatus)
     : "PENDING";
   const reviews = await fetchAdminSellerReviews(accessToken, { status });
   const returnTo = buildReturnTo(searchParams);

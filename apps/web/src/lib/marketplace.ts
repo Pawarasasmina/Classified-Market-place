@@ -100,6 +100,7 @@ export type ApiCategory = {
   name: string;
   slug: string;
   description: string | null;
+  imageUrl?: string | null;
   schemaDefinition?: {
     fields?: ApiCategoryField[] | null;
   } | null;
@@ -1294,6 +1295,7 @@ export type MarketplaceCategory = {
   name: string;
   slug: string;
   description: string;
+  imageUrl: string;
   accent: string;
   icon: string;
   countLabel: string;
@@ -1686,6 +1688,76 @@ const categoryPresets: Record<
   },
 };
 
+const categoryImageLibrary: Record<string, string> = {
+  vehicles:
+    "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=900&q=80",
+  motorcycles:
+    "https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=900&q=80",
+  "heavy-equipment":
+    "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=900&q=80",
+  "boats-watercraft":
+    "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80",
+  "boats-and-watercraft":
+    "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80",
+  motors:
+    "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=900&q=80",
+  cars:
+    "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=900&q=80",
+  property:
+    "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=900&q=80",
+  apartments:
+    "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=900&q=80",
+  "residential-for-rent":
+    "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=900&q=80",
+  "residential-for-sale":
+    "https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=900&q=80",
+  "commercial-for-rent":
+    "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=80",
+  "commercial-for-sale":
+    "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=900&q=80",
+  "land-and-plots":
+    "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=900&q=80",
+  electronics:
+    "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=80",
+  "mobile-phones-and-tablets":
+    "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=80",
+  "laptops-and-computers":
+    "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=900&q=80",
+  "tvs-audio-and-cameras":
+    "https://images.unsplash.com/photo-1495567720989-cebdbdd97913?auto=format&fit=crop&w=900&q=80",
+  "home-appliances":
+    "https://images.unsplash.com/photo-1556911220-bff31c812dba?auto=format&fit=crop&w=900&q=80",
+  jobs:
+    "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=900&q=80",
+  "it-software-development":
+    "https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=900&q=80",
+  "healthcare-medical":
+    "https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&w=900&q=80",
+  "sales-marketing":
+    "https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=900&q=80",
+  "education-teaching":
+    "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80",
+  services:
+    "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80",
+  "web-software-development":
+    "https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=900&q=80",
+  "home-maintenance-repair":
+    "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=900&q=80",
+  "legal-financial-services":
+    "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=900&q=80",
+  fallback:
+    "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=900&q=80",
+};
+
+function getCategoryImageUrl(category: ApiCategory) {
+  return (
+    category.imageUrl ??
+    categoryImageLibrary[category.slug] ??
+    (category.parent?.slug ? categoryImageLibrary[category.parent.slug] : undefined) ??
+    categoryImageLibrary.fallback
+  );
+}
+
 function humanizeLabel(value: string) {
   return value
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -2001,6 +2073,7 @@ export function mapCategory(category: ApiCategory): MarketplaceCategory {
     name: category.name,
     slug: category.slug,
     description: category.description ?? "Browse this marketplace category.",
+    imageUrl: getCategoryImageUrl(category),
     accent:
       preset?.accent ??
       "linear-gradient(135deg, rgba(255,250,244,0.92) 0%, rgba(245,240,233,0.92) 100%)",

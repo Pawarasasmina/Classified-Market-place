@@ -139,6 +139,8 @@ export function AdminTableEnhancer({
       return;
     }
 
+    const resolvedHeaderRow = headerRow;
+
     if (enableSelection) {
       const selectHeader = document.createElement("th");
       selectHeader.className = "admin-table-select-cell";
@@ -241,7 +243,7 @@ export function AdminTableEnhancer({
         })
         .map(getRowId)
         .filter(Boolean);
-      const allCheckbox = headerRow.querySelector<HTMLInputElement>(
+      const allCheckbox = resolvedHeaderRow.querySelector<HTMLInputElement>(
         ".admin-table-select-cell input",
       );
 

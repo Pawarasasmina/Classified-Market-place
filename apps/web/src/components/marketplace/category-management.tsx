@@ -424,6 +424,18 @@ function SelectedCategoryPanel({
                     className="surface-input min-h-24 resize-none text-sm"
                   />
                 </label>
+                <label className="admin-field md:col-span-2">
+                  <span className="admin-field-label">Category image URL</span>
+                  <input
+                    name="imageUrl"
+                    defaultValue={category.imageUrl}
+                    placeholder="https://images.example.com/category.jpg"
+                    className="surface-input text-sm"
+                  />
+                  <p className="admin-field-help">
+                    Shown on the marketplace home page category cards.
+                  </p>
+                </label>
                 <label className="admin-field">
                   <span className="admin-field-label">Status</span>
                   <select

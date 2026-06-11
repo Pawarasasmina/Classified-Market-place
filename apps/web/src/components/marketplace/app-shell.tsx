@@ -1072,29 +1072,121 @@ export function MarketplaceShell({
       </main>
       {!adminExperience ? (
         <footer className="marketplace-footer">
-          <div className="mx-auto grid max-w-[92rem] gap-6 px-4 py-8 text-sm sm:px-8 lg:grid-cols-[1fr_auto] lg:items-center lg:px-10">
-            <div>
-              <p className="font-black uppercase tracking-[0.2em]">
-                Classified Marketplace
-              </p>
-              <p className="marketplace-footer-muted mt-2 max-w-2xl">
-                A modern local marketplace for trusted discovery, item posting,
-                and direct conversations.
-              </p>
+          <div className="marketplace-footer-shell">
+            <div className="marketplace-footer-feature">
+              <div>
+                <p className="marketplace-footer-kicker">Local marketplace</p>
+                <h2>Buy, sell, rent, and message with confidence.</h2>
+                <p>
+                  A trust-first classified marketplace for property, motors,
+                  jobs, electronics, services, and everyday local discovery.
+                </p>
+              </div>
+              <div className="marketplace-footer-actions">
+                <Link href={withCustomerPreview("/sell", customerPreview)}>
+                  Post a listing
+                </Link>
+                <Link href={withCustomerPreview("/search", customerPreview)}>
+                  Browse deals
+                </Link>
+              </div>
             </div>
-            <div className="marketplace-footer-muted flex flex-wrap gap-3">
-              <Link href={withCustomerPreview("/search", customerPreview)}>
-                Browse
-              </Link>
-              <Link href={withCustomerPreview("/sell", customerPreview)}>
-                Sell
-              </Link>
-              <Link href={withCustomerPreview("/messages", customerPreview)}>
-                Messages
-              </Link>
-              <Link href={withCustomerPreview("/profile", customerPreview)}>
-                Account
-              </Link>
+
+            <div className="marketplace-footer-grid">
+              <div className="marketplace-footer-brand">
+                <Link
+                  href={withCustomerPreview("/", customerPreview)}
+                  className="marketplace-footer-logo"
+                >
+                  <span className="marketplace-brand-mark flex h-11 w-11 items-center justify-center text-sm font-black text-white">
+                    CM
+                  </span>
+                  <span>
+                    <span>Classified Marketplace</span>
+                    <small>Buy, sell, and chat locally</small>
+                  </span>
+                </Link>
+                <p>
+                  Discover live listings, verified seller profiles, direct
+                  messages, wallet payments, saved items, and seller tools in
+                  one clean workspace.
+                </p>
+                <div className="marketplace-footer-badges">
+                  <span>Verified profiles</span>
+                  <span>Secure payments</span>
+                  <span>Fast posting</span>
+                </div>
+              </div>
+
+              <nav className="marketplace-footer-column" aria-label="Browse">
+                <h3>Browse</h3>
+                <Link href={withCustomerPreview("/search", customerPreview)}>
+                  All listings
+                </Link>
+                <Link href={withCustomerPreview("/categories", customerPreview)}>
+                  Categories
+                </Link>
+                <Link href={withCustomerPreview("/saved", customerPreview)}>
+                  Saved listings
+                </Link>
+                <Link href={withCustomerPreview("/reports", customerPreview)}>
+                  Reports
+                </Link>
+              </nav>
+
+              <nav className="marketplace-footer-column" aria-label="Sell">
+                <h3>Sell</h3>
+                <Link href={withCustomerPreview("/sell", customerPreview)}>
+                  Post an item
+                </Link>
+                <Link href={withCustomerPreview("/my-listings", customerPreview)}>
+                  My listings
+                </Link>
+                <Link href={withCustomerPreview("/wallet", customerPreview)}>
+                  Wallet
+                </Link>
+                <Link
+                  href={withCustomerPreview("/transactions", customerPreview)}
+                >
+                  Purchases
+                </Link>
+              </nav>
+
+              <nav className="marketplace-footer-column" aria-label="Account">
+                <h3>Account</h3>
+                <Link href={withCustomerPreview("/profile", customerPreview)}>
+                  Profile
+                </Link>
+                <Link href={withCustomerPreview("/messages", customerPreview)}>
+                  Messages
+                </Link>
+                <Link
+                  href={withCustomerPreview("/notifications", customerPreview)}
+                >
+                  Notifications
+                </Link>
+                {user ? (
+                  <form action={logoutAction}>
+                    <button type="submit">Sign out</button>
+                  </form>
+                ) : (
+                  <Link href={withCustomerPreview("/login", customerPreview)}>
+                    Sign in
+                  </Link>
+                )}
+              </nav>
+            </div>
+
+            <div className="marketplace-footer-bottom">
+              <p>
+                Classified Marketplace. Built for trusted local discovery and
+                direct conversations.
+              </p>
+              <div>
+                <span>UAE</span>
+                <span>English</span>
+                <span>Support ready</span>
+              </div>
             </div>
           </div>
         </footer>
