@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AdvertisementsModule } from './advertisements/advertisements.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { AuthModule } from './auth/auth.module';
 import { BoostsModule } from './boosts/boosts.module';
@@ -24,6 +25,7 @@ import { WalletsModule } from './wallets/wallets.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    AdvertisementsModule,
     AuditLogsModule,
     AuthModule,
     UsersModule,

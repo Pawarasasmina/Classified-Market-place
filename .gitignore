@@ -11,6 +11,7 @@ pids
 *.pid
 *.seed
 *.pid.lock
+apps/api/uploads/
 
 # Dependencies
 node_modules/

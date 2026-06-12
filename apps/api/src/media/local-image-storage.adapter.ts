@@ -33,16 +33,22 @@ function getPublicApiBaseUrl() {
 
 @Injectable()
 export class LocalImageStorageAdapter implements ImageStorageAdapter {
-  async storeListingImage(input: StoreImageInput): Promise<StoredImage> {
+  private async storeImage(
+    input: StoreImageInput,
+    options: {
+      directoryName: string;
+      uploadDirEnvKey: string;
+    },
+  ): Promise<StoredImage> {
     const extension = extensionForMimeType(input.mimeType);
     const fileName = `${randomUUID()}.${extension}`;
     const uploadRoot =
-      process.env.LISTING_IMAGE_UPLOAD_DIR ??
+      process.env[options.uploadDirEnvKey] ??
       join(
         process.env.UPLOAD_DIR ?? join(process.cwd(), 'uploads'),
-        'listing-images',
+        options.directoryName,
       );
-    const storageKey = `listing-images/${fileName}`;
+    const storageKey = `${options.directoryName}/${fileName}`;
 
     await mkdir(uploadRoot, { recursive: true });
     await writeFile(join(uploadRoot, fileName), input.buffer);
@@ -52,5 +58,21 @@ export class LocalImageStorageAdapter implements ImageStorageAdapter {
       storageKey,
       provider: 'local',
     };
+  }
+
+  async storeListingImage(input: StoreImageInput): Promise<StoredImage> {
+    return this.storeImage(input, {
+      directoryName: 'listing-images',
+      uploadDirEnvKey: 'LISTING_IMAGE_UPLOAD_DIR',
+    });
+  }
+
+  async storeAdvertisementBannerImage(
+    input: StoreImageInput,
+  ): Promise<StoredImage> {
+    return this.storeImage(input, {
+      directoryName: 'advertisement-banners',
+      uploadDirEnvKey: 'ADVERTISEMENT_BANNER_UPLOAD_DIR',
+    });
   }
 }

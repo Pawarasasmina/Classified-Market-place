@@ -9,6 +9,9 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { rolesForPermission } from '../common/admin-permissions';
+import { Roles } from '../common/decorators/roles.decorator';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { UploadListingImageDto } from './dto/upload-listing-image.dto';
 import { MAX_LISTING_IMAGE_BYTES } from './media.constants';
 import { MediaService } from './media.service';
@@ -31,5 +34,20 @@ export class MediaController {
     @UploadedFile() file?: UploadedImageFile,
   ) {
     return this.mediaService.uploadListingImage(user, file, dto.listingId);
+  }
+
+  @Post('advertisement-banners')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...rolesForPermission('BOOSTS_WRITE'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_LISTING_IMAGE_BYTES, files: 1 },
+    }),
+  )
+  uploadAdvertisementBannerImage(
+    @CurrentUser() user: { id: string; role?: string },
+    @UploadedFile() file?: UploadedImageFile,
+  ) {
+    return this.mediaService.uploadAdvertisementBannerImage(user, file);
   }
 }

@@ -2,6 +2,7 @@ import "server-only";
 
 import type { AssignableUserRole } from "@/lib/admin-permissions";
 import {
+  mapAdvertisementBanner,
   mapCategory,
   mapAuditLog,
   mapListing,
@@ -14,6 +15,7 @@ import {
   type AdminBookingParticipant,
   type AdminUser,
   type ApiActiveListingsReport,
+  type ApiAdvertisementBanner,
   type ApiAuditLog,
   type ApiBoost,
   type ApiBoostPackage,
@@ -208,6 +210,42 @@ export type AdminReportEmailResult = {
 
 type SellerReviewQuery = {
   status?: ApiSellerReviewStatus;
+};
+
+export type AdvertisementBannerPayload = {
+  title: string;
+  subtitle?: string | null;
+  kicker?: string | null;
+  body?: string | null;
+  imageUrl: string;
+  imageAlt?: string | null;
+  badgeLabel?: string | null;
+  metricValue?: string | null;
+  metricLabel?: string | null;
+  ctaLabel?: string | null;
+  ctaHref?: string | null;
+  secondaryCtaLabel?: string | null;
+  secondaryCtaHref?: string | null;
+  placement?: string;
+  layout?: "WIDE" | "FEATURE" | "HALF";
+  backgroundColor?: string | null;
+  textColor?: string | null;
+  accentColor?: string | null;
+  rotationSeconds?: number;
+  sortOrder?: number;
+  isActive?: boolean;
+  startsAt?: string | null;
+  endsAt?: string | null;
+};
+
+export type UploadedMediaAsset = {
+  id: string;
+  url: string;
+  uploadedById?: string | null;
+  listingId?: string | null;
+  type?: string;
+  mimeType?: string | null;
+  byteSize?: number | null;
 };
 
 export const boostPlans = [
@@ -609,6 +647,85 @@ export async function fetchAdminCategories(accessToken: string) {
     accessToken,
   });
   return categories.map(mapCategory);
+}
+
+export async function fetchHomeAdvertisementBanners() {
+  try {
+    const banners = await apiRequest<ApiAdvertisementBanner[]>("/advertisements/home");
+    return banners.map(mapAdvertisementBanner);
+  } catch (error) {
+    if (isTransientMarketplaceError(error)) {
+      return [];
+    }
+
+    throw error;
+  }
+}
+
+export async function fetchAdminAdvertisementBanners(accessToken: string) {
+  const banners = await apiRequest<ApiAdvertisementBanner[]>(
+    "/advertisements/admin/all",
+    { accessToken },
+  );
+  return banners.map(mapAdvertisementBanner);
+}
+
+export async function uploadAdvertisementBannerImage(
+  accessToken: string,
+  file: File,
+) {
+  const body = new FormData();
+  body.set("file", file);
+
+  return apiRequest<UploadedMediaAsset>("/media/advertisement-banners", {
+    method: "POST",
+    accessToken,
+    body,
+  });
+}
+
+export async function createAdvertisementBanner(
+  accessToken: string,
+  payload: AdvertisementBannerPayload,
+) {
+  const banner = await apiRequest<ApiAdvertisementBanner>("/advertisements/admin", {
+    method: "POST",
+    accessToken,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return mapAdvertisementBanner(banner);
+}
+
+export async function updateAdvertisementBanner(
+  accessToken: string,
+  bannerId: string,
+  payload: Partial<AdvertisementBannerPayload>,
+) {
+  const banner = await apiRequest<ApiAdvertisementBanner>(
+    `/advertisements/admin/${bannerId}`,
+    {
+      method: "PATCH",
+      accessToken,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+  return mapAdvertisementBanner(banner);
+}
+
+export async function deleteAdvertisementBanner(
+  accessToken: string,
+  bannerId: string,
+) {
+  const banner = await apiRequest<ApiAdvertisementBanner>(
+    `/advertisements/admin/${bannerId}`,
+    {
+      method: "DELETE",
+      accessToken,
+    },
+  );
+  return mapAdvertisementBanner(banner);
 }
 
 export async function fetchAdminUsers(accessToken: string) {

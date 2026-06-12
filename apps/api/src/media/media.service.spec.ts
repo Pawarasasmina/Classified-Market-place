@@ -15,6 +15,7 @@ describe('MediaService', () => {
   };
   let storage: {
     storeListingImage: jest.Mock;
+    storeAdvertisementBannerImage: jest.Mock;
   };
   let service: MediaService;
 
@@ -43,6 +44,11 @@ describe('MediaService', () => {
         storageKey: 'listing-images/asset.jpg',
         provider: 'local',
       }),
+      storeAdvertisementBannerImage: jest.fn().mockResolvedValue({
+        url: 'http://127.0.0.1:3001/uploads/advertisement-banners/asset.jpg',
+        storageKey: 'advertisement-banners/asset.jpg',
+        provider: 'local',
+      }),
     };
     service = new MediaService(prisma as never, storage);
   });
@@ -67,6 +73,31 @@ describe('MediaService', () => {
         buffer: jpegBuffer,
         mimeType: 'image/jpeg',
         originalName: 'phone.jpg',
+      }),
+    );
+  });
+
+  it('stores a valid advertisement banner image as an owned media asset', async () => {
+    await expect(
+      service.uploadAdvertisementBannerImage('admin-1', {
+        originalname: 'banner.jpg',
+        mimetype: 'image/jpeg',
+        buffer: jpegBuffer,
+      }),
+    ).resolves.toMatchObject({
+      id: 'asset-1',
+      uploadedById: 'admin-1',
+      type: 'IMAGE',
+      url: 'http://127.0.0.1:3001/uploads/advertisement-banners/asset.jpg',
+      mimeType: 'image/jpeg',
+      listingId: null,
+    });
+
+    expect(storage.storeAdvertisementBannerImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        buffer: jpegBuffer,
+        mimeType: 'image/jpeg',
+        originalName: 'banner.jpg',
       }),
     );
   });
