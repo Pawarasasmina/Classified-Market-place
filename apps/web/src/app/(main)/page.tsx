@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AdvertisementBannerRotator } from "@/components/marketplace/advertisement-banner-rotator";
 import { CategoryIcon } from "@/components/marketplace/category-icon";
 import { hasAnyAdminPermission } from "@/lib/admin-permissions";
 import { getSessionUser } from "@/lib/auth-dal";
@@ -10,7 +11,11 @@ import {
 } from "@/lib/category-tree";
 import { getListingMedia } from "@/lib/listing-media";
 import type { MarketplaceListing } from "@/lib/marketplace";
-import { fetchCategories, fetchListings } from "@/lib/marketplace-api";
+import {
+  fetchCategories,
+  fetchHomeAdvertisementBanners,
+  fetchListings,
+} from "@/lib/marketplace-api";
 
 type HomePageProps = {
   searchParams: Promise<{
@@ -41,37 +46,6 @@ const heroStats = [
   "Buy, sell, rent, hire",
   "Verified marketplace accounts",
   "Fresh local listings",
-];
-
-const promoCards = [
-  {
-    title: "Know your property value instantly",
-    copy: "Check recent demand before you list, buy, or rent.",
-    cta: "Start estimate",
-    href: "/categories",
-    tone: "estimate",
-  },
-  {
-    title: "Looking to sell or rent your home?",
-    copy: "Reach active buyers and tenants with a clear property listing.",
-    cta: "Get started",
-    href: "/sell",
-    tone: "property",
-  },
-  {
-    title: "Book your perfect stay nearby",
-    copy: "Browse rooms, rentals, and short-stay options from local sellers.",
-    cta: "Explore now",
-    href: "/search?q=room",
-    tone: "stay",
-  },
-  {
-    title: "Discover trusted sellers",
-    copy: "Find profiles with ratings, reviews, badges, and clear history.",
-    cta: "Browse sellers",
-    href: "/search",
-    tone: "agents",
-  },
 ];
 
 function previewHref(path: string, customerPreview: boolean) {
@@ -233,9 +207,10 @@ export default async function HomePage(props: HomePageProps) {
     redirect("/admin");
   }
 
-  const [categories, listings] = await Promise.all([
+  const [categories, listings, advertisementBanners] = await Promise.all([
     fetchCategories(),
     fetchListings({ take: 100 }),
+    fetchHomeAdvertisementBanners(),
   ]);
 
   const categoryTree = buildMarketplaceCategoryTree(categories);
@@ -283,30 +258,10 @@ export default async function HomePage(props: HomePageProps) {
         </div>
       </section>
 
-      <section className="home-promo-stack" aria-label="Marketplace shortcuts">
-        <div className="home-promo-row home-promo-row-wide">
-          <div>
-            <h2>Know your property value instantly</h2>
-            <p>Generate a fast estimate with live marketplace demand signals.</p>
-          </div>
-          <Link href={previewHref("/categories", customerPreview)}>
-            Get your estimate
-          </Link>
-        </div>
-        <div className="home-promo-grid">
-          {promoCards.slice(1).map((card) => (
-            <article key={card.title} className={`home-promo-card ${card.tone}`}>
-              <div>
-                <h3>{card.title}</h3>
-                <p>{card.copy}</p>
-              </div>
-              <Link href={previewHref(card.href, customerPreview)}>
-                {card.cta}
-              </Link>
-            </article>
-          ))}
-        </div>
-      </section>
+      <AdvertisementBannerRotator
+        banners={advertisementBanners}
+        customerPreview={customerPreview}
+      />
 
       <section className="home-category-directory">
         <div className="home-section-heading">

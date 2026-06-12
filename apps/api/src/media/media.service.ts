@@ -32,6 +32,8 @@ export type ListingImageAsset = Pick<
   'id' | 'url' | 'uploadedById' | 'listingId' | 'type' | 'mimeType' | 'byteSize'
 >;
 
+type ImageStoragePurpose = 'listing-image' | 'advertisement-banner';
+
 const dataUrlPattern =
   /^data:(image\/(?:jpeg|png|webp));base64,([a-zA-Z0-9+/=\s]+)$/i;
 
@@ -141,6 +143,24 @@ export class MediaService {
     });
   }
 
+  async uploadAdvertisementBannerImage(
+    actor: string | MediaUploadActor,
+    file: UploadedImageFile | undefined,
+  ) {
+    if (!file?.buffer || !file.mimetype) {
+      throw new BadRequestException('Choose an image file to upload');
+    }
+
+    const mimeType = validateImageBuffer(file.buffer, file.mimetype);
+    const userId = typeof actor === 'string' ? actor : actor.id;
+
+    return this.createImageAsset('advertisement-banner', userId, {
+      buffer: file.buffer,
+      mimeType,
+      originalName: file.originalname,
+    });
+  }
+
   async createListingImageAssetFromDataUrl(
     userId: string,
     dataUrl: string,
@@ -205,9 +225,26 @@ export class MediaService {
       listingId?: string;
     },
   ) {
-    const stored = await this.imageStorage.storeListingImage(input);
+    return this.createImageAsset('listing-image', userId, input);
+  }
+
+  private async createImageAsset(
+    purpose: ImageStoragePurpose,
+    userId: string,
+    input: {
+      buffer: Buffer;
+      mimeType: ListingImageMimeType;
+      originalName?: string;
+      listingId?: string;
+    },
+  ) {
+    const stored =
+      purpose === 'advertisement-banner'
+        ? await this.imageStorage.storeAdvertisementBannerImage(input)
+        : await this.imageStorage.storeListingImage(input);
     const metadata: Prisma.InputJsonObject = {
       storageProvider: stored.provider,
+      purpose,
       ...(input.originalName ? { originalName: input.originalName } : {}),
     };
 

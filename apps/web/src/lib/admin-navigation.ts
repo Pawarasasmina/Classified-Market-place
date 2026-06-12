@@ -129,6 +129,12 @@ const adminNavigationSections: AdminNavigationSection[] = [
     description: "Boosting, payments, and wallet operations",
     items: [
       {
+        href: "/admin/advertisements",
+        label: "Advertisement Banners",
+        description: "Manage rotating home page advertising banners.",
+        permission: "BOOSTS_READ",
+      },
+      {
         href: "/admin/boost-packages",
         label: "Boost Packages",
         description: "Configure boost pricing and packages.",

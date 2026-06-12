@@ -230,6 +230,13 @@ const scopedDashboardLinks: Array<{
     permission: "CATEGORIES_READ",
   },
   {
+    href: "/admin/advertisements",
+    eyebrow: "Promotions",
+    title: "Advertisement Banners",
+    description: "Manage rotating homepage promotional banners.",
+    permission: "BOOSTS_READ",
+  },
+  {
     href: "/admin/boosts",
     eyebrow: "Promotions",
     title: "Active Boosts",

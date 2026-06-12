@@ -1164,6 +1164,161 @@ select:focus {
   font-weight: 700;
 }
 
+.home-advertisement-showcase {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
+.home-advertisement-card {
+  --home-ad-bg: #f6f3ff;
+  --home-ad-text: #111827;
+  --home-ad-accent: #ef1f1f;
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #eef0f4;
+  border-radius: 0.45rem;
+  background:
+    linear-gradient(105deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.28)),
+    var(--home-ad-bg);
+  color: var(--home-ad-text);
+}
+
+.home-advertisement-card-wide,
+.home-advertisement-card-feature {
+  grid-template-columns: minmax(8rem, 0.24fr) minmax(0, 1fr) minmax(10rem, 0.22fr);
+  align-items: center;
+  height: 4.8rem;
+}
+
+.home-advertisement-card-feature {
+  grid-template-columns: minmax(10rem, 0.28fr) minmax(0, 1fr) minmax(10rem, 0.22fr);
+  height: 5.45rem;
+}
+
+.home-advertisement-half-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.home-advertisement-card-half {
+  grid-template-columns: minmax(11rem, 0.36fr) minmax(0, 1fr) minmax(8.8rem, 0.24fr);
+  align-items: center;
+  height: 7.25rem;
+}
+
+.home-advertisement-card-image {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.home-advertisement-card-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-advertisement-card-wide .home-advertisement-card-image {
+  height: 4.8rem;
+}
+
+.home-advertisement-card-feature .home-advertisement-card-image {
+  height: 5.45rem;
+}
+
+.home-advertisement-card-half .home-advertisement-card-image {
+  order: 0;
+  height: 7.25rem;
+}
+
+.home-advertisement-card-copy {
+  display: grid;
+  align-content: center;
+  gap: 0.16rem;
+  min-width: 0;
+  padding: 0.55rem 0.8rem;
+  text-align: center;
+}
+
+.home-advertisement-card-half .home-advertisement-card-copy {
+  text-align: left;
+}
+
+.home-advertisement-kicker {
+  margin: 0;
+  color: var(--home-ad-accent);
+  font-size: 0.56rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.home-advertisement-card h2,
+.home-advertisement-card p {
+  margin: 0;
+}
+
+.home-advertisement-card h2 {
+  color: var(--home-ad-text);
+  font-size: clamp(0.9rem, 1.25vw, 1.14rem);
+  font-weight: 850;
+  line-height: 1.12;
+}
+
+.home-advertisement-card p:not(.home-advertisement-kicker) {
+  color: #111827;
+  font-size: 0.74rem;
+  line-height: 1.25;
+}
+
+.home-advertisement-card-half h2 {
+  font-size: clamp(0.9rem, 1.25vw, 1.1rem);
+}
+
+.home-advertisement-card-action {
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+}
+
+.home-advertisement-card-action a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-width: min(100%, 11rem);
+  min-height: 2.1rem;
+  border-radius: 0.38rem;
+  background: var(--home-ad-accent);
+  color: #ffffff;
+  padding: 0.42rem 0.7rem;
+  text-align: center;
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.home-advertisement-card-wide .home-advertisement-card-action a {
+  background: #ef1f1f;
+}
+
+.home-advertisement-card-feature .home-advertisement-card-action a,
+.home-advertisement-card-half .home-advertisement-card-action a {
+  background: #ffffff;
+  color: #111827;
+}
+
+.home-advertisement-card-action span {
+  font-size: 1.35rem;
+  line-height: 0;
+}
+
 .home-promo-stack {
   display: grid;
   gap: 0.75rem;
@@ -1670,6 +1825,39 @@ select:focus {
 }
 
 @media (max-width: 1023px) {
+  .home-advertisement-card-wide,
+  .home-advertisement-card-feature {
+    grid-template-columns: minmax(9rem, 0.32fr) minmax(0, 1fr);
+    height: auto;
+  }
+
+  .home-advertisement-card-wide .home-advertisement-card-action,
+  .home-advertisement-card-feature .home-advertisement-card-action {
+    grid-column: 1 / -1;
+    justify-items: stretch;
+    padding-top: 0;
+  }
+
+  .home-advertisement-card-action a {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .home-advertisement-card-half {
+    grid-template-columns: minmax(9rem, 0.34fr) minmax(0, 1fr);
+    height: auto;
+  }
+
+  .home-advertisement-card-half .home-advertisement-card-image {
+    height: 6.75rem;
+  }
+
+  .home-advertisement-card-half .home-advertisement-card-action {
+    grid-column: 1 / -1;
+    justify-items: stretch;
+    padding-top: 0;
+  }
+
   .home-category-columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1712,6 +1900,36 @@ select:focus {
 
   .home-hero-search button {
     margin: 0.25rem 0 0;
+  }
+
+  .home-advertisement-card-wide,
+  .home-advertisement-card-feature,
+  .home-advertisement-card-half {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .home-advertisement-half-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-advertisement-card-image,
+  .home-advertisement-card-wide .home-advertisement-card-image,
+  .home-advertisement-card-feature .home-advertisement-card-image,
+  .home-advertisement-card-half .home-advertisement-card-image {
+    order: 0;
+    height: 7.2rem;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .home-advertisement-card-copy,
+  .home-advertisement-card-half .home-advertisement-card-copy {
+    text-align: center;
+  }
+
+  .home-advertisement-card-action {
+    padding-top: 0;
   }
 
   .home-promo-row,
