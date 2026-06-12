@@ -1,5 +1,6 @@
 import "server-only";
 
+import axios from "axios";
 import type { AssignableUserRole } from "@/lib/admin-permissions";
 import {
   mapCategory,
@@ -65,6 +66,7 @@ export class MarketplaceApiError extends Error {
 type ListingQuery = {
   search?: string;
   categorySlug?: string;
+  attributeFilters?: Record<string, string | number | boolean>;
   sellerId?: string;
   status?: ApiListingStatus;
   location?: string;
@@ -492,21 +494,16 @@ function isTransientMarketplaceError(error: unknown) {
   return error instanceof MarketplaceApiError && error.status >= 500;
 }
 
-async function parseErrorMessage(response: Response) {
-  try {
-    const payload = (await response.json()) as {
-      message?: string | string[];
-      error?: string;
-    };
+function shouldRetryMarketplaceRequest(
+  method: string | undefined,
+  attempt: number,
+) {
+  const normalizedMethod = (method ?? "GET").toUpperCase();
+  return normalizedMethod === "GET" && attempt < 2;
+}
 
-    if (Array.isArray(payload.message)) {
-      return payload.message[0] ?? "Request failed";
-    }
-
-    return payload.message ?? payload.error ?? "Request failed";
-  } catch {
-    return "Request failed";
-  }
+async function waitForMarketplaceRetry(attempt: number) {
+  await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
 }
 
 async function apiRequest<T>(
@@ -524,6 +521,25 @@ async function apiRequest<T>(
   } = {},
 ) {
   const url = new URL(path, getApiBaseUrl());
+  const requestHeaders: Record<string, string> = {
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+  };
+
+  if (headers instanceof Headers) {
+    headers.forEach((value, key) => {
+      requestHeaders[key] = value;
+    });
+  } else if (Array.isArray(headers)) {
+    for (const [key, value] of headers) {
+      requestHeaders[key] = value;
+    }
+  } else if (headers) {
+    for (const [key, value] of Object.entries(headers)) {
+      if (value != null) {
+        requestHeaders[key] = String(value);
+      }
+    }
+  }
 
   if (searchParams) {
     for (const [key, value] of Object.entries(searchParams)) {
@@ -535,49 +551,82 @@ async function apiRequest<T>(
     }
   }
 
-  let response: Response;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    let responseStatus = 0;
+    let responseData: unknown;
 
-  try {
-    response = await fetch(url, {
-      ...init,
-      cache: "no-store",
-      headers: {
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        ...headers,
-      },
-    });
-  } catch {
-    throw new MarketplaceApiError(
-      `Marketplace API is unavailable at ${getApiBaseUrl()}.`,
-      503,
-    );
-  }
+    try {
+      const response = await axios.request({
+        url: url.toString(),
+        method: init.method ?? "GET",
+        data: init.body,
+        headers: requestHeaders,
+        timeout: 30000,
+        validateStatus: () => true,
+      });
 
-  if (!response.ok) {
-    throw new MarketplaceApiError(
-      await parseErrorMessage(response),
-      response.status,
-    );
-  }
+      responseStatus = response.status;
+      responseData = response.data;
+    } catch {
+      if (shouldRetryMarketplaceRequest(init.method, attempt)) {
+        await waitForMarketplaceRetry(attempt);
+        continue;
+      }
 
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  const body = await response.text();
-
-  if (!body) {
-    if (emptyResponseValue !== undefined) {
-      return emptyResponseValue;
+      throw new MarketplaceApiError(
+        `Marketplace API is unavailable at ${getApiBaseUrl()}.`,
+        503,
+      );
     }
 
-    throw new MarketplaceApiError(
-      "Marketplace API returned an empty response.",
-      502,
-    );
+    if (responseStatus < 200 || responseStatus >= 300) {
+      const message =
+        typeof responseData === "object" &&
+        responseData &&
+        "message" in responseData
+          ? Array.isArray(responseData.message)
+            ? (responseData.message[0] ?? "Request failed")
+            : String(responseData.message)
+          : typeof responseData === "object" &&
+              responseData &&
+              "error" in responseData
+            ? String(responseData.error)
+            : "Request failed";
+      const error = new MarketplaceApiError(message, responseStatus);
+
+      if (
+        shouldRetryMarketplaceRequest(init.method, attempt) &&
+        isTransientMarketplaceError(error)
+      ) {
+        await waitForMarketplaceRetry(attempt);
+        continue;
+      }
+
+      throw error;
+    }
+
+    if (responseStatus === 204) {
+      return undefined as T;
+    }
+
+    if (responseData === "" || responseData == null) {
+      if (emptyResponseValue !== undefined) {
+        return emptyResponseValue;
+      }
+
+      throw new MarketplaceApiError(
+        "Marketplace API returned an empty response.",
+        502,
+      );
+    }
+
+    return responseData as T;
   }
 
-  return JSON.parse(body) as T;
+  throw new MarketplaceApiError(
+    `Marketplace API is unavailable at ${getApiBaseUrl()}.`,
+    503,
+  );
 }
 
 function mapAuthResponse(response: AuthResponse) {
@@ -971,23 +1020,32 @@ export async function deleteSellerReview(
   );
 }
 
-export async function fetchListings(query: ListingQuery = {}) {
-  let listings: ApiListing[];
+export async function fetchListingsStrict(query: ListingQuery = {}) {
+  const listings = await apiRequest<ApiListing[]>("/listings", {
+    searchParams: {
+      search: query.search,
+      categorySlug: query.categorySlug,
+      attributeFilters:
+        query.attributeFilters &&
+        Object.keys(query.attributeFilters).length > 0
+          ? JSON.stringify(query.attributeFilters)
+          : undefined,
+      sellerId: query.sellerId,
+      location: query.location,
+      minPrice: query.minPrice,
+      maxPrice: query.maxPrice,
+      sort: query.sort,
+      boostPlacement: query.boostPlacement,
+      take: query.take,
+    },
+  });
 
+  return listings.map(mapListing);
+}
+
+export async function fetchListings(query: ListingQuery = {}) {
   try {
-    listings = await apiRequest<ApiListing[]>("/listings", {
-      searchParams: {
-        search: query.search,
-        categorySlug: query.categorySlug,
-        sellerId: query.sellerId,
-        location: query.location,
-        minPrice: query.minPrice,
-        maxPrice: query.maxPrice,
-        sort: query.sort,
-        boostPlacement: query.boostPlacement,
-        take: query.take,
-      },
-    });
+    return await fetchListingsStrict(query);
   } catch (error) {
     if (isTransientMarketplaceError(error)) {
       return [];
@@ -995,8 +1053,6 @@ export async function fetchListings(query: ListingQuery = {}) {
 
     throw error;
   }
-
-  return listings.map(mapListing);
 }
 
 export async function fetchAdminListings(
@@ -1008,6 +1064,11 @@ export async function fetchAdminListings(
     searchParams: {
       search: query.search,
       categorySlug: query.categorySlug,
+      attributeFilters:
+        query.attributeFilters &&
+        Object.keys(query.attributeFilters).length > 0
+          ? JSON.stringify(query.attributeFilters)
+          : undefined,
       sellerId: query.sellerId,
       status: query.status,
       location: query.location,

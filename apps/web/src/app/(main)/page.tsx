@@ -239,6 +239,7 @@ export default async function HomePage(props: HomePageProps) {
   ]);
 
   const categoryTree = buildMarketplaceCategoryTree(categories);
+  const mainCategories = categoryTree.map((category) => category);
   const flatCategories = flattenMarketplaceCategoryTree(categoryTree).map(
     ({ category }) => category,
   );
@@ -266,7 +267,7 @@ export default async function HomePage(props: HomePageProps) {
             />
             <select name="category" aria-label="Choose category">
               <option value="">All categories</option>
-              {flatCategories.map((category) => (
+              {mainCategories.map((category) => (
                 <option key={category.slug} value={category.slug}>
                   {category.name}
                 </option>

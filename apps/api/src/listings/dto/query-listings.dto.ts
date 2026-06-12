@@ -21,6 +21,10 @@ export class QueryListingsDto {
   categorySlug?: string;
 
   @IsOptional()
+  @IsString()
+  attributeFilters?: string;
+
+  @IsOptional()
   @IsEnum(ListingStatus)
   status?: ListingStatus;
 
