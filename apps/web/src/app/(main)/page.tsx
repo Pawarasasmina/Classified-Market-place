@@ -24,6 +24,7 @@ type HomePageProps = {
 };
 
 type CategoryColumn = {
+  slug: string;
   title: string;
   href: string;
   description: string;
@@ -80,6 +81,7 @@ function buildCategoryColumns(
     }));
 
     return {
+      slug: category.slug,
       title: category.name,
       href: categoryHref(category.slug, customerPreview),
       description: category.description,
@@ -271,26 +273,24 @@ export default async function HomePage(props: HomePageProps) {
         <div className="home-category-columns">
           {categoryColumns.map((column) => (
             <div key={column.title} className="home-category-column">
-              <Link
-                href={column.href}
-                className="home-category-image-card"
-                style={{ backgroundImage: `url(${column.imageUrl})` }}
-              >
-                <span className="home-category-image-overlay" />
-                <span className="home-category-image-copy">
-                  <span className="home-category-column-title">
-                    <CategoryIcon
-                      slug={column.href.split("category=")[1] ?? column.title}
-                      className="h-4 w-4"
-                    />
-                    <span>{column.title}</span>
-                  </span>
-                  <span className="home-category-image-description">
-                    {column.description}
-                  </span>
-                  <span className="home-category-image-count">
-                    {column.countLabel}
-                  </span>
+              <Link href={column.href} className="home-category-column-title">
+                <CategoryIcon slug={column.slug} className="h-4 w-4" />
+                <span>{column.title}</span>
+              </Link>
+              <div className="home-category-link-list">
+                {column.links.map((link) => (
+                  <Link key={link.href} href={link.href} className="home-category-link-item">
+                    <span>{link.label}</span>
+                    {link.featured ? (
+                      <span className="home-category-link-badge">New</span>
+                    ) : null}
+                  </Link>
+                ))}
+              </div>
+              <Link href={column.href} className="home-category-all-link">
+                <span>All in {column.title}</span>
+                <span aria-hidden="true" className="home-category-all-arrow">
+                  &gt;
                 </span>
               </Link>
             </div>

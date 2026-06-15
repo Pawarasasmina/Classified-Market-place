@@ -40,10 +40,6 @@ type DraftState = {
   images: UploadedImage[];
 };
 
-type StoredDraftState = Omit<DraftState, "images"> & {
-  imageNames?: string[];
-};
-
 type CategoryNode = MarketplaceCategory & {
   nestedChildren: CategoryNode[];
 };
@@ -61,6 +57,14 @@ const steps: Array<{ key: StepKey; label: string }> = [
   { key: "price", label: "Price" },
   { key: "review", label: "Review" },
 ];
+
+const stepDescriptions: Record<StepKey, string> = {
+  category: "Place your listing in the exact branch buyers are already browsing.",
+  details: "Write a sharp title, a convincing description, and all required specs.",
+  photos: "Use clean photos and drag the best image into the cover position.",
+  price: "Set a clear price and location so buyers can assess the offer quickly.",
+  review: "Check the final listing snapshot before sending it for approval.",
+};
 
 const draftStorageKey = "classified-marketplace-sell-wizard-draft";
 const maxListingImages = 20;
@@ -173,33 +177,6 @@ function buildInitialDraft(categories: MarketplaceCategory[]): DraftState {
     location: "",
     attributes: {},
     images: [],
-  };
-}
-
-function readStoredDraft() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const stored = window.localStorage.getItem(draftStorageKey);
-    return stored ? (JSON.parse(stored) as StoredDraftState) : null;
-  } catch {
-    return null;
-  }
-}
-
-function buildStoredDraft(draft: DraftState): StoredDraftState {
-  return {
-    clientDraftKey: draft.clientDraftKey,
-    draftListingId: draft.draftListingId,
-    categorySlug: draft.categorySlug,
-    title: draft.title,
-    description: draft.description,
-    price: draft.price,
-    location: draft.location,
-    attributes: draft.attributes,
-    imageNames: draft.images.map((image) => image.name),
   };
 }
 
@@ -350,8 +327,6 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
   const draftFormRef = useRef<HTMLFormElement>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [draft, setDraft] = useState<DraftState>(() => buildInitialDraft(categories));
-  const [hasRecoveredDraft, setHasRecoveredDraft] = useState(false);
-  const [localSaveLabel, setLocalSaveLabel] = useState("Not saved yet");
   const [photoMessage, setPhotoMessage] = useState<string | null>(null);
   const [stepMessage, setStepMessage] = useState<string | null>(null);
   const [draggingImageId, setDraggingImageId] = useState<string | null>(null);
@@ -389,6 +364,14 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
   const categoryCanList = Boolean(category && selectedCategoryChildCount === 0);
   const step = steps[stepIndex];
   const currentStepNumber = stepIndex + 1;
+  const completedChecks = [
+    Boolean(categoryCanList),
+    Boolean(draft.title.trim() && draft.description.trim().length >= 10),
+    draft.images.length > 0,
+    Boolean(draft.price.trim() && draft.location.trim()),
+  ];
+  const completedStepCount = completedChecks.filter(Boolean).length;
+  const progressPercent = Math.round((completedStepCount / completedChecks.length) * 100);
   const effectiveDraft = useMemo(
     () =>
       draftState.draftListingId &&
@@ -399,63 +382,14 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
   );
 
   useEffect(() => {
-    const handle = window.setTimeout(() => {
-      const stored = readStoredDraft();
-
-      if (stored) {
-        setDraft((current) => ({
-          ...current,
-          clientDraftKey: stored.clientDraftKey || current.clientDraftKey,
-          draftListingId: stored.draftListingId,
-          categorySlug: stored.categorySlug || current.categorySlug,
-          title: stored.title ?? "",
-          description: stored.description ?? "",
-          price: stored.price ?? "",
-          location: stored.location ?? "",
-          attributes: stored.attributes ?? {},
-          images: [],
-        }));
-
-        setLocalSaveLabel("Recovered local draft");
-
-        if (stored.imageNames?.length) {
-          setPhotoMessage(
-            `Recovered ${stored.imageNames.length} saved photo name${stored.imageNames.length === 1 ? "" : "s"}. Re-upload photos if they are not already in the backend draft.`
-          );
-        }
-      }
-
-      setHasRecoveredDraft(true);
-    }, 0);
-
-    return () => window.clearTimeout(handle);
+    try {
+      window.localStorage.removeItem(draftStorageKey);
+    } catch {
+      // Ignore browser storage cleanup issues and keep the wizard usable.
+    }
   }, []);
 
   useEffect(() => {
-    if (!hasRecoveredDraft) {
-      return;
-    }
-
-    const handle = window.setTimeout(() => {
-      try {
-        window.localStorage.setItem(
-          draftStorageKey,
-          JSON.stringify(buildStoredDraft(effectiveDraft))
-        );
-        setLocalSaveLabel(`Saved locally at ${new Date().toLocaleTimeString()}`);
-      } catch {
-        setLocalSaveLabel("Local draft storage is full");
-      }
-    }, 600);
-
-    return () => window.clearTimeout(handle);
-  }, [effectiveDraft, hasRecoveredDraft]);
-
-  useEffect(() => {
-    if (!hasRecoveredDraft) {
-      return;
-    }
-
     const handle = window.setInterval(() => {
       if (hasDraftContent(draft)) {
         draftFormRef.current?.requestSubmit();
@@ -463,7 +397,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
     }, 30000);
 
     return () => window.clearInterval(handle);
-  }, [draft, hasRecoveredDraft]);
+  }, [draft]);
 
   function updateDraft(patch: Partial<DraftState>) {
     setDraft((current) => ({ ...current, ...patch }));
@@ -490,6 +424,53 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
 
   function goToCategoryPath(index: number) {
     setCategoryBrowsePath(browsingPathNodes.slice(0, index + 1).map((node) => node.slug));
+  }
+
+  function renderAttributeFieldInput(field: AttributeField) {
+    if (field.type === "select") {
+      return (
+        <select
+          value={String(draft.attributes[field.key] ?? "")}
+          onChange={(event) => updateAttribute(field.key, event.target.value)}
+          className="surface-input sell-wizard-form-control w-full text-sm"
+        >
+          <option value="">Select {field.label}</option>
+          {field.options?.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    if (field.type === "toggle") {
+      return (
+        <button
+          type="button"
+          onClick={() =>
+            updateAttribute(field.key, !(draft.attributes[field.key] === true))
+          }
+          className={`flex items-center justify-between rounded-md border px-4 py-3 text-sm font-bold ${
+            draft.attributes[field.key] === true
+              ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand-strong)]"
+              : "border-[var(--line)] text-[var(--muted)]"
+          }`}
+        >
+          <span>{field.label}</span>
+          <span>{draft.attributes[field.key] === true ? "Yes" : "No"}</span>
+        </button>
+      );
+    }
+
+    return (
+      <input
+        value={String(draft.attributes[field.key] ?? "")}
+        onChange={(event) => updateAttribute(field.key, event.target.value)}
+        className="surface-input sell-wizard-form-control w-full text-sm"
+        type={field.type === "number" ? "number" : "text"}
+      />
+    );
   }
 
   function validateStep(targetStep = stepIndex) {
@@ -718,46 +699,13 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
         <HiddenListingInputs draft={effectiveDraft} />
       </form>
 
-      <form action={publishAction} className="grid gap-6 xl:grid-cols-[1fr_22rem]">
+      <form
+        action={publishAction}
+        className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.7fr)_22rem]"
+      >
         <HiddenListingInputs draft={effectiveDraft} />
 
-        <section className="panel grid gap-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="section-eyebrow">Listing wizard</p>
-              <h2 className="mt-2 text-2xl font-black">
-                Create a listing step by step
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">
-                Category fields come from the admin category tree, and drafts save
-                locally plus sync to the backend every 30 seconds.
-              </p>
-            </div>
-            <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-bold text-[var(--muted)]">
-              Step {currentStepNumber} of {steps.length}
-            </div>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-5">
-            {steps.map((item, index) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => goToStep(index)}
-                className={`rounded-md border px-3 py-3 text-left text-sm font-bold ${
-                  index === stepIndex
-                    ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand-strong)]"
-                    : index < stepIndex
-                      ? "border-[var(--line)] bg-[var(--surface-strong)] text-[var(--foreground)]"
-                      : "border-[var(--line)] bg-transparent text-[var(--muted)]"
-                }`}
-              >
-                <span className="block text-xs">0{index + 1}</span>
-                {item.label}
-              </button>
-            ))}
-          </div>
-
+        <section className="panel sell-wizard-shell grid h-fit gap-4 self-start">
           {stepMessage ? (
             <p className="rounded-md border border-[#e7b6a9] bg-[#fff3ef] px-4 py-3 text-sm font-semibold text-[#9f321e]">
               {stepMessage}
@@ -765,101 +713,103 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
           ) : null}
 
           {step.key === "category" ? (
-            <div className="grid gap-4">
-              <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="sell-wizard-taxonomy-stage">
+              <div className="sell-wizard-taxonomy-head">
+                <p className="section-eyebrow">Choose category</p>
+                <h3>Select a category</h3>
+                <p>Pick the closest branch, then continue filling the form from the right panel.</p>
+              </div>
+
+              <div className="sell-wizard-taxonomy-panel">
+                <div className="sell-wizard-taxonomy-trail">
+                  <button
+                    type="button"
+                    onClick={() => setCategoryBrowsePath([])}
+                    className="sell-wizard-taxonomy-root"
+                  >
+                    All categories
+                  </button>
+                  <span aria-hidden="true">/</span>
+                  {browsingPathNodes.length ? (
+                    browsingPathNodes.map((node, index) => (
+                      <button
+                        key={node.slug}
+                        type="button"
+                        onClick={() => goToCategoryPath(index)}
+                        className="sell-wizard-taxonomy-crumb"
+                      >
+                        {node.name}
+                      </button>
+                    ))
+                  ) : (
+                    <span className="sell-wizard-taxonomy-current">
+                      {category.name}
+                    </span>
+                  )}
+                </div>
+
+                <div className="sell-wizard-taxonomy-status">
                   <div>
-                    <p className="section-eyebrow">Selected category</p>
-                    <h3 className="mt-2 text-xl font-black">{category.name}</h3>
-                    <p className="mt-1 text-sm text-[var(--muted)]">
-                      {selectedCategoryPath}
-                    </p>
+                    <span className="sell-wizard-taxonomy-status-label">
+                      Current selection
+                    </span>
+                    <strong>{selectedCategoryPath}</strong>
                   </div>
                   <span
-                    className={`rounded-md px-3 py-2 text-xs font-black ${
+                    className={`sell-wizard-taxonomy-badge ${
                       categoryCanList
-                        ? "bg-[var(--brand-soft)] text-[var(--brand-strong)]"
-                        : "bg-white text-[var(--muted)]"
+                        ? "sell-wizard-taxonomy-badge-ready"
+                        : "sell-wizard-taxonomy-badge-pending"
                     }`}
                   >
                     {categoryCanList ? "Ready to list" : "Choose a subcategory"}
                   </span>
                 </div>
-              </div>
 
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <button
-                  type="button"
-                  onClick={() => setCategoryBrowsePath([])}
-                  className={`rounded-md border px-3 py-2 font-bold ${
-                    browsingPathNodes.length === 0
-                      ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand-strong)]"
-                      : "border-[var(--line)] bg-[var(--surface)] text-[var(--muted)]"
-                  }`}
-                >
-                  Parent categories
-                </button>
-                {browsingPathNodes.map((node, index) => (
+                {categoryBrowsePath.length ? (
                   <button
-                    key={node.slug}
                     type="button"
-                    onClick={() => goToCategoryPath(index)}
-                    className={`rounded-md border px-3 py-2 font-bold ${
-                      index === browsingPathNodes.length - 1
-                        ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand-strong)]"
-                        : "border-[var(--line)] bg-[var(--surface)] text-[var(--muted)]"
-                    }`}
+                    onClick={() =>
+                      setCategoryBrowsePath((current) => current.slice(0, -1))
+                    }
+                    className="sell-wizard-taxonomy-back"
                   >
-                    {node.name}
+                    Back to previous level
                   </button>
-                ))}
-              </div>
+                ) : null}
 
-              {categoryBrowsePath.length ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCategoryBrowsePath((current) => current.slice(0, -1))
-                  }
-                  className="action-secondary w-fit px-4 py-2 text-sm font-bold"
-                >
-                  Back to previous level
-                </button>
-              ) : null}
-
-              <div className="grid gap-3 md:grid-cols-2">
+                <div className="sell-wizard-taxonomy-list" role="list">
                 {visibleCategoryNodes.map((node) => {
-                const selected = node.slug === draft.categorySlug;
-                const hasChildren = node.nestedChildren.length > 0;
+                  const selected = node.slug === draft.categorySlug;
+                  const hasChildren = node.nestedChildren.length > 0;
 
-                return (
-                  <button
-                    key={node.slug}
-                    type="button"
-                    onClick={() => handleCategoryChoice(node)}
-                    className={`grid gap-2 rounded-md border p-4 text-left ${
-                      selected
-                        ? "border-[var(--brand)] bg-[var(--brand-soft)]"
-                        : "border-[var(--line)] bg-[var(--surface)] hover:border-[var(--brand)]"
-                    }`}
-                  >
-                    <span className="text-xs font-black uppercase tracking-wide text-[var(--muted)]">
-                      {hasChildren
-                        ? `${node.nestedChildren.length} subcategories`
-                        : `${node.schema.length} fields`}
-                    </span>
-                    <span className="text-lg font-black text-[var(--foreground)]">
-                      {node.name}
-                    </span>
-                    <span className="text-sm text-[var(--muted)]">
-                      {getCategoryPath(node, categories)}
-                    </span>
-                    <span className="mt-1 text-sm font-black text-[var(--brand-strong)]">
-                      {hasChildren ? "View subcategories" : "Select this category"}
-                    </span>
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={node.slug}
+                      type="button"
+                      onClick={() => handleCategoryChoice(node)}
+                      className={`sell-wizard-taxonomy-row ${
+                        selected
+                          ? "sell-wizard-taxonomy-row-selected"
+                          : ""
+                      }`}
+                      role="listitem"
+                    >
+                      <span className="sell-wizard-taxonomy-row-copy">
+                        <strong>{node.name}</strong>
+                        <span>
+                          {hasChildren
+                            ? `${node.nestedChildren.length} subcategories`
+                            : `${node.schema.length} listing fields`}
+                        </span>
+                      </span>
+                      <span className="sell-wizard-taxonomy-row-arrow" aria-hidden="true">
+                        {hasChildren ? ">" : "+"}
+                      </span>
+                    </button>
+                  );
+                })}
+                </div>
               </div>
 
               {!visibleCategoryNodes.length ? (
@@ -880,7 +830,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
 
           {step.key === "details" ? (
             <div className="grid gap-5">
-              <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-semibold text-[var(--muted)]">
+              <div className="sell-wizard-highlight-card text-sm font-semibold text-[var(--muted)]">
                 {getCategoryPath(category, categories)} uses {category.schema.length} dynamic field{category.schema.length === 1 ? "" : "s"}.
               </div>
 
@@ -890,13 +840,10 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                   <input
                     value={draft.title}
                     onChange={(event) => updateDraft({ title: event.target.value })}
-                    className="surface-input w-full text-sm"
-                    placeholder="Toyota Aqua 2019 in excellent condition"
+                    className="surface-input sell-wizard-form-control w-full text-sm"
                   />
                   {publishState.fieldErrors?.title ? (
-                    <p className="text-sm text-red-700">
-                      {publishState.fieldErrors.title}
-                    </p>
+                    <p className="text-sm text-red-700">{publishState.fieldErrors.title}</p>
                   ) : null}
                 </label>
 
@@ -904,16 +851,11 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                   <span className="text-sm font-bold">Description</span>
                   <textarea
                     value={draft.description}
-                    onChange={(event) =>
-                      updateDraft({ description: event.target.value })
-                    }
-                    className="surface-input min-h-28 w-full text-sm"
-                    placeholder="Condition, highlights, pickup details, warranty, and reason for selling"
+                    onChange={(event) => updateDraft({ description: event.target.value })}
+                    className="surface-input sell-wizard-form-control sell-wizard-form-textarea w-full text-sm"
                   />
                   {publishState.fieldErrors?.description ? (
-                    <p className="text-sm text-red-700">
-                      {publishState.fieldErrors.description}
-                    </p>
+                    <p className="text-sm text-red-700">{publishState.fieldErrors.description}</p>
                   ) : null}
                 </label>
               </div>
@@ -926,53 +868,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                         {field.label}
                         {field.required ? " *" : ""}
                       </span>
-
-                      {field.type === "select" ? (
-                        <select
-                          value={String(draft.attributes[field.key] ?? "")}
-                          onChange={(event) =>
-                            updateAttribute(field.key, event.target.value)
-                          }
-                          className="surface-input w-full text-sm"
-                        >
-                          <option value="">Select {field.label}</option>
-                          {field.options?.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      ) : field.type === "toggle" ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateAttribute(
-                              field.key,
-                              !(draft.attributes[field.key] === true)
-                            )
-                          }
-                          className={`flex items-center justify-between rounded-md border px-4 py-3 text-sm font-bold ${
-                            draft.attributes[field.key] === true
-                              ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--brand-strong)]"
-                              : "border-[var(--line)] text-[var(--muted)]"
-                          }`}
-                        >
-                          <span>{field.label}</span>
-                          <span>
-                            {draft.attributes[field.key] === true ? "Yes" : "No"}
-                          </span>
-                        </button>
-                      ) : (
-                        <input
-                          value={String(draft.attributes[field.key] ?? "")}
-                          onChange={(event) =>
-                            updateAttribute(field.key, event.target.value)
-                          }
-                          className="surface-input w-full text-sm"
-                          placeholder={field.placeholder}
-                          type={field.type === "number" ? "number" : "text"}
-                        />
-                      )}
+                      {renderAttributeFieldInput(field)}
                     </label>
                   ))}
                 </div>
@@ -1006,17 +902,17 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                 }}
                 onDragLeave={() => setIsPhotoDropActive(false)}
                 onDrop={handlePhotoFileDrop}
-                className={`grid cursor-pointer gap-3 rounded-md border border-dashed px-6 py-8 text-center transition ${
+                className={`sell-wizard-photo-dropzone ${
                   isPhotoDropActive
-                    ? "border-[var(--brand)] bg-[var(--brand-soft)]"
-                    : "border-[var(--line)] bg-[var(--surface-strong)] hover:border-[var(--brand)]"
+                    ? "sell-wizard-photo-dropzone-active"
+                    : "sell-wizard-photo-dropzone-idle"
                 } ${
                   isPreparingImages || draft.images.length >= maxListingImages
                     ? "pointer-events-none opacity-60"
                     : ""
                 }`}
               >
-                <span className="text-lg font-black">
+                <span className="sell-wizard-photo-dropzone-title">
                   {isPreparingImages
                     ? "Preparing photos..."
                     : isPhotoDropActive
@@ -1024,12 +920,9 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                       : "Drag photos here"}
                 </span>
                 <span className="text-sm text-[var(--muted)]">
-                  JPG, PNG, or WEBP. Up to 20 photos, 10MB each. You can reorder
-                  them after upload.
+                  JPG, PNG, or WEBP. Up to 20 photos, 10MB each.
                 </span>
-                <span className="mx-auto rounded-md bg-white px-4 py-2 text-sm font-black text-[var(--foreground)]">
-                  Browse files
-                </span>
+                <span className="sell-wizard-photo-dropzone-button">Browse files</span>
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
@@ -1050,10 +943,10 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                       onDragOver={(event) => event.preventDefault()}
                       onDrop={(event) => handleImageDrop(event, image.id)}
                       onDragEnd={() => setDraggingImageId(null)}
-                      className={`group cursor-grab rounded-md border bg-[var(--surface)] p-3 active:cursor-grabbing ${
+                    className={`sell-wizard-photo-card group ${
                         draggingImageId === image.id
-                          ? "border-[var(--brand)] opacity-70"
-                          : "border-[var(--line)] hover:border-[var(--brand)]"
+                          ? "sell-wizard-photo-card-dragging"
+                          : "sell-wizard-photo-card-idle"
                       }`}
                     >
                       <div className="relative h-36 overflow-hidden rounded-md bg-[var(--surface-strong)]">
@@ -1114,9 +1007,10 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                   ))}
                 </div>
               ) : (
-                <p className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-center text-sm text-[var(--muted)]">
-                  Photo previews will appear here. The first image becomes the cover.
-                </p>
+                <div className="sell-wizard-preview-empty">
+                  <strong>No photos added yet</strong>
+                  <p>Add your first images here. The first photo will become the cover.</p>
+                </div>
               )}
 
               {photoMessage ? (
@@ -1129,45 +1023,51 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
           ) : null}
 
           {step.key === "price" ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="grid gap-2">
-                <span className="text-sm font-bold">Price</span>
-                <input
-                  value={draft.price}
-                  onChange={(event) => updateDraft({ price: event.target.value })}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="surface-input w-full text-sm"
-                  placeholder="12500"
-                />
-                {publishState.fieldErrors?.price ? (
-                  <p className="text-sm text-red-700">
-                    {publishState.fieldErrors.price}
-                  </p>
-                ) : null}
-              </label>
+            <div className="grid gap-4">
+              <div className="sell-wizard-highlight-card sell-wizard-price-banner">
+                <div>
+                  <p className="section-eyebrow">Pricing</p>
+                  <h3 className="mt-2 text-xl font-black">Set a clear asking price</h3>
+                </div>
+                <p className="text-sm text-[var(--muted)]">
+                  Buyers respond faster when the amount and pickup area are obvious at a glance.
+                </p>
+              </div>
 
-              <label className="grid gap-2">
-                <span className="text-sm font-bold">Location</span>
-                <input
-                  value={draft.location}
-                  onChange={(event) => updateDraft({ location: event.target.value })}
-                  className="surface-input w-full text-sm"
-                  placeholder="Dubai Marina"
-                />
-                {publishState.fieldErrors?.location ? (
-                  <p className="text-sm text-red-700">
-                    {publishState.fieldErrors.location}
-                  </p>
-                ) : null}
-              </label>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className="text-sm font-bold">Price</span>
+                  <input
+                    value={draft.price}
+                    onChange={(event) => updateDraft({ price: event.target.value })}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="surface-input sell-wizard-form-control w-full text-sm"
+                  />
+                  {publishState.fieldErrors?.price ? (
+                    <p className="text-sm text-red-700">{publishState.fieldErrors.price}</p>
+                  ) : null}
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-sm font-bold">Location</span>
+                  <input
+                    value={draft.location}
+                    onChange={(event) => updateDraft({ location: event.target.value })}
+                    className="surface-input sell-wizard-form-control w-full text-sm"
+                  />
+                  {publishState.fieldErrors?.location ? (
+                    <p className="text-sm text-red-700">{publishState.fieldErrors.location}</p>
+                  ) : null}
+                </label>
+              </div>
             </div>
           ) : null}
 
           {step.key === "review" ? (
             <div className="grid gap-5">
-              <div className="rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-5">
+              <div className="sell-wizard-review-hero">
                 <p className="section-eyebrow">Review listing</p>
                 <h3 className="mt-2 text-2xl font-black">
                   {draft.title || "Untitled listing"}
@@ -1223,38 +1123,25 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                 </div>
               ) : null}
 
-              {publishState.message ? (
-                <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {publishState.message}
-                </p>
-              ) : null}
-
-              <button
-                type="submit"
-                disabled={publishPending || isPreparingImages}
-                className="action-primary w-fit px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {publishPending ? "Publishing..." : "Publish listing"}
-              </button>
             </div>
           ) : null}
 
-          <div className="flex flex-wrap justify-between gap-3 border-t border-[var(--line)] pt-5">
+          <div className="sell-wizard-footer-actions">
             <button
               type="button"
               onClick={() => goToStep(Math.max(0, stepIndex - 1))}
               disabled={stepIndex === 0}
-              className="action-secondary px-4 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40"
+              className="sell-wizard-footer-button sell-wizard-footer-button-secondary disabled:cursor-not-allowed disabled:opacity-40"
             >
               Previous
             </button>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="sell-wizard-footer-button-group">
               <button
                 type="submit"
                 form="listing-draft-form"
                 disabled={draftPending || !hasDraftContent(draft)}
-                className="action-secondary px-4 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50"
+                className="sell-wizard-footer-button sell-wizard-footer-button-secondary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {draftPending ? "Saving draft..." : "Save draft"}
               </button>
@@ -1262,7 +1149,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                 <button
                   type="button"
                   onClick={() => goToStep(Math.min(steps.length - 1, stepIndex + 1))}
-                  className="action-primary px-4 py-3 text-sm font-bold"
+                  className="sell-wizard-footer-button sell-wizard-footer-button-primary"
                 >
                   Next step
                 </button>
@@ -1271,46 +1158,78 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
           </div>
         </section>
 
-        <aside className="grid h-fit gap-4 xl:sticky xl:top-24">
-          <div className="panel">
-            <p className="section-eyebrow">Draft status</p>
-            <div className="mt-3 grid gap-2 text-sm text-[var(--muted)]">
-              <p>{localSaveLabel}</p>
-              <p>
-                {draftState.savedAt
-                  ? `Backend saved at ${new Date(draftState.savedAt).toLocaleTimeString()}`
-                  : effectiveDraft.draftListingId
-                    ? "Backend draft connected"
-                    : "Backend draft will sync automatically"}
+        <aside className="sell-wizard-sidebar grid h-fit gap-4 xl:sticky xl:top-24">
+          <div className="panel sell-wizard-sidebar-card sell-wizard-sidebar-workspace">
+            <p className="section-eyebrow">Step workspace</p>
+            <div className="sell-wizard-sidebar-progress">
+              <div className="sell-wizard-progress-bar" aria-hidden="true">
+                <span style={{ width: `${progressPercent}%` }} />
+              </div>
+              <strong>{progressPercent}% ready to publish</strong>
+            </div>
+            <div className="sell-wizard-sidebar-step-meta">
+              <strong>{step.label}</strong>
+              <span>{stepDescriptions[step.key]}</span>
+            </div>
+            <div className="sell-wizard-sidebar-steps">
+              {steps.map((item, index) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => goToStep(index)}
+                  className={`sell-wizard-sidebar-step-item ${
+                    index === stepIndex
+                      ? "sell-wizard-sidebar-step-item-active"
+                      : index < stepIndex
+                        ? "sell-wizard-sidebar-step-item-complete"
+                        : ""
+                  }`}
+                >
+                  <span>0{index + 1}</span>
+                  <strong>{item.label}</strong>
+                </button>
+              ))}
+            </div>
+            <div className="sell-wizard-sidebar-meta-grid">
+              <div className="sell-wizard-sidebar-meta">
+                <span>Category</span>
+                <strong>{getCategoryPath(category, categories)}</strong>
+              </div>
+              <div className="sell-wizard-sidebar-meta">
+                <span>Draft sync</span>
+                <strong>
+                  {draftState.savedAt
+                    ? `Saved at ${new Date(draftState.savedAt).toLocaleTimeString()}`
+                    : effectiveDraft.draftListingId
+                      ? "Backend draft connected"
+                      : "Backend draft will sync automatically"}
+                </strong>
+              </div>
+            </div>
+            {draftState.message ? (
+              <p className="text-sm font-semibold text-[var(--brand-strong)]">
+                {draftState.message}
               </p>
-              {draftState.message ? (
-                <p className="font-semibold text-[var(--brand-strong)]">
-                  {draftState.message}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="panel">
-            <p className="section-eyebrow">Selected category</p>
-            <h3 className="mt-2 text-xl font-black">{category.name}</h3>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              {getCategoryPath(category, categories)}
-            </p>
-            <p className="mt-3 rounded-md bg-[var(--surface-strong)] px-3 py-2 text-sm font-semibold text-[var(--muted)]">
-              Active listings expire after {category.listingExpiryDays} days.
-            </p>
-          </div>
-
-          <div className="panel">
-            <p className="section-eyebrow">Progress</p>
-            <div className="mt-3 grid gap-2 text-sm">
-              <p>{draft.title ? "Title added" : "Title missing"}</p>
-              <p>{draft.description ? "Description added" : "Description missing"}</p>
-              <p>{draft.images.length} photo{draft.images.length === 1 ? "" : "s"}</p>
-              <p>{draft.price ? `AED ${draft.price}` : "Price missing"}</p>
-              <p>{draft.location || "Location missing"}</p>
-            </div>
+            ) : null}
+            {step.key === "review" ? (
+              <div className="grid gap-4">
+                <div className="sell-wizard-sidebar-note">
+                  Everything looks ready here. Review the full listing on the left, then publish when you are happy.
+                </div>
+                {publishState.message ? (
+                  <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {publishState.message}
+                  </p>
+                ) : null}
+                <button
+                  type="submit"
+                  disabled={publishPending || isPreparingImages}
+                  className="action-primary w-full px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {publishPending ? "Publishing..." : "Publish listing"}
+                </button>
+              </div>
+            ) : null}
           </div>
         </aside>
       </form>
