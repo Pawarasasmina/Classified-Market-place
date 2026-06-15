@@ -48,7 +48,7 @@ type SearchDraftState = {
 };
 
 const inputClassName =
-  "h-12 w-full rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm text-[var(--foreground)] shadow-[0_8px_24px_rgba(15,23,42,0.06)]";
+  "h-10 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3.5 text-sm text-[var(--foreground)] shadow-[0_6px_18px_rgba(15,23,42,0.05)]";
 
 function coerceAttributeValue(field: AttributeField, value: string) {
   if (!value.trim()) {
@@ -107,6 +107,10 @@ function getTopLevelCategory(
 ) {
   const path = buildCategoryPath(category, categoryBySlug);
   return path[0];
+}
+
+function DotDivider() {
+  return <span className="text-[var(--muted)]">•</span>;
 }
 
 function SearchResultCard({
@@ -202,6 +206,159 @@ function SearchResultCard({
               className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--brand)] px-5 text-sm font-black text-white shadow-[0_12px_30px_rgba(109,70,255,0.24)]"
             >
               View details
+            </Link>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function SearchResultCardModern({
+  listing,
+  customerPreview,
+}: {
+  listing: MarketplaceListing;
+  customerPreview: boolean;
+}) {
+  const media = getListingMedia(listing);
+  const href = previewHref(`/listings/${listing.id}`, customerPreview);
+  const thumbnails = listing.imageUrls.slice(0, 3);
+  const extraImages = Math.max(listing.imageUrls.length - 3, 0);
+
+  return (
+    <article className="overflow-hidden rounded-[1.45rem] border border-[var(--line)] bg-[var(--surface)] shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
+      <div className="grid lg:grid-cols-[22rem_1fr]">
+        <div className="border-b border-[var(--line)] lg:border-b-0 lg:border-r">
+          <Link href={href} className="relative block aspect-[1.2/1] overflow-hidden">
+            <img
+              src={media.src}
+              alt={media.alt}
+              className="h-full w-full object-cover transition duration-500 hover:scale-[1.02]"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0"
+              style={{ background: media.overlay }}
+            />
+            <div className="absolute left-3 top-3 flex gap-2">
+              <span className="rounded-md bg-[var(--brand)] px-2.5 py-1 text-[0.62rem] font-black uppercase tracking-[0.12em] text-white">
+                Export Only
+              </span>
+            </div>
+            <div className="absolute right-3 top-3 flex gap-2">
+              <span className="rounded-full bg-white/92 p-1.5 text-[0.9rem] text-[var(--foreground)]">
+                ↗
+              </span>
+              <span className="rounded-full bg-white/92 p-1.5 text-[0.9rem] text-[var(--foreground)]">
+                ♡
+              </span>
+            </div>
+          </Link>
+
+          {thumbnails.length ? (
+            <div className="grid grid-cols-3 gap-[2px] border-t border-[var(--line)] bg-[var(--line)]">
+              {thumbnails.map((imageUrl, index) => (
+                <div
+                  key={`${listing.id}-thumb-${imageUrl}`}
+                  className="relative aspect-[1.45/1] bg-[var(--surface)]"
+                >
+                  <img
+                    src={imageUrl}
+                    alt={`${listing.title} preview ${index + 1}`}
+                    className="h-full w-full object-cover"
+                  />
+                  {index === thumbnails.length - 1 && extraImages > 0 ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/34 text-[1.6rem] font-black text-white">
+                      +{extraImages}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="grid gap-4 p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-[2rem] font-black leading-none text-[var(--foreground)]">
+                  {listing.priceLabel}
+                </p>
+                {listing.isBoosted ? (
+                  <span className="rounded-md bg-emerald-700 px-2.5 py-1 text-[0.62rem] font-black uppercase tracking-[0.12em] text-white">
+                    Car of the week
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-[1.02rem] text-[var(--foreground)]">
+                <span>{listing.subcategory}</span>
+                <DotDivider />
+                <span>{listing.featureBullets[0] ?? listing.condition}</span>
+                <DotDivider />
+                <span>{listing.condition}</span>
+              </div>
+            </div>
+          </div>
+
+          <Link
+            href={href}
+            className="line-clamp-2 text-[1.05rem] font-medium uppercase leading-7 tracking-[0.01em] text-[var(--foreground)]"
+          >
+            {listing.title}
+          </Link>
+
+          <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-[var(--foreground)]">
+            <span className="inline-flex items-center gap-1.5">
+              <span>◫</span>
+              {listing.featureBullets[1] ?? "2026"}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span>◌</span>
+              {listing.featureBullets[2] ?? "0 km"}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span>⌁</span>
+              {listing.featureBullets[3] ?? "Left Hand"}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span>◍</span>
+              GCC Specs
+            </span>
+          </div>
+
+          <p className="inline-flex items-center gap-1.5 text-[1rem] text-[var(--foreground)]">
+            <span>⌖</span>
+            {listing.location}
+          </p>
+
+          <div className="grid gap-1 pt-2">
+            <p className="text-sm text-[var(--muted)]">Listed by</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[1.1rem] font-black text-[var(--foreground)]">
+                {listing.sellerDisplayName ?? "Marketplace seller"}
+              </p>
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--surface-strong)] text-[0.62rem] font-black leading-tight text-[var(--muted)]">
+                Seller
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 pt-1">
+            <Link
+              href={href}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-rose-50 px-5 text-base font-medium text-[var(--foreground)]"
+            >
+              <span className="text-rose-500">✆</span>
+              Show Phone Number
+            </Link>
+            <Link
+              href={href}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-emerald-50 px-5 text-base font-medium text-[var(--foreground)]"
+            >
+              <span className="text-emerald-600">◔</span>
+              WhatsApp
             </Link>
           </div>
         </div>
@@ -438,7 +595,6 @@ export function SearchPageClient({
 
   const activeFilterLabels = [
     draft.q.trim() ? `Keyword: ${draft.q.trim()}` : null,
-    selectedCategory?.name ? `Category: ${selectedCategory.name}` : null,
     draft.location.trim() ? `Location: ${draft.location.trim()}` : null,
     draft.minPrice.trim() ? `Min price: ${draft.minPrice.trim()}` : null,
     draft.maxPrice.trim() ? `Max price: ${draft.maxPrice.trim()}` : null,
@@ -540,14 +696,14 @@ export function SearchPageClient({
 
   return (
     <div className="page grid gap-6">
-      <section className="grid gap-4 overflow-hidden rounded-[2rem] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_28px_64px_rgba(15,23,42,0.08)] sm:p-5">
-        <div className="flex flex-wrap gap-2 overflow-x-auto">
+      <section className="grid gap-2 overflow-hidden rounded-[1.65rem] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_24px_56px_rgba(15,23,42,0.08)]">
+        <div className="flex flex-wrap gap-1.5 overflow-x-auto">
           {categoryTree.map((category) => (
             <button
               key={category.slug}
               type="button"
               onClick={() => handleMainCategorySelect(category.slug)}
-              className={`rounded-full px-4 py-2.5 text-sm font-black ${
+              className={`rounded-lg px-4 py-1.5 text-sm font-black whitespace-nowrap ${
                 activeMainCategory?.slug === category.slug
                   ? "bg-[var(--brand)] text-white shadow-[0_12px_28px_rgba(109,70,255,0.22)]"
                   : "border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)]"
@@ -558,162 +714,135 @@ export function SearchPageClient({
           ))}
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-[1.05fr_1.2fr_0.9fr_0.9fr_0.95fr_auto]">
-          <label className="grid gap-1.5">
-            <span className="px-1 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-              Location
-            </span>
-            <input
-              value={draft.location}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, location: event.target.value }))
-              }
-              placeholder="City or area"
-              className={inputClassName}
-            />
-          </label>
+        <div className="overflow-hidden rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface)] shadow-[0_12px_28px_rgba(15,23,42,0.08)]">
+          <div className="grid lg:grid-cols-[1fr_1.6fr_1fr_0.95fr_0.95fr_1.2fr]">
+            <label className="grid gap-1 border-b border-[var(--line)] px-5 py-3 lg:border-b-0 lg:border-r">
+              <span className="text-[0.74rem] font-black text-[var(--foreground)]">
+                City
+              </span>
+              <input
+                value={draft.location}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, location: event.target.value }))
+                }
+                placeholder="City or area"
+                className="h-auto border-0 bg-transparent px-0 py-0 text-[1.02rem] text-[var(--foreground)] shadow-none outline-none placeholder:text-[var(--muted)]"
+              />
+            </label>
 
-          <label className="grid gap-1.5">
-            <span className="px-1 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-              Subcategory
-            </span>
-            <select
-              value={
-                subcategoryNodes.some((item) => item.slug === draft.category)
-                  ? draft.category
-                  : ""
-              }
-              onChange={handleSubcategoryChange}
-              className={inputClassName}
-            >
-              <option value="">{activeMainCategory?.name ?? "All"} overview</option>
-              {subcategoryNodes.map((category) => (
-                <option key={category.slug} value={category.slug}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label className="grid gap-1 border-b border-[var(--line)] px-5 py-3 lg:border-b-0 lg:border-r">
+              <span className="text-[0.74rem] font-black text-[var(--foreground)]">
+                Subcategory
+              </span>
+              <select
+                value={
+                  subcategoryNodes.some((item) => item.slug === draft.category)
+                    ? draft.category
+                    : ""
+                }
+                onChange={handleSubcategoryChange}
+                className="h-auto border-0 bg-transparent px-0 py-0 text-[1.02rem] text-[var(--foreground)] outline-none"
+              >
+                <option value="">{activeMainCategory?.name ?? "All"} overview</option>
+                {subcategoryNodes.map((category) => (
+                  <option key={category.slug} value={category.slug}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label className="grid gap-1.5">
-            <span className="px-1 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-              Min price
-            </span>
-            <input
-              value={draft.minPrice}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, minPrice: event.target.value }))
-              }
-              placeholder="Any"
-              inputMode="numeric"
-              className={inputClassName}
-            />
-          </label>
+            <label className="grid gap-1 border-b border-[var(--line)] px-5 py-3 md:border-r lg:border-b-0">
+              <span className="text-[0.74rem] font-black text-[var(--foreground)]">
+                Price Range
+              </span>
+              <input
+                value={
+                  draft.minPrice || draft.maxPrice
+                    ? `${draft.minPrice || "Any"} - ${draft.maxPrice || "Any"}`
+                    : ""
+                }
+                onChange={() => undefined}
+                placeholder="Select"
+                readOnly
+                className="h-auto cursor-pointer border-0 bg-transparent px-0 py-0 text-[1.02rem] text-[var(--foreground)] shadow-none outline-none placeholder:text-[var(--muted)]"
+                onClick={() => setDrawerOpen(true)}
+              />
+            </label>
 
-          <label className="grid gap-1.5">
-            <span className="px-1 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-              Max price
-            </span>
-            <input
-              value={draft.maxPrice}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, maxPrice: event.target.value }))
-              }
-              placeholder="Any"
-              inputMode="numeric"
-              className={inputClassName}
-            />
-          </label>
+            <label className="grid gap-1 border-b border-[var(--line)] px-5 py-3 lg:border-b-0 lg:border-r">
+              <span className="text-[0.74rem] font-black text-[var(--foreground)]">
+                Subcategory
+              </span>
+              <select
+                value={
+                  subcategoryNodes.some((item) => item.slug === draft.category)
+                    ? draft.category
+                    : ""
+                }
+                onChange={handleSubcategoryChange}
+                className="h-auto border-0 bg-transparent px-0 py-0 text-[1.02rem] text-[var(--foreground)] outline-none"
+              >
+                <option value="">{activeMainCategory?.name ?? "All"} overview</option>
+                {subcategoryNodes.map((category) => (
+                  <option key={category.slug} value={category.slug}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label className="grid gap-1.5">
-            <span className="px-1 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-              Keyword
-            </span>
-            <input
-              value={draft.q}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, q: event.target.value }))
-              }
-              placeholder="Search by title or keyword"
-              className={inputClassName}
-            />
-          </label>
+            <div className="grid gap-1 border-b border-[var(--line)] px-5 py-3 md:border-r lg:border-b-0">
+              <span className="text-[0.74rem] font-black text-[var(--foreground)]">
+                Sort
+              </span>
+              <select
+                value={draft.sort}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    sort: event.target.value as SearchDraftState["sort"],
+                  }))
+                }
+                className="h-auto border-0 bg-transparent px-0 py-0 text-[1.02rem] text-[var(--foreground)] outline-none"
+              >
+                <option value="recommended">Select</option>
+                <option value="newest">Newest</option>
+                <option value="price_asc">Low to high</option>
+                <option value="price_desc">High to low</option>
+              </select>
+            </div>
 
-          <div className="grid gap-1.5">
-            <span className="px-1 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-              More
-            </span>
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(true)}
-              className="inline-flex h-12 items-center justify-center rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] px-5 text-sm font-black text-[var(--foreground)]"
-            >
-              Filters
-              {dynamicFields.length ? ` (${dynamicFields.length})` : ""}
-            </button>
-          </div>
-        </div>
-
-        {quickFields.length ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {quickFields.map((field) => (
-              <label key={field.key} className="grid gap-1.5">
-                <span className="px-1 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-                  {field.label}
+            <div className="grid gap-1 px-5 py-3">
+              <span className="text-[0.74rem] font-black text-[var(--foreground)]">
+                Filters
+              </span>
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(true)}
+                className="flex items-center justify-between gap-3 text-left"
+              >
+                <span className="truncate text-[1.02rem] text-[var(--muted)]">
+                  {activeFilterLabels.length
+                    ? `${activeFilterLabels.length} active filters`
+                    : dynamicFields.length
+                      ? `${dynamicFields.length} more filters`
+                      : "Keyword, city, etc."}
                 </span>
-                <AttributeInput
-                  field={field}
-                  value={draft.attributeValues[field.key] ?? ""}
-                  onChange={(value) => updateAttributeValue(field.key, value)}
-                />
-              </label>
-            ))}
+                <span className="text-lg leading-none text-[var(--foreground)]">⌄</span>
+              </button>
+            </div>
           </div>
-        ) : null}
-
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm font-semibold text-[var(--muted)]">
-            <span>Sort</span>
-            <select
-              value={draft.sort}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  sort: event.target.value as SearchDraftState["sort"],
-                }))
-              }
-              className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)]"
-            >
-              <option value="recommended">Recommended</option>
-              <option value="newest">Newest</option>
-              <option value="price_asc">Price low to high</option>
-              <option value="price_desc">Price high to low</option>
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={handleApply}
-            disabled={isPending}
-            className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--brand)] px-5 text-sm font-black text-white shadow-[0_12px_30px_rgba(109,70,255,0.24)] disabled:opacity-70"
-          >
-            {isPending ? "Applying..." : "Apply filters"}
-          </button>
-          <Link
-            href={previewHref("/search", customerPreview)}
-            className="inline-flex h-11 items-center justify-center rounded-full border border-[var(--line)] px-5 text-sm font-bold text-[var(--muted)]"
-          >
-            Reset all
-          </Link>
         </div>
       </section>
 
-      <section className="grid gap-4">
-        <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
+      <section className="grid gap-2.5">
+        <div className="flex flex-wrap items-center gap-1.5 text-[0.92rem] text-[var(--muted)]">
           <Link href={previewHref("/", customerPreview)} className="font-semibold text-[var(--brand-strong)]">
             Home
           </Link>
           {breadcrumb.map((item) => (
-            <span key={item.slug} className="flex items-center gap-2">
+            <span key={item.slug} className="flex items-center gap-1.5">
               <span>›</span>
               <button
                 type="button"
@@ -726,18 +855,18 @@ export function SearchPageClient({
           ))}
         </div>
 
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-[2rem] font-black tracking-[-0.03em] text-[var(--foreground)]">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="grid gap-1">
+            <h1 className="text-[1.7rem] font-black tracking-[-0.03em] text-[var(--foreground)]">
               {resultTitle}
             </h1>
-            <p className="mt-2 text-sm text-[var(--muted)]">
+            <p className="text-sm text-[var(--muted)]">
               {visibleListings.length} matching listing
               {visibleListings.length === 1 ? "" : "s"}
             </p>
           </div>
           {subcategoryNodes.length ? (
-            <div className="flex max-w-full flex-wrap gap-2">
+            <div className="flex max-w-full flex-wrap gap-1.5">
               {subcategoryNodes.map((category) => (
                 <button
                   key={category.slug}
@@ -751,7 +880,7 @@ export function SearchPageClient({
                     setDraft(nextState);
                     navigate(nextState);
                   }}
-                  className={`rounded-full px-4 py-2 text-sm font-bold ${
+                  className={`rounded-lg px-3.5 py-1.5 text-sm font-bold ${
                     draft.category === category.slug
                       ? "bg-[var(--brand)] text-white"
                       : "border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)]"
@@ -765,11 +894,11 @@ export function SearchPageClient({
         </div>
 
         {activeFilterLabels.length ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {activeFilterLabels.map((label) => (
               <span
                 key={label}
-                className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs font-bold text-[var(--muted)]"
+                className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-bold text-[var(--muted)]"
               >
                 {label}
               </span>
@@ -788,7 +917,7 @@ export function SearchPageClient({
       <section className="grid gap-4">
         {visibleListings.length ? (
           visibleListings.map((listing) => (
-            <SearchResultCard
+            <SearchResultCardModern
               key={listing.id}
               listing={listing}
               customerPreview={customerPreview}
