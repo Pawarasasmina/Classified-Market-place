@@ -45,6 +45,10 @@ export function ProfileForm({ user }: { user: SessionUser }) {
     initialState
   );
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl ?? "");
+  const nameParts = user.displayName.trim().split(/\s+/);
+  const [firstName, setFirstName] = useState(nameParts[0] ?? "");
+  const [lastName, setLastName] = useState(nameParts.slice(1).join(" "));
+  const displayName = `${firstName} ${lastName}`.trim();
 
   async function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -63,67 +67,85 @@ export function ProfileForm({ user }: { user: SessionUser }) {
   }
 
   return (
-    <form action={formAction} className="panel grid gap-5">
+    <form action={formAction} className="profile-settings-form">
       <input type="hidden" name="avatarUrl" value={avatarUrl} readOnly />
+      <input type="hidden" name="displayName" value={displayName} readOnly />
 
-      <div>
-        <p className="section-eyebrow">Public marketplace profile</p>
-        <h2 className="mt-2 text-2xl font-black">Keep buyer-facing details current.</h2>
-        <p className="mt-2 text-sm text-[var(--muted)]">
-          Changing your mobile number will require OTP verification again.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-4 rounded-md border border-[var(--line)] bg-[var(--surface-strong)] p-4">
-        <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-md bg-white text-xl font-black">
+      <section className="profile-settings-card profile-settings-identity-card">
+        <div className="profile-settings-avatar">
           {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+            <img src={avatarUrl} alt="" />
           ) : (
-            user.displayName.charAt(0).toUpperCase()
+            displayName.charAt(0).toUpperCase()
           )}
         </div>
-        <label className="action-secondary cursor-pointer px-4 py-2 text-sm font-bold">
-          Upload avatar
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(event) => void handleAvatarChange(event)}
-            className="hidden"
-          />
-        </label>
-      </div>
+        <div className="profile-settings-identity-copy">
+          <h2>{displayName || user.displayName}</h2>
+          <p>Joined marketplace account</p>
+          <label className="profile-settings-avatar-button">
+            Edit photo
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(event) => void handleAvatarChange(event)}
+              className="hidden"
+            />
+          </label>
+        </div>
+      </section>
 
-      <div className="space-y-2">
-        <span className="flex flex-wrap items-center gap-2 text-sm font-bold">
-          Email address
-          <VerificationBadge verified={user.emailVerified} />
-        </span>
-        <input
-          value={user.email}
-          readOnly
-          aria-readonly="true"
-          className="surface-input w-full cursor-not-allowed bg-[var(--surface-strong)] text-sm text-[var(--muted)]"
-        />
-        <p className="text-xs font-semibold text-[var(--muted)]">
-          Email is used for login and cannot be changed from profile settings.
-        </p>
-      </div>
+      <section className="profile-settings-section">
+        <div className="profile-settings-section-copy">
+          <h3>Profile Name</h3>
+          <p>This is displayed on your profile.</p>
+        </div>
+        <div className="profile-settings-fields">
+          <label className="profile-settings-field">
+            <span>First Name</span>
+            <input
+              value={firstName}
+              onChange={(event) => setFirstName(event.target.value)}
+              className="surface-input"
+            />
+          </label>
+          <label className="profile-settings-field">
+            <span>Last Name</span>
+            <input
+              value={lastName}
+              onChange={(event) => setLastName(event.target.value)}
+              className="surface-input"
+            />
+          </label>
+          {state.fieldErrors?.displayName ? (
+            <p className="profile-settings-error">
+              {state.fieldErrors.displayName}
+            </p>
+          ) : null}
+        </div>
+      </section>
 
-      <label className="space-y-2">
-        <span className="text-sm font-bold">Display name</span>
-        <input
-          name="displayName"
-          defaultValue={user.displayName}
-          className="surface-input w-full text-sm"
-        />
-        {state.fieldErrors?.displayName ? (
-          <p className="text-sm text-red-700">{state.fieldErrors.displayName}</p>
-        ) : null}
-      </label>
+      <section className="profile-settings-section">
+        <div className="profile-settings-section-copy">
+          <h3>Account details</h3>
+          <p>This is not visible to other users.</p>
+        </div>
+        <div className="profile-settings-fields">
+          <label className="profile-settings-field">
+            <span className="profile-settings-label-row">
+              Email address
+              <VerificationBadge verified={user.emailVerified} />
+            </span>
+            <input
+              value={user.email}
+              readOnly
+              aria-readonly="true"
+              className="surface-input profile-settings-readonly"
+            />
+            <em>Email is used for login and cannot be changed here.</em>
+          </label>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="space-y-2">
-          <span className="flex flex-wrap items-center gap-2 text-sm font-bold">
+          <label className="profile-settings-field">
+            <span className="profile-settings-label-row">
             Mobile number
             <VerificationBadge verified={user.phoneVerified} />
           </span>
@@ -131,45 +153,55 @@ export function ProfileForm({ user }: { user: SessionUser }) {
             name="phone"
             defaultValue={user.phone ?? ""}
             placeholder="+971551234567"
-            className="surface-input w-full text-sm"
+              className="surface-input"
           />
-          <p className="text-xs font-semibold text-[var(--muted)]">
-            Use international format. Example: +971551234567.
-          </p>
+            <em>Use international format. Example: +971551234567.</em>
           {state.fieldErrors?.phone ? (
-            <p className="text-sm text-red-700">{state.fieldErrors.phone}</p>
+              <p className="profile-settings-error">{state.fieldErrors.phone}</p>
           ) : null}
         </label>
-        <label className="space-y-2">
-          <span className="text-sm font-bold">Location</span>
+
+          <label className="profile-settings-field">
+            <span>Location</span>
           <input
             name="location"
             defaultValue={user.location ?? ""}
             placeholder="Dubai"
-            className="surface-input w-full text-sm"
+              className="surface-input"
           />
         </label>
-      </div>
+        </div>
+      </section>
 
-      <label className="space-y-2">
-        <span className="text-sm font-bold">Bio</span>
-        <textarea
-          name="bio"
-          defaultValue={user.bio ?? ""}
-          className="surface-input min-h-28 w-full text-sm"
-          placeholder="Short public marketplace bio"
-        />
-      </label>
+      <section className="profile-settings-section">
+        <div className="profile-settings-section-copy">
+          <h3>Public profile</h3>
+          <p>This helps buyers understand who they are contacting.</p>
+        </div>
+        <div className="profile-settings-fields">
+          <label className="profile-settings-field">
+            <span>Bio</span>
+            <textarea
+              name="bio"
+              defaultValue={user.bio ?? ""}
+              className="surface-input"
+              placeholder="Short public marketplace bio"
+            />
+          </label>
+        </div>
+      </section>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="profile-settings-save-row">
         <button
           type="submit"
           disabled={pending}
-          className="action-primary px-5 py-3 text-sm font-bold disabled:opacity-60"
+          className="profile-settings-save-button disabled:opacity-60"
         >
-          {pending ? "Saving..." : "Save profile"}
+          {pending ? "Saving..." : "Save Changes"}
         </button>
-        {state.message ? <p className="text-sm text-[var(--muted)]">{state.message}</p> : null}
+        {state.message ? (
+          <p className="profile-settings-form-message">{state.message}</p>
+        ) : null}
       </div>
     </form>
   );
@@ -380,7 +412,7 @@ export function DeactivateAccountForm() {
       </div>
       <button
         type="submit"
-        className="w-fit rounded-full border border-red-300 bg-red-50 px-5 py-3 text-sm font-bold text-red-700 hover:border-red-500"
+        className="profile-settings-danger-button"
       >
         Deactivate my account
       </button>

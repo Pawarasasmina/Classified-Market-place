@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AdvertisementBannerRotator } from "@/components/marketplace/advertisement-banner-rotator";
 import { CategoryIcon } from "@/components/marketplace/category-icon";
 import { hasAnyAdminPermission } from "@/lib/admin-permissions";
-import { getSessionUser } from "@/lib/auth-dal";
+import { getSessionContext } from "@/lib/auth-dal";
 import {
   buildMarketplaceCategoryTree,
   flattenMarketplaceCategoryTree,
@@ -14,6 +14,7 @@ import type { MarketplaceListing } from "@/lib/marketplace";
 import {
   fetchCategories,
   fetchHomeAdvertisementBanners,
+  fetchMySavedListings,
   fetchListings,
 } from "@/lib/marketplace-api";
 
@@ -201,16 +202,18 @@ function ListingRailSection({
 export default async function HomePage(props: HomePageProps) {
   const searchParams = await props.searchParams;
   const customerPreview = searchParams.view === "customer";
-  const user = await getSessionUser();
+  const session = await getSessionContext();
+  const user = session?.user ?? null;
 
   if (hasAnyAdminPermission(user?.role) && !customerPreview) {
     redirect("/admin");
   }
 
-  const [categories, listings, advertisementBanners] = await Promise.all([
+  const [categories, listings, advertisementBanners, favoriteListings] = await Promise.all([
     fetchCategories(),
     fetchListings({ take: 100 }),
     fetchHomeAdvertisementBanners(),
+    session ? fetchMySavedListings(session.accessToken).catch(() => []) : [],
   ]);
 
   const categoryTree = buildMarketplaceCategoryTree(categories);
@@ -315,7 +318,57 @@ export default async function HomePage(props: HomePageProps) {
         </Link>
       </section>
 
+      <section id="home-favorites" className="home-favorites-section">
+        <div className="home-favorites-tabs" aria-label="Homepage listing tabs">
+          <a href="#home-listings">All listings</a>
+          <a href="#home-favorites" aria-current="page">
+            Favorites
+          </a>
+        </div>
+        <div className="home-popular-head">
+          <div>
+            <h2>Favorite listings</h2>
+            <p>
+              {session
+                ? favoriteListings.length
+                  ? `${favoriteListings.length} saved item${
+                      favoriteListings.length === 1 ? "" : "s"
+                    } in your shortlist`
+                  : "Your saved listings will appear here."
+                : "Sign in to save listings and compare them from the homepage."}
+            </p>
+          </div>
+          <Link href={previewHref(session ? "/saved" : "/login?next=/", customerPreview)}>
+            {session ? "View saved" : "Sign in"}
+          </Link>
+        </div>
+        {session && favoriteListings.length ? (
+          <div className="home-listing-rail home-favorites-rail">
+            {favoriteListings.slice(0, 8).map((listing) => (
+              <HomeListingTile
+                key={`favorite-${listing.id}`}
+                listing={listing}
+                customerPreview={customerPreview}
+                showCategory
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="home-favorites-empty">
+            <strong>
+              {session ? "No favorites yet." : "Build your favorites list."}
+            </strong>
+            <span>
+              {session
+                ? "Tap Favorite on a listing detail page to add it here."
+                : "Sign in, open a listing, and tap Favorite to keep it close."}
+            </span>
+          </div>
+        )}
+      </section>
+
       <div className="home-popular-stack">
+        <span id="home-listings" className="home-anchor-offset" />
         {rails.length ? (
           rails.map((rail) => (
             <ListingRailSection

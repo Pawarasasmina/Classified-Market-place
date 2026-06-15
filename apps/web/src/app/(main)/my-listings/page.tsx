@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   boostListingAction,
   deleteListingAction,
-  upgradeSellerPrivilegeAction,
   updateListingStatusAction,
   walletTopUpAction,
 } from "@/app/(main)/actions";
@@ -16,10 +15,12 @@ import {
   fetchMySellerProfile,
   fetchMyTransactions,
   fetchMyWallet,
+  fetchReceivedSellerRatings,
   fetchSellerRatingSummary,
 } from "@/lib/marketplace-api";
 import type {
   ApiSellerRating,
+  ApiSellerProfileEnvelope,
   ApiSellerPriorityTier,
   MarketplaceListing,
   MarketplaceTransaction,
@@ -63,7 +64,15 @@ function formatReviewDate(value: string) {
 }
 
 function formatWalletLedgerType(type: string) {
-  return type
+  return formatEnumLabel(type);
+}
+
+function formatEnumLabel(value: string | null | undefined) {
+  if (!value) {
+    return "Not available";
+  }
+
+  return value
     .toLowerCase()
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -1273,6 +1282,192 @@ function getAvailablePackages(
   );
 }
 
+function SellerOnboardingInsights({
+  envelope,
+  user,
+}: {
+  envelope: ApiSellerProfileEnvelope;
+  user: SessionUser;
+}) {
+  const profile = envelope.sellerProfile;
+  const requiredFields = envelope.formDefinition.fields.filter(
+    (field) => field.required,
+  );
+  const answeredRequiredFields = requiredFields.filter((field) => {
+    const value = profile?.formAnswers?.[field.key];
+
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+
+    return value !== undefined && value !== null && `${value}`.trim() !== "";
+  }).length;
+  const missingFields = profile?.missingRequiredFields ?? [];
+  const documentRequests = profile?.documentRequests ?? [];
+  const documentSubmissions = profile?.documentSubmissions ?? [];
+  const submittedRequiredDocuments = documentSubmissions.filter(
+    (submission) =>
+      submission.status === "SUBMITTED" || submission.status === "APPROVED",
+  ).length;
+  const unresolvedDocuments = profile?.unresolvedRequiredDocuments ?? [];
+  const readinessItems = [
+    {
+      complete: Boolean(profile),
+      detail: profile ? formatEnumLabel(profile.status) : "Not started",
+      label: "Seller profile",
+    },
+    {
+      complete:
+        requiredFields.length === 0 ||
+        answeredRequiredFields === requiredFields.length,
+      detail: `${answeredRequiredFields}/${requiredFields.length} complete`,
+      label: "Required answers",
+    },
+    {
+      complete:
+        documentRequests.length === 0 || unresolvedDocuments.length === 0,
+      detail: documentRequests.length
+        ? `${submittedRequiredDocuments}/${documentRequests.length} submitted`
+        : "No documents requested",
+      label: "Documents",
+    },
+    {
+      complete: user.emailVerified && user.phoneVerified,
+      detail:
+        user.emailVerified && user.phoneVerified
+          ? "Email and phone verified"
+          : "Verify email and phone",
+      label: "Account trust",
+    },
+  ];
+  const completedItems = readinessItems.filter((item) => item.complete).length;
+  const readinessPercent = Math.round(
+    (completedItems / readinessItems.length) * 100,
+  );
+  const reviewTimeline = [
+    {
+      detail: profile?.requestedAt
+        ? formatReviewDate(profile.requestedAt)
+        : "Create seller profile",
+      label: "Requested",
+    },
+    {
+      detail: profile?.submittedAt
+        ? formatReviewDate(profile.submittedAt)
+        : missingFields.length
+          ? `${missingFields.length} fields missing`
+          : "Ready when submitted",
+      label: "Submitted",
+    },
+    {
+      detail: profile?.reviewedAt
+        ? formatReviewDate(profile.reviewedAt)
+        : "Admin review pending",
+      label: "Reviewed",
+    },
+  ];
+  const stats = profile?.stats;
+  const unlocks = [
+    {
+      detail: "Create, edit, pause, mark sold, or remove ads from one place.",
+      label: "Ad management",
+    },
+    {
+      detail: "Promote eligible listings with wallet or checkout payments.",
+      label: "Boost tools",
+    },
+    {
+      detail: "Track views, saves, inquiries, conversion, and customer ratings.",
+      label: "Performance data",
+    },
+  ];
+
+  return (
+    <section className="seller-onboarding-insights">
+      <article className="panel seller-onboarding-readiness">
+        <div>
+          <p className="section-eyebrow">Approval readiness</p>
+          <h2>Seller setup data</h2>
+          <p>
+            Your profile is {readinessPercent}% ready for listing tools based
+            on required answers, documents, and account trust signals.
+          </p>
+        </div>
+        <div className="seller-onboarding-progress">
+          <span style={{ width: `${readinessPercent}%` }} />
+        </div>
+        <div className="seller-onboarding-data-grid">
+          {readinessItems.map((item) => (
+            <div key={item.label} className="seller-onboarding-data-card">
+              <strong>{item.label}</strong>
+              <span>{item.detail}</span>
+              <em>{item.complete ? "Complete" : "Needs action"}</em>
+            </div>
+          ))}
+        </div>
+      </article>
+
+      <article className="panel seller-onboarding-queue">
+        <div>
+          <p className="section-eyebrow">Review queue</p>
+          <h2>Approval timeline</h2>
+        </div>
+        <div className="seller-onboarding-timeline">
+          {reviewTimeline.map((item) => (
+            <div key={item.label}>
+              <strong>{item.label}</strong>
+              <span>{item.detail}</span>
+            </div>
+          ))}
+        </div>
+        <div className="seller-onboarding-summary">
+          <span>
+            Tier
+            <strong>{profile?.privilegeTier?.name ?? "Free"}</strong>
+          </span>
+          <span>
+            Verified seller
+            <strong>{formatEnumLabel(profile?.verifiedSellerStatus)}</strong>
+          </span>
+          <span>
+            Draft stats
+            <strong>
+              {stats
+                ? `${stats.totalListings} ads / ${stats.conversations} chats`
+                : "Available after approval"}
+            </strong>
+          </span>
+        </div>
+      </article>
+
+      <article className="panel seller-onboarding-actions">
+        <div>
+          <p className="section-eyebrow">What unlocks next</p>
+          <h2>Seller tools preview</h2>
+        </div>
+        <div className="seller-onboarding-unlocks">
+          {unlocks.map((item) => (
+            <div key={item.label}>
+              <strong>{item.label}</strong>
+              <span>{item.detail}</span>
+            </div>
+          ))}
+        </div>
+        {missingFields.length ? (
+          <div className="seller-onboarding-alert">
+            Add {missingFields.join(", ")} to move this profile forward.
+          </div>
+        ) : (
+          <div className="seller-onboarding-alert seller-onboarding-alert--ready">
+            Required profile answers are ready. Submit for admin review when
+            you are done checking the details.
+          </div>
+        )}
+      </article>
+    </section>
+  );
+}
+
 export default async function MyListingsPage() {
   const { accessToken, user } = await requireSessionContext("/my-listings");
   const sellerProfileEnvelope = await fetchMySellerProfile(accessToken).catch(() => ({
@@ -1282,19 +1477,50 @@ export default async function MyListingsPage() {
 
   if (sellerProfileEnvelope.sellerProfile?.status !== "APPROVED") {
     return (
-      <div className="page grid gap-6">
-        <div className="panel-dark p-6">
-          <p className="section-eyebrow">Seller dashboard</p>
-          <h1 className="mt-2 text-3xl font-bold text-white">My listings</h1>
-          <p className="mt-2 text-[#d7d9ea]">
-            Finish seller onboarding and wait for approval before using your
-            listing dashboard.
-          </p>
-        </div>
+      <div className="page seller-dashboard-page seller-dashboard-onboarding grid gap-4">
+        <section className="panel seller-dashboard-hero seller-dashboard-hero--onboarding">
+          <div className="seller-dashboard-hero__copy">
+            <p className="section-eyebrow">My ads</p>
+            <div className="seller-dashboard-hero__title-row">
+              <h1 className="seller-dashboard-hero__title">My listings</h1>
+              <span className="seller-dashboard-hero__count">
+                Seller access pending
+              </span>
+            </div>
+            <p className="seller-dashboard-hero__text">
+              Complete your seller profile to unlock ad management, boost tools,
+              and buyer conversations.
+            </p>
+          </div>
+          <div className="seller-dashboard-hero__actions">
+            <div className="seller-dashboard-hero__meta">
+              <span>Profile review</span>
+              <span>Listing tools locked</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/profile"
+                className="action-secondary px-4 py-2.5 text-sm font-semibold"
+              >
+                Account profile
+              </Link>
+              <Link
+                href="/"
+                className="action-primary px-4 py-2.5 text-sm font-semibold"
+              >
+                Browse marketplace
+              </Link>
+            </div>
+          </div>
+        </section>
         <SellerOnboardingPanel
           envelope={sellerProfileEnvelope}
           returnTo="/my-listings"
           title="Seller approval workflow"
+        />
+        <SellerOnboardingInsights
+          envelope={sellerProfileEnvelope}
+          user={user}
         />
       </div>
     );
@@ -1307,6 +1533,7 @@ export default async function MyListingsPage() {
     listingQuota,
     ratingSummary,
     listingFeeTransactions,
+    receivedReviews,
   ] = await Promise.all([
     fetchMyListings(accessToken),
     fetchBoostPackages(),
@@ -1317,9 +1544,20 @@ export default async function MyListingsPage() {
       take: 100,
       type: "LISTING_FEE",
     }),
+    fetchReceivedSellerRatings(accessToken).catch(() => []),
   ]);
   const activeCount = listings.filter(
     (listing) => listing.status === "Active",
+  ).length;
+  const pendingCount = listings.filter(
+    (listing) => listing.status === "Pending",
+  ).length;
+  const draftCount = listings.filter(
+    (listing) => listing.status === "Draft",
+  ).length;
+  const soldCount = listings.filter((listing) => listing.status === "Sold").length;
+  const rejectedCount = listings.filter(
+    (listing) => listing.status === "Rejected",
   ).length;
   const boostedCount = listings.filter((listing) => listing.isBoosted).length;
   const totalViews = listings.reduce(
@@ -1344,12 +1582,17 @@ export default async function MyListingsPage() {
   const latestListingFeeTransactions = getLatestListingFeeTransactions(
     listingFeeTransactions,
   );
+  const paymentSummary = getListingPaymentSummary(
+    listings,
+    latestListingFeeTransactions,
+  );
+  const attentionCount = rejectedCount + paymentSummary.pending + paymentSummary.needsAttention;
 
   return (
     <div className="page seller-dashboard-page grid gap-4">
       <section className="panel seller-dashboard-hero">
         <div className="seller-dashboard-hero__copy">
-          <p className="section-eyebrow">Seller workspace</p>
+          <p className="section-eyebrow">My ads</p>
           <div className="seller-dashboard-hero__title-row">
             <h1 className="seller-dashboard-hero__title">My listings</h1>
             <span className="seller-dashboard-hero__count">
@@ -1357,28 +1600,53 @@ export default async function MyListingsPage() {
             </span>
           </div>
           <p className="seller-dashboard-hero__text">
-            Review previous listings, track performance, and manage boost
-            actions from one focused workspace.
+            Manage your ads, respond to buyer interest, and promote the listings
+            that need more visibility.
           </p>
         </div>
         <div className="seller-dashboard-hero__actions">
           <div className="seller-dashboard-hero__meta">
-            <span>{activeCount} active</span>
-            <span>{boostedCount} boosted</span>
+            <span>{activeCount} live ads</span>
+            <span>{pendingCount} under review</span>
             <span>{totalInquiries.toLocaleString()} inquiries</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/wallet" className="action-secondary px-4 py-2.5 text-sm font-semibold">
+            <Link
+              href="/wallet"
+              className="action-secondary px-4 py-2.5 text-sm font-semibold"
+            >
               Wallet
             </Link>
-            <Link href="/profile" className="action-secondary px-4 py-2.5 text-sm font-semibold">
+            <Link
+              href="/profile"
+              className="action-secondary px-4 py-2.5 text-sm font-semibold"
+            >
               Seller profile
             </Link>
-            <Link href="/sell" className="action-primary px-4 py-2.5 text-sm font-semibold">
-              Create listing
+            <Link
+              href="/sell"
+              className="action-primary px-4 py-2.5 text-sm font-semibold"
+            >
+              Post an ad
             </Link>
           </div>
         </div>
+      </section>
+
+      <section className="seller-dashboard-tabs" aria-label="Listing status">
+        {[
+          ["All ads", listings.length],
+          ["Live", activeCount],
+          ["Under review", pendingCount],
+          ["Drafts", draftCount],
+          ["Sold", soldCount],
+          ["Needs attention", attentionCount],
+        ].map(([label, value]) => (
+          <div key={label} className="seller-dashboard-tab">
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </div>
+        ))}
       </section>
 
       <section className="seller-dashboard-stats">
@@ -1414,11 +1682,22 @@ export default async function MyListingsPage() {
         </div>
       </section>
 
+      <SellerProfileStatus
+        activeCount={activeCount}
+        boostedCount={boostedCount}
+        listingsCount={listings.length}
+        ratingSummary={ratingSummary}
+        receivedReviewCount={receivedReviews.filter((review) => review.review).length}
+        user={user}
+      />
+
       <section id="seller-listings" className="grid gap-3">
         <div className="panel seller-listings-overview">
           <div>
-            <p className="section-eyebrow">Previous and active listings</p>
-            <h2 className="seller-listings-overview__title">Your inventory</h2>
+            <p className="section-eyebrow">Your ads</p>
+            <h2 className="seller-listings-overview__title">
+              Listings inventory
+            </h2>
           </div>
           <div className="seller-listings-overview__chips">
             <span className="seller-listings-overview__chip">
@@ -1442,9 +1721,9 @@ export default async function MyListingsPage() {
             return (
               <section
                 key={listing.id}
-                className="panel seller-listing-row grid gap-4 md:grid-cols-[8.5rem_1fr_minmax(13rem,16rem)] md:items-start"
+                className="panel seller-listing-row grid gap-4 md:grid-cols-[11rem_1fr_minmax(13rem,16rem)] md:items-start"
               >
-                <div className="seller-listing-row__media h-28 overflow-hidden rounded-md bg-[var(--surface-strong)]">
+                <div className="seller-listing-row__media overflow-hidden rounded-md bg-[var(--surface-strong)]">
                   {listing.imageUrls[0] ? (
                     <img
                       src={listing.imageUrls[0]}
@@ -1552,13 +1831,13 @@ export default async function MyListingsPage() {
                     }
                     className="action-secondary px-3 py-2 text-center text-sm font-semibold"
                   >
-                    {listing.status === "Active" ? "View" : "Review"}
+                    {listing.status === "Active" ? "View ad" : "Review ad"}
                   </Link>
                   <Link
                     href={`/listings/${listing.id}/edit`}
                     className="action-secondary px-3 py-2 text-center text-sm font-semibold"
                   >
-                    Edit
+                    Edit ad
                   </Link>
                   {paymentInfo.transaction?.status === "PENDING" ? (
                     <Link
@@ -1626,7 +1905,7 @@ export default async function MyListingsPage() {
                             </select>
                           </label>
                           <button className="action-primary px-3 py-2 text-sm font-semibold">
-                            Boost listing
+                            Promote ad
                           </button>
                         </form>
                       ) : (
@@ -1705,6 +1984,19 @@ export default async function MyListingsPage() {
           </div>
         )}
       </section>
+
+      <div className="seller-dashboard-support-grid">
+        <SellerWalletBalance boostPackages={boostPackages} wallet={wallet} />
+        <SellerListingPaymentStatus
+          listingFeeTransactions={latestListingFeeTransactions}
+          listings={listings}
+        />
+      </div>
+
+      <SellerRatingsAndReviews
+        ratingSummary={ratingSummary}
+        reviews={receivedReviews}
+      />
 
       <SellerBoostOptions
         boostPackages={boostPackages}

@@ -2241,6 +2241,7 @@ export async function toggleSavedListingAction(formData: FormData) {
   }
 
   revalidatePath("/saved");
+  revalidatePath("/");
   revalidatePath("/search");
   revalidatePath(`/listings/${parsed.data.listingId}`);
   revalidatePath("/my-listings");
