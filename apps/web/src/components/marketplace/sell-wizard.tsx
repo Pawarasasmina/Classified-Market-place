@@ -1137,14 +1137,6 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
             </button>
 
             <div className="sell-wizard-footer-button-group">
-              <button
-                type="submit"
-                form="listing-draft-form"
-                disabled={draftPending || !hasDraftContent(draft)}
-                className="sell-wizard-footer-button sell-wizard-footer-button-secondary disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {draftPending ? "Saving draft..." : "Save draft"}
-              </button>
               {stepIndex < steps.length - 1 ? (
                 <button
                   type="button"
