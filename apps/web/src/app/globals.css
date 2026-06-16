@@ -285,6 +285,655 @@ select:focus {
   color: var(--muted);
 }
 
+.sell-wizard-form-control {
+  min-height: 3rem;
+  border-radius: 1rem;
+  padding: 0.78rem 0.9rem;
+}
+
+.sell-wizard-form-textarea {
+  min-height: 7.9rem;
+  resize: vertical;
+}
+
+.sell-wizard-shell {
+  padding: 1rem;
+  background:
+    radial-gradient(circle at top right, rgba(112, 103, 255, 0.1), transparent 20rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
+    var(--surface);
+}
+
+.sell-wizard-progress-bar {
+  overflow: hidden;
+  height: 0.72rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sell-wizard-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--brand), var(--accent));
+}
+
+.sell-wizard-highlight-card {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
+    var(--surface-strong);
+  padding: 1rem;
+}
+
+.sell-wizard-taxonomy-stage {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.sell-wizard-taxonomy-head {
+  display: grid;
+  justify-items: start;
+  gap: 0.18rem;
+  text-align: left;
+}
+
+.sell-wizard-taxonomy-head h3 {
+  margin: 0;
+  max-width: 22rem;
+  font-size: clamp(1.05rem, 1.7vw, 1.35rem);
+  line-height: 1.2;
+}
+
+.sell-wizard-taxonomy-head p:last-child {
+  margin: 0;
+  max-width: 28rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.sell-wizard-taxonomy-panel {
+  width: min(100%, 34rem);
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 1.2rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)), var(--surface);
+  padding: 0.85rem 1rem 0.15rem;
+}
+
+.sell-wizard-taxonomy-trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.sell-wizard-taxonomy-root,
+.sell-wizard-taxonomy-crumb {
+  color: inherit;
+}
+
+.sell-wizard-taxonomy-root:hover,
+.sell-wizard-taxonomy-crumb:hover {
+  color: var(--brand-strong);
+}
+
+.sell-wizard-taxonomy-current {
+  color: var(--foreground);
+}
+
+.sell-wizard-taxonomy-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0 0.35rem;
+}
+
+.sell-wizard-taxonomy-status-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.sell-wizard-taxonomy-status strong {
+  display: block;
+  margin-top: 0.22rem;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.sell-wizard-taxonomy-badge {
+  border-radius: 999px;
+  padding: 0.56rem 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sell-wizard-taxonomy-badge-ready {
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.sell-wizard-taxonomy-badge-pending {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+}
+
+.sell-wizard-taxonomy-back {
+  margin: 0.05rem 0 0.45rem;
+  color: var(--brand-strong);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.sell-wizard-taxonomy-list {
+  display: grid;
+}
+
+.sell-wizard-taxonomy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  border-top: 1px solid var(--line);
+  padding: 0.8rem 0.1rem;
+  text-align: left;
+}
+
+.sell-wizard-taxonomy-row:first-child {
+  border-top: 1px solid var(--line);
+}
+
+.sell-wizard-taxonomy-row-copy {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.sell-wizard-taxonomy-row-copy strong {
+  font-size: 1.1rem;
+}
+
+.sell-wizard-taxonomy-row-copy span:last-child {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.sell-wizard-taxonomy-row-arrow {
+  flex-shrink: 0;
+  color: var(--foreground);
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.sell-wizard-taxonomy-row-selected .sell-wizard-taxonomy-row-copy strong,
+.sell-wizard-taxonomy-row:hover .sell-wizard-taxonomy-row-copy strong,
+.sell-wizard-taxonomy-row:hover .sell-wizard-taxonomy-row-arrow {
+  color: var(--brand-strong);
+}
+
+.sell-wizard-preview-card,
+.sell-wizard-field-summary-card,
+.sell-wizard-preview-empty {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
+    var(--surface);
+  padding: 1rem;
+}
+
+.sell-wizard-preview-label {
+  margin: 0;
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.sell-wizard-preview-card h3 {
+  margin: 0.55rem 0 0;
+  font-size: 1.15rem;
+  line-height: 1.3;
+}
+
+.sell-wizard-preview-card p {
+  margin: 0.55rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.sell-wizard-preview-copy {
+  min-height: 5.5rem;
+}
+
+.sell-wizard-preview-empty {
+  text-align: center;
+}
+
+.sell-wizard-preview-empty strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.sell-wizard-preview-empty p {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.sell-wizard-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  border-top: 1px solid var(--line);
+  margin-top: 0.25rem;
+  padding-top: 0.9rem;
+}
+
+.sell-wizard-footer-button-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.sell-wizard-footer-button {
+  min-height: 2.9rem;
+  padding: 0.78rem 1.15rem;
+  border-radius: 0.95rem;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.sell-wizard-footer-button-primary {
+  border: 1px solid var(--brand-strong);
+  background: linear-gradient(180deg, var(--brand-strong), var(--brand));
+  color: #ffffff;
+  box-shadow: 0 14px 28px rgba(102, 104, 232, 0.18);
+}
+
+.sell-wizard-footer-button-primary:hover {
+  box-shadow: 0 18px 34px rgba(102, 104, 232, 0.22);
+  transform: translateY(-1px);
+}
+
+.sell-wizard-footer-button-secondary {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.sell-wizard-footer-button-secondary:hover {
+  border-color: var(--brand);
+  color: var(--brand-strong);
+}
+
+.sell-wizard-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.sell-wizard-chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.62rem 0.95rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.sell-wizard-chip-active {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.sell-wizard-chip-idle {
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.sell-wizard-category-card {
+  display: grid;
+  gap: 0.38rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 1rem;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.sell-wizard-category-card:hover {
+  transform: translateY(-1px);
+}
+
+.sell-wizard-category-card strong {
+  font-size: 1.06rem;
+}
+
+.sell-wizard-category-card-selected {
+  border-color: var(--brand);
+  background: linear-gradient(180deg, rgba(112, 103, 255, 0.16), rgba(112, 103, 255, 0.04));
+  box-shadow: 0 18px 38px rgba(112, 103, 255, 0.12);
+}
+
+.sell-wizard-category-card-idle {
+  background: var(--surface);
+}
+
+.sell-wizard-category-meta {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.sell-wizard-category-path {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.sell-wizard-category-action {
+  margin-top: 0.25rem;
+  color: var(--brand-strong);
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.sell-wizard-photo-dropzone {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px dashed var(--line);
+  border-radius: 1rem;
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+
+.sell-wizard-photo-dropzone-idle {
+  background:
+    radial-gradient(circle at top, rgba(112, 103, 255, 0.1), rgba(112, 103, 255, 0)),
+    var(--surface-strong);
+}
+
+.sell-wizard-photo-dropzone-active {
+  border-color: var(--brand);
+  background:
+    radial-gradient(circle at top, rgba(112, 103, 255, 0.18), rgba(112, 103, 255, 0)),
+    var(--brand-soft);
+}
+
+.sell-wizard-photo-dropzone-title {
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.sell-wizard-photo-dropzone-button {
+  justify-self: center;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #111827;
+  padding: 0.7rem 1.15rem;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.sell-wizard-photo-card {
+  border-radius: 1rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.sell-wizard-photo-card-idle:hover {
+  border-color: var(--brand);
+}
+
+.sell-wizard-photo-card-dragging {
+  border-color: var(--brand);
+  opacity: 0.7;
+}
+
+.sell-wizard-price-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sell-wizard-review-hero {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background:
+    linear-gradient(140deg, rgba(112, 103, 255, 0.12), rgba(196, 139, 67, 0.08)),
+    var(--surface-strong);
+  padding: 1.25rem;
+}
+
+.sell-wizard-sidebar-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
+    var(--surface);
+}
+
+.sell-wizard-sidebar {
+  align-content: start;
+}
+
+.sell-wizard-sidebar-progress {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+
+.sell-wizard-sidebar-progress strong {
+  font-size: 0.88rem;
+}
+
+.sell-wizard-sidebar-meta {
+  display: grid;
+  gap: 0.24rem;
+  margin-top: 0.75rem;
+}
+
+.sell-wizard-sidebar-meta-grid {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.1rem;
+}
+
+.sell-wizard-sidebar-meta span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.sell-wizard-sidebar-meta strong {
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.sell-wizard-sidebar-checklist {
+  display: grid;
+  gap: 0.34rem;
+  margin-top: 0.7rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.7rem;
+  font-size: 0.84rem;
+}
+
+.sell-wizard-sidebar-workspace {
+  border-color: rgba(112, 103, 255, 0.22);
+  background:
+    radial-gradient(circle at top, rgba(112, 103, 255, 0.12), rgba(112, 103, 255, 0)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
+    var(--surface);
+  padding: 0.9rem;
+}
+
+.sell-wizard-sidebar-step-meta {
+  display: grid;
+  gap: 0.28rem;
+  margin-top: 0.55rem;
+  margin-bottom: 0.55rem;
+}
+
+.sell-wizard-sidebar-step-meta strong {
+  font-size: 1.05rem;
+}
+
+.sell-wizard-sidebar-step-meta span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.sell-wizard-sidebar-note {
+  border-radius: 1rem;
+  background: rgba(112, 103, 255, 0.08);
+  color: var(--muted);
+  padding: 0.75rem 0.85rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.sell-wizard-sidebar-mini-stat {
+  display: grid;
+  gap: 0.28rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 0.75rem 0.85rem;
+}
+
+.sell-wizard-sidebar-mini-stat span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.sell-wizard-sidebar-mini-stat strong {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.sell-wizard-sidebar-photo-preview {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 0.65rem;
+  background: var(--surface);
+}
+
+.sell-wizard-sidebar-steps {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.sell-wizard-sidebar-step-item {
+  display: grid;
+  gap: 0.12rem;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0.95rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.62rem 0.78rem;
+  text-align: left;
+}
+
+.sell-wizard-sidebar-step-item span {
+  color: var(--brand-strong);
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.sell-wizard-sidebar-step-item strong {
+  font-size: 0.86rem;
+}
+
+.sell-wizard-sidebar-step-item-active {
+  border-color: var(--brand);
+  background: linear-gradient(180deg, rgba(112, 103, 255, 0.18), rgba(112, 103, 255, 0.05));
+  box-shadow: 0 14px 30px rgba(112, 103, 255, 0.12);
+}
+
+.sell-wizard-sidebar-step-item-complete {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+@media (max-width: 767px) {
+  .sell-wizard-taxonomy-status {
+    align-items: stretch;
+  }
+
+  .sell-wizard-taxonomy-panel {
+    width: 100%;
+    padding-inline: 0.9rem;
+  }
+
+  .sell-wizard-shell {
+    padding: 1rem;
+  }
+
+  .sell-wizard-footer-actions,
+  .sell-wizard-footer-button-group {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sell-wizard-footer-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .sell-wizard-step-chip {
+    width: 100%;
+  }
+
+  .sell-wizard-price-banner {
+    align-items: start;
+  }
+
+  .sell-wizard-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .sell-wizard-sidebar-workspace {
+    overflow: visible;
+  }
+
+}
+
 .marketplace-header {
   border-bottom: 1px solid var(--header-line);
   background: var(--header-background);
@@ -2391,12 +3040,15 @@ html[data-color-profile="dark"] .listing-photos-header h1 {
 .home-category-columns {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem 1.4rem;
-  margin-top: 0.8rem;
+  gap: 1rem 1.75rem;
+  margin-top: 1rem;
 }
 
 .home-category-column {
   min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 0.7rem;
 }
 
 .home-category-image-card {
@@ -2441,77 +3093,61 @@ html[data-color-profile="dark"] .listing-photos-header h1 {
   color: #202124;
   font-size: 0.84rem;
   font-weight: 900;
+  width: fit-content;
 }
 
 .home-category-column-title svg {
-  color: var(--brand);
-}
-
-.home-category-image-card .home-category-column-title {
-  color: #ffffff;
-  font-size: 0.95rem;
-  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.32);
-}
-
-.home-category-image-card .home-category-column-title svg {
-  color: #ffffff;
-}
-
-.home-category-image-description,
-.home-category-image-count {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.home-category-image-description {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  color: rgba(255, 255, 255, 0.88);
-  font-size: 0.72rem;
-  line-height: 1.35;
-}
-
-.home-category-image-count {
-  justify-self: start;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--brand-strong);
-  padding: 0.22rem 0.45rem;
-  font-size: 0.62rem;
-  font-weight: 900;
-  white-space: nowrap;
+  color: #e23a2e;
 }
 
 .home-category-link-list {
   display: grid;
-  gap: 0.26rem;
-  margin-top: 0.45rem;
+  gap: 0.44rem;
 }
 
-.home-category-link-list a {
-  display: inline-flex;
+.home-category-link-item {
+  display: flex;
   min-width: 0;
   align-items: center;
-  gap: 0.35rem;
-  color: #4b5563;
-  font-size: 0.77rem;
-  line-height: 1.3;
+  gap: 0.45rem;
+  color: #202124;
+  font-size: 0.72rem;
+  line-height: 1.35;
 }
 
-.home-category-link-list a:hover {
+.home-category-link-item:hover {
   color: var(--brand-strong);
 }
 
-.home-category-link-list span {
+.home-category-link-item span:first-child {
+  min-width: 0;
+}
+
+.home-category-link-badge {
+  flex-shrink: 0;
   border-radius: 999px;
-  background: var(--brand);
+  background: #ff2b1f;
   color: #ffffff;
-  padding: 0.08rem 0.3rem;
-  font-size: 0.56rem;
+  padding: 0.12rem 0.42rem;
+  font-size: 0.58rem;
   font-weight: 900;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.home-category-all-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #ff2b1f;
+  font-size: 0.74rem;
+  font-weight: 500;
+  width: fit-content;
+}
+
+.home-category-all-arrow {
+  font-size: 0.88rem;
+  line-height: 1;
 }
 
 .home-trust-band {

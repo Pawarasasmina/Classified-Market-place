@@ -155,8 +155,30 @@ type ListingWithIncludes = Prisma.ListingGetPayload<{
   include: typeof listingInclude;
 }>;
 
+const listingListInclude = {
+  category: true,
+  seller: {
+    select: safeSellerSelect,
+  },
+  // Search and category pages only need a lightweight preview image.
+  images: {
+    orderBy: [{ isPrimary: 'desc' as const }, { sortOrder: 'asc' as const }],
+    take: 1,
+  },
+  boosts: {
+    where: {
+      status: BoostStatus.ACTIVE,
+    },
+    orderBy: [{ startsAt: 'desc' as const }],
+  },
+};
+
+type ListingListWithIncludes = Prisma.ListingGetPayload<{
+  include: typeof listingListInclude;
+}>;
+
 const rankedListingInclude = {
-  ...listingInclude,
+  ...listingListInclude,
   transactions: {
     where: {
       type: TransactionType.LISTING_FEE,
@@ -462,6 +484,90 @@ function hasMeaningfulAttributeValue(value: unknown, type: CategorySchemaField['
   }
 
   return value != null;
+}
+
+function parseAttributeFilterPayload(value: string | undefined) {
+  if (!value) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsed).flatMap(([key, rawValue]) => {
+        const normalizedKey = key.trim();
+
+        if (!normalizedKey) {
+          return [];
+        }
+
+        if (
+          typeof rawValue === 'string' ||
+          typeof rawValue === 'number' ||
+          typeof rawValue === 'boolean'
+        ) {
+          return [[normalizedKey, rawValue] as const];
+        }
+
+        return [];
+      }),
+    ) as Record<string, string | number | boolean>;
+  } catch {
+    return {};
+  }
+}
+
+function normalizeAttributeComparisonValue(value: unknown) {
+  if (typeof value === 'string') {
+    return value.trim().toLowerCase();
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  return undefined;
+}
+
+function listingMatchesAttributeFilters(
+  listing: { attributes: Prisma.JsonValue | null },
+  attributeFilters: Record<string, string | number | boolean>,
+) {
+  const entries = Object.entries(attributeFilters);
+
+  if (!entries.length) {
+    return true;
+  }
+
+  if (
+    !listing.attributes ||
+    typeof listing.attributes !== 'object' ||
+    Array.isArray(listing.attributes)
+  ) {
+    return false;
+  }
+
+  const attributes = listing.attributes as Record<string, unknown>;
+
+  return entries.every(([key, filterValue]) => {
+    const attributeValue = normalizeAttributeComparisonValue(attributes[key]);
+    const comparableFilterValue = normalizeAttributeComparisonValue(filterValue);
+
+    if (attributeValue === undefined || comparableFilterValue === undefined) {
+      return false;
+    }
+
+    return attributeValue === comparableFilterValue;
+  });
 }
 
 function isMissingAnalyticsStorageError(error: unknown) {
@@ -1784,6 +1890,8 @@ export class ListingsService implements OnModuleInit {
     const categorySlugs = query.categorySlug
       ? await this.getCategorySlugScope(query.categorySlug)
       : undefined;
+    const attributeFilters = parseAttributeFilterPayload(query.attributeFilters);
+    const hasAttributeFilters = Object.keys(attributeFilters).length > 0;
     const now = new Date();
     const take = query.take ?? 25;
     const where: Prisma.ListingWhereInput = {
@@ -1856,7 +1964,7 @@ export class ListingsService implements OnModuleInit {
       const listings = await this.prisma.listing.findMany({
         where,
         orderBy,
-        take,
+        take: hasAttributeFilters ? Math.max(take * 8, 100) : take,
         include: {
           ...rankedListingInclude,
           boosts: {
@@ -1867,19 +1975,52 @@ export class ListingsService implements OnModuleInit {
       });
 
       return this.attachSellerRatingSummaries(
-        listings.map((listing) => ({
-          ...withoutRankingTransactions(listing),
-          priorityRanking: this.getListingPriorityBreakdown(
-            listing,
-            priorityRules,
-            placements,
-            now,
-          ),
+        listings
+          .filter((listing) =>
+            listingMatchesAttributeFilters(listing, attributeFilters),
+          )
+          .slice(0, take)
+          .map((listing) => ({
+            ...withoutRankingTransactions(listing),
+            priorityRanking: this.getListingPriorityBreakdown(
+              listing,
+              priorityRules,
+              placements,
+              now,
+            ),
         })),
       );
     }
 
-    const candidateTake = Math.max(take * 5, 50);
+    const hasExplicitSearchFilters =
+      Boolean(query.categorySlug) ||
+      Boolean(query.search) ||
+      Boolean(query.location) ||
+      query.minPrice != null ||
+      query.maxPrice != null ||
+      hasAttributeFilters ||
+      (query.sort !== undefined && query.sort !== 'recommended');
+
+    if (hasExplicitSearchFilters) {
+      const listings = await this.prisma.listing.findMany({
+        where,
+        orderBy,
+        take,
+        include: rankedListingInclude,
+      });
+
+      return this.attachSellerRatingSummaries(
+        listings
+          .filter((listing) =>
+            listingMatchesAttributeFilters(listing, attributeFilters),
+          )
+          .map((listing) => withoutRankingTransactions(listing)),
+      );
+    }
+
+    const candidateTake = hasAttributeFilters
+      ? Math.max(take * 12, 150)
+      : Math.max(take * 5, 50);
     const priorityRules = await this.getActivePriorityRuleWeights();
     const boostedListings: RankedListingWithIncludes[] = [];
     const boostedIds = new Set<string>();
@@ -2049,6 +2190,9 @@ export class ListingsService implements OnModuleInit {
             : 0)
         );
       })
+      .filter((listing) =>
+        listingMatchesAttributeFilters(listing, attributeFilters),
+      )
       .slice(0, take);
 
     return this.attachSellerRatingSummaries(
