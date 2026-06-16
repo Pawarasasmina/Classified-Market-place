@@ -1109,7 +1109,7 @@ export async function createListingAction(
   }
 
   const { accessToken } = await requireSessionContext("/sell");
-  let redirectPath = "/my-listings";
+  let redirectPath = "/my-listings?listing=submitted";
 
   try {
     const payload = {
@@ -1148,6 +1148,8 @@ export async function createListingAction(
 
     revalidatePath("/");
     revalidatePath("/my-listings");
+    revalidatePath("/admin");
+    revalidatePath("/admin/listings");
   } catch (error) {
     return {
       message: getActionMessage(error, "We could not create that listing."),

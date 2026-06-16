@@ -1273,7 +1273,14 @@ function getAvailablePackages(
   );
 }
 
-export default async function MyListingsPage() {
+type MyListingsPageProps = {
+  searchParams?: Promise<{
+    listing?: string;
+  }>;
+};
+
+export default async function MyListingsPage(props: MyListingsPageProps) {
+  const searchParams = (await props.searchParams) ?? {};
   const { accessToken, user } = await requireSessionContext("/my-listings");
   const sellerProfileEnvelope = await fetchMySellerProfile(accessToken).catch(() => ({
     sellerProfile: null,
@@ -1347,6 +1354,15 @@ export default async function MyListingsPage() {
 
   return (
     <div className="page seller-dashboard-page grid gap-4">
+      {searchParams.listing === "submitted" ? (
+        <section className="panel border-[var(--panel-line)] bg-[var(--surface-strong)] px-5 py-4">
+          <p className="section-eyebrow">Listing submitted</p>
+          <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">
+            Your listing was sent for admin approval and is now visible in your seller workspace.
+          </p>
+        </section>
+      ) : null}
+
       <section className="panel seller-dashboard-hero">
         <div className="seller-dashboard-hero__copy">
           <p className="section-eyebrow">Seller workspace</p>
