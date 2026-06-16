@@ -75,40 +75,10 @@ function OverviewMetric({
   value: string | number;
 }) {
   return (
-    <div className="rounded-[1.4rem] border border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.08)] p-4 backdrop-blur-sm">
-      <p className="text-[0.68rem] font-black uppercase tracking-[0.22em] text-[#d7d9ea]">
-        {label}
-      </p>
-      <p className="mt-3 text-3xl font-black text-white">{value}</p>
-      <p className="mt-2 text-sm text-[#d7d9ea]">{detail}</p>
-    </div>
-  );
-}
-
-function SidebarChecklistItem({
-  complete,
-  label,
-  value,
-}: {
-  complete: boolean;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3">
-      <div>
-        <p className="text-sm font-bold text-[var(--foreground)]">{label}</p>
-        <p className="mt-1 text-xs font-semibold text-[var(--muted)]">{value}</p>
-      </div>
-      <span
-        className={`rounded-full px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.18em] ${
-          complete
-            ? "bg-[rgba(31,122,95,0.12)] text-[var(--success)]"
-            : "bg-[var(--surface)] text-[var(--muted)]"
-        }`}
-      >
-        {complete ? "Ready" : "Open"}
-      </span>
+    <div className="profile-settings-metric">
+      <p>{label}</p>
+      <strong>{value}</strong>
+      <span>{detail}</span>
     </div>
   );
 }
@@ -132,6 +102,42 @@ function SectionHeader({
         {description}
       </p>
     </div>
+  );
+}
+
+function ProfileSettingsNav() {
+  return (
+    <aside className="profile-settings-nav">
+      <div className="profile-settings-nav-group">
+        <div className="profile-settings-nav-heading">
+          <span className="profile-settings-nav-icon">P</span>
+          <strong>Profile</strong>
+          <span>^</span>
+        </div>
+        <a href="#basic-info" className="profile-settings-nav-item profile-settings-nav-item-active">
+          Basic Info
+        </a>
+        <a href="#seller-center" className="profile-settings-nav-item">
+          Seller Profile
+        </a>
+      </div>
+      <div className="profile-settings-nav-group">
+        <div className="profile-settings-nav-heading">
+          <span className="profile-settings-nav-icon">A</span>
+          <strong>Account</strong>
+          <span>^</span>
+        </div>
+        <a href="#account-settings" className="profile-settings-nav-item">
+          Phone numbers
+        </a>
+        <a href="#security-zone" className="profile-settings-nav-item">
+          Security
+        </a>
+      </div>
+      <form action={logoutAction} className="profile-settings-nav-logout">
+        <button>Sign out</button>
+      </form>
+    </aside>
   );
 }
 
@@ -180,225 +186,50 @@ export default async function ProfilePage() {
   );
 
   return (
-    <div className="page grid gap-6">
-      <section className="panel-dark overflow-hidden p-0">
-        <div className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1.2fr)_22rem] lg:p-8">
-          <div className="grid gap-6">
-            <div className="flex flex-wrap items-start gap-5">
-              <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[1.8rem] border border-[rgba(255,255,255,0.18)] bg-[rgba(255,255,255,0.12)] text-3xl font-black text-white shadow-[0_18px_50px_rgba(15,23,42,0.26)]">
-                {user.avatarUrl ? (
-                  <img
-                    src={user.avatarUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  user.displayName.charAt(0).toUpperCase()
-                )}
-              </div>
+    <div className="profile-settings-page">
+      <h1>Profile Settings</h1>
+      <div className="profile-settings-layout">
+        <ProfileSettingsNav />
 
-              <div className="max-w-2xl">
-                <p className="section-eyebrow">Profile hub</p>
-                <h1 className="mt-2 text-4xl font-black tracking-tight text-white sm:text-5xl">
-                  {user.displayName}
-                </h1>
-                <p className="mt-3 text-base leading-7 text-[#d7d9ea]">
-                  One clean place to manage your personal details, seller
-                  reputation, verification progress, and account security.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <span className="rounded-full border border-[rgba(255,255,255,0.18)] bg-[rgba(255,255,255,0.1)] px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white">
-                    {user.role}
-                  </span>
-                  <span className="rounded-full border border-[rgba(255,255,255,0.18)] bg-[rgba(255,255,255,0.1)] px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white">
-                    Seller profile {profileStatusLabel}
-                  </span>
-                  <span className="rounded-full border border-[rgba(255,255,255,0.18)] bg-[rgba(255,255,255,0.1)] px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white">
-                    Account readiness {readiness}%
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <OverviewMetric
-                label="Active listings"
-                value={activeCount}
-                detail={`${listings.length} total in your inventory`}
-              />
-              <OverviewMetric
-                label="Boosted listings"
-                value={boostedCount}
-                detail="Promoted inventory currently getting extra reach"
-              />
-              <OverviewMetric
-                label="Ratings"
-                value={ratingSummary.ratingCount}
-                detail={`${ratingSummary.reviewCount} written reviews received`}
-              />
-              <OverviewMetric
-                label="Reputation"
-                value={ratingSummary.reputationScore}
-                detail="Marketplace trust signal from ratings and activity"
-              />
-            </div>
-          </div>
-
-          <div className="rounded-[1.8rem] border border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.08)] p-5 backdrop-blur-sm">
-            <p className="text-[0.68rem] font-black uppercase tracking-[0.22em] text-[#d7d9ea]">
-              Quick access
-            </p>
-            <div className="mt-4 grid gap-3">
-              <Link
-                href="/my-listings"
-                className="rounded-2xl border border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.08)] px-4 py-3 text-sm font-bold text-white transition hover:bg-[rgba(255,255,255,0.12)]"
-              >
-                Manage listings
-              </Link>
-              <Link
-                href="/wallet"
-                className="rounded-2xl border border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.08)] px-4 py-3 text-sm font-bold text-white transition hover:bg-[rgba(255,255,255,0.12)]"
-              >
-                Open wallet
-              </Link>
-              <Link
-                href="/profile/sessions"
-                className="rounded-2xl border border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.08)] px-4 py-3 text-sm font-bold text-white transition hover:bg-[rgba(255,255,255,0.12)]"
-              >
-                Device sessions
-              </Link>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-[rgba(255,255,255,0.14)] bg-[rgba(6,10,24,0.22)] p-4">
-              <p className="text-sm font-bold text-white">Marketplace profile</p>
-              <p className="mt-2 text-sm leading-6 text-[#d7d9ea]">
-                Keep your public details polished so buyers can trust your
-                listings and contact you with confidence.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
-        <aside className="grid h-fit gap-4 xl:sticky xl:top-24">
-          <section className="panel">
-            <div className="flex items-center gap-4">
-              <div className="flex h-18 w-18 items-center justify-center overflow-hidden rounded-2xl bg-[var(--surface-strong)] text-2xl font-black">
-                {user.avatarUrl ? (
-                  <img
-                    src={user.avatarUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  user.displayName.charAt(0).toUpperCase()
-                )}
-              </div>
+        <main className="profile-settings-main">
+          <section id="basic-info" className="profile-settings-basic">
+            <div className="profile-settings-title-row">
               <div>
-                <h2 className="text-xl font-black text-[var(--foreground)]">
-                  {user.displayName}
-                </h2>
-                <p className="text-sm text-[var(--muted)]">{user.email}</p>
-                <p className="mt-2 text-xs font-black uppercase tracking-[0.18em] text-[var(--accent)]">
-                  {user.role}
-                </p>
+                <h2>My Profile</h2>
+                <p>Update your profile details here.</p>
+              </div>
+              <div className="profile-settings-title-links">
+                <Link href="#seller-center">Go to Seller Profile</Link>
+                <Link href={`/sellers/${user.id}`}>Public Profile</Link>
               </div>
             </div>
-
-            <div className="mt-5 rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-black text-[var(--foreground)]">
-                  Account readiness
-                </p>
-                <span className="text-lg font-black text-[var(--foreground)]">
-                  {readiness}%
-                </span>
-              </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--surface)]">
-                <div
-                  className="h-full rounded-full bg-[var(--brand)]"
-                  style={{ width: `${readiness}%` }}
-                />
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-                Complete the checks below to keep your profile strong for
-                buying, selling, and verification.
-              </p>
-            </div>
+            <ProfileForm user={user} />
           </section>
 
-          <section className="panel grid gap-3">
-            <div>
-              <p className="section-eyebrow">Checklist</p>
-              <h2 className="mt-2 text-2xl font-black text-[var(--foreground)]">
-                Profile essentials
-              </h2>
-            </div>
-            <SidebarChecklistItem
-              label="Email verification"
-              value={user.emailVerified ? "Verified for login and alerts" : "Needs email confirmation"}
-              complete={user.emailVerified}
+          <section className="profile-settings-status-strip" aria-label="Profile status">
+            <OverviewMetric
+              label="Active listings"
+              value={activeCount}
+              detail={`${listings.length} total in your inventory`}
             />
-            <SidebarChecklistItem
-              label="Mobile verification"
-              value={
-                user.phone
-                  ? user.phoneVerified
-                    ? `${user.phone} verified`
-                    : `${user.phone} needs verification`
-                  : "Add a mobile number first"
-              }
-              complete={Boolean(user.phone) && user.phoneVerified}
+            <OverviewMetric
+              label="Boosted listings"
+              value={boostedCount}
+              detail="Promoted ads with extra reach"
             />
-            <SidebarChecklistItem
-              label="Public profile"
-              value={
-                user.location
-                  ? `Location set to ${user.location}`
-                  : "Location not added yet"
-              }
-              complete={Boolean(user.location && user.bio)}
+            <OverviewMetric
+              label="Ratings"
+              value={ratingSummary.ratingCount}
+              detail={`${ratingSummary.reviewCount} written reviews`}
             />
-            <SidebarChecklistItem
-              label="Seller onboarding"
-              value={`Status: ${profileStatusLabel}`}
-              complete={user.sellerProfileStatus === "APPROVED"}
+            <OverviewMetric
+              label="Readiness"
+              value={`${readiness}%`}
+              detail={`Seller profile ${profileStatusLabel}`}
             />
           </section>
 
-          <section className="panel grid gap-3">
-            <div>
-              <p className="section-eyebrow">Navigation</p>
-              <h2 className="mt-2 text-xl font-black text-[var(--foreground)]">
-                Jump faster
-              </h2>
-            </div>
-            <div className="grid gap-2">
-              {[
-                ["#seller-center", "Seller center"],
-                ["#account-settings", "Account settings"],
-                ["#security-zone", "Security zone"],
-              ].map(([href, label]) => (
-                <a
-                  key={href}
-                  href={href}
-                  className="rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-bold text-[var(--foreground)] transition hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
-                >
-                  {label}
-                </a>
-              ))}
-            </div>
-            <form action={logoutAction}>
-              <button className="action-secondary w-full px-4 py-3 text-sm font-bold">
-                Sign out
-              </button>
-            </form>
-          </section>
-        </aside>
-
-        <div className="grid gap-6">
-          <section id="seller-center" className="grid gap-4">
+          <section id="seller-center" className="profile-settings-panel-stack">
             <SectionHeader
               eyebrow="Seller center"
               title="Seller visibility and trust"
@@ -432,17 +263,14 @@ export default async function ProfilePage() {
             ) : null}
           </section>
 
-          <section id="account-settings" className="grid gap-4">
+          <section id="account-settings" className="profile-settings-panel-stack">
             <SectionHeader
               eyebrow="Account settings"
               title="Public details and verification"
               description="Update the information buyers see first, then handle mobile and email verification right below it."
             />
 
-            <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-              <ProfileForm user={user} />
-
-              <div className="grid gap-4">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                 <section className="panel grid gap-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -484,11 +312,10 @@ export default async function ProfilePage() {
                   verified={user.phoneVerified}
                 />
                 <EmailVerificationPanel verified={user.emailVerified} />
-              </div>
             </div>
           </section>
 
-          <section id="security-zone" className="grid gap-4">
+          <section id="security-zone" className="profile-settings-panel-stack">
             <SectionHeader
               eyebrow="Security zone"
               title="Protect your account"
@@ -521,7 +348,7 @@ export default async function ProfilePage() {
               <DeactivateAccountForm />
             </div>
           </section>
-        </div>
+        </main>
       </div>
     </div>
   );
