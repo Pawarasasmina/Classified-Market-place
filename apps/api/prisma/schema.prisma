@@ -412,6 +412,8 @@ model Listing {
   price                  Decimal            @db.Decimal(12, 2)
   currency               String             @default("AED")
   location               String
+  latitude               Float?
+  longitude              Float?
   status                 ListingStatus      @default(DRAFT)
   listingPaymentMode     ListingPaymentMode @default(FREE)
   attributes             Json?

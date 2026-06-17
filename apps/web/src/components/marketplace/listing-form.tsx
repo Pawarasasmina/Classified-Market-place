@@ -8,6 +8,7 @@ import {
   type DragEvent,
 } from "react";
 import { createListingAction, updateListingAction } from "@/app/(main)/actions";
+import { LocationPicker } from "@/components/marketplace/location-picker";
 import {
   type FormActionState,
   type MarketplaceCategory,
@@ -72,6 +73,13 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
   const [imageMessage, setImageMessage] = useState("");
   const [draggingImageId, setDraggingImageId] = useState<string | null>(null);
   const [isImageDropActive, setIsImageDropActive] = useState(false);
+  const [location, setLocation] = useState(listing?.location ?? "");
+  const [latitude, setLatitude] = useState<number | null>(
+    listing?.latitude ?? null,
+  );
+  const [longitude, setLongitude] = useState<number | null>(
+    listing?.longitude ?? null,
+  );
   const category = useMemo(
     () =>
       categories.find((item) => item.slug === categorySlug) ?? categories[0],
@@ -201,6 +209,9 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
           readOnly
         />
       ))}
+      <input type="hidden" name="location" value={location} />
+      <input type="hidden" name="latitude" value={latitude ?? ""} />
+      <input type="hidden" name="longitude" value={longitude ?? ""} />
 
       <div>
         <p className="section-eyebrow">Listing details</p>
@@ -285,11 +296,17 @@ export function ListingForm({ categories, listing }: ListingFormProps) {
 
       <label className="space-y-2">
         <span className="text-sm font-bold">Location</span>
-        <input
-          name="location"
-          defaultValue={listing?.location ?? ""}
-          className="surface-input w-full text-sm"
-          placeholder="Dubai Marina"
+        <LocationPicker
+          location={location}
+          latitude={latitude}
+          longitude={longitude}
+          onChange={(value) => {
+            setLocation(value.location);
+            setLatitude(value.latitude);
+            setLongitude(value.longitude);
+          }}
+          rootClassName="grid gap-2"
+          triggerClassName="inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
         />
         {state.fieldErrors?.location ? (
           <p className="text-sm text-red-700">{state.fieldErrors.location}</p>

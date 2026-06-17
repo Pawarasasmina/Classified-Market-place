@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsEnum,
+  Max,
   IsNumber,
   IsObject,
   IsOptional,
@@ -36,6 +37,20 @@ export class UpdateListingDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number | null;
 
   @IsOptional()
   @IsString()

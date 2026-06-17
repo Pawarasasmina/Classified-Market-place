@@ -6,6 +6,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  Max,
   Min,
   ArrayMaxSize,
   ValidateNested,
@@ -40,6 +41,20 @@ export class CreateListingDto {
   @IsString()
   @IsNotEmpty()
   location!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number | null;
 
   @IsString()
   @IsNotEmpty()

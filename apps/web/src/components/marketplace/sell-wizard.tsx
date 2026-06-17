@@ -14,6 +14,7 @@ import {
   createListingAction,
   saveListingDraftAction,
 } from "@/app/(main)/actions";
+import { LocationPicker } from "@/components/marketplace/location-picker";
 import {
   type AttributeField,
   type FormActionState,
@@ -36,6 +37,8 @@ type DraftState = {
   description: string;
   price: string;
   location: string;
+  latitude: number | null;
+  longitude: number | null;
   attributes: Record<string, string | boolean>;
   images: UploadedImage[];
 };
@@ -175,6 +178,8 @@ function buildInitialDraft(categories: MarketplaceCategory[]): DraftState {
     description: "",
     price: "",
     location: "",
+    latitude: null,
+    longitude: null,
     attributes: {},
     images: [],
   };
@@ -264,6 +269,8 @@ function hasDraftContent(draft: DraftState) {
       draft.description.trim() ||
       draft.price.trim() ||
       draft.location.trim() ||
+      draft.latitude != null ||
+      draft.longitude != null ||
       draft.images.length ||
       Object.values(draft.attributes).some((value) => String(value).trim())
   );
@@ -292,6 +299,8 @@ function HiddenListingInputs({ draft }: { draft: DraftState }) {
       <input type="hidden" name="price" value={draft.price} />
       <input type="hidden" name="currency" value="AED" />
       <input type="hidden" name="location" value={draft.location} />
+      <input type="hidden" name="latitude" value={draft.latitude ?? ""} />
+      <input type="hidden" name="longitude" value={draft.longitude ?? ""} />
       {Object.entries(draft.attributes).map(([key, value]) => (
         <input
           key={key}
@@ -313,6 +322,13 @@ function fieldValueLabel(field: AttributeField, value: string | boolean | undefi
   }
 
   return value || `No ${field.label.toLowerCase()} added`;
+}
+
+function hasSelectedListingLocation(draft: DraftState) {
+  return Boolean(
+    draft.location.trim() ||
+      (draft.latitude != null && draft.longitude != null),
+  );
 }
 
 export function SellWizard({ categories }: { categories: MarketplaceCategory[] }) {
@@ -368,7 +384,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
     Boolean(categoryCanList),
     Boolean(draft.title.trim() && draft.description.trim().length >= 10),
     draft.images.length > 0,
-    Boolean(draft.price.trim() && draft.location.trim()),
+    Boolean(draft.price.trim() && hasSelectedListingLocation(draft)),
   ];
   const completedStepCount = completedChecks.filter(Boolean).length;
   const progressPercent = Math.round((completedStepCount / completedChecks.length) * 100);
@@ -501,7 +517,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
         return "Add the listing price.";
       }
 
-      if (!draft.location.trim()) {
+      if (!hasSelectedListingLocation(draft)) {
         return "Add the listing location.";
       }
     }
@@ -1052,10 +1068,19 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
 
                 <label className="grid gap-2">
                   <span className="text-sm font-bold">Location</span>
-                  <input
-                    value={draft.location}
-                    onChange={(event) => updateDraft({ location: event.target.value })}
-                    className="surface-input sell-wizard-form-control w-full text-sm"
+                  <LocationPicker
+                    location={draft.location}
+                    latitude={draft.latitude}
+                    longitude={draft.longitude}
+                    onChange={(value) =>
+                      updateDraft({
+                        location: value.location,
+                        latitude: value.latitude,
+                        longitude: value.longitude,
+                      })
+                    }
+                    rootClassName="grid gap-2"
+                    triggerClassName="inline-flex w-fit items-center gap-2 rounded-[1.1rem] border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
                   />
                   {publishState.fieldErrors?.location ? (
                     <p className="text-sm text-red-700">{publishState.fieldErrors.location}</p>

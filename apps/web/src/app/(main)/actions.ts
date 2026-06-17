@@ -190,7 +190,41 @@ const listingSchema = z.object({
     }),
   currency: z.string().trim().min(3).default("AED"),
   location: z.string().trim().min(2, "Location is required."),
-});
+  latitude: z
+    .preprocess(
+      (value) =>
+        value == null || (typeof value === "string" && !value.trim())
+          ? undefined
+          : value,
+      z.coerce
+        .number()
+        .refine((value) => Number.isFinite(value) && value >= -90 && value <= 90, {
+          message: "Choose a valid map latitude.",
+        })
+        .optional(),
+    ),
+  longitude: z
+    .preprocess(
+      (value) =>
+        value == null || (typeof value === "string" && !value.trim())
+          ? undefined
+          : value,
+      z.coerce
+        .number()
+        .refine((value) => Number.isFinite(value) && value >= -180 && value <= 180, {
+          message: "Choose a valid map longitude.",
+        })
+        .optional(),
+    ),
+}).refine(
+  (value) =>
+    (value.latitude === undefined && value.longitude === undefined) ||
+    (value.latitude !== undefined && value.longitude !== undefined),
+  {
+    message: "Complete the map pin selection before saving this location.",
+    path: ["location"],
+  },
+);
 
 const listingDraftSchema = z.object({
   draftListingId: z.string().trim().optional(),
@@ -201,7 +235,44 @@ const listingDraftSchema = z.object({
   price: z.coerce.number().min(0).optional(),
   currency: z.string().trim().min(3).default("AED"),
   location: z.string().trim().optional(),
-});
+  latitude: z
+    .preprocess(
+      (value) =>
+        value == null || (typeof value === "string" && !value.trim())
+          ? undefined
+          : value,
+      z.coerce
+        .number()
+        .refine((value) => Number.isFinite(value) && value >= -90 && value <= 90, {
+          message: "Choose a valid map latitude.",
+        })
+        .nullable()
+        .optional(),
+    ),
+  longitude: z
+    .preprocess(
+      (value) =>
+        value == null || (typeof value === "string" && !value.trim())
+          ? undefined
+          : value,
+      z.coerce
+        .number()
+        .refine((value) => Number.isFinite(value) && value >= -180 && value <= 180, {
+          message: "Choose a valid map longitude.",
+        })
+        .nullable()
+        .optional(),
+    ),
+}).refine(
+  (value) =>
+    (value.latitude === undefined && value.longitude === undefined) ||
+    (value.latitude == null && value.longitude == null) ||
+    (value.latitude != null && value.longitude != null),
+  {
+    message: "Complete the map pin selection before saving this draft.",
+    path: ["location"],
+  },
+);
 
 const updateProfileSchema = z.object({
   displayName: z.string().trim().min(2, "Name must be at least 2 characters."),
@@ -1099,6 +1170,8 @@ export async function createListingAction(
     price: formData.get("price"),
     currency: formData.get("currency") || "AED",
     location: formData.get("location"),
+    latitude: formData.get("latitude"),
+    longitude: formData.get("longitude"),
   });
 
   if (!parsed.success) {
@@ -1117,6 +1190,8 @@ export async function createListingAction(
       draftListingId: undefined,
       listingId: undefined,
       attributes: parseAttributes(formData),
+      latitude: parsed.data.latitude ?? null,
+      longitude: parsed.data.longitude ?? null,
       images: parseImages(formData, parsed.data.title),
     };
 
@@ -1127,23 +1202,7 @@ export async function createListingAction(
         payload,
       );
     } else {
-      const result = await createListing(accessToken, payload);
-
-      if (result.payment) {
-        const checkoutParams = new URLSearchParams({
-          status: "PENDING",
-        });
-
-        if (result.payment.transactionId) {
-          checkoutParams.set("transactionId", result.payment.transactionId);
-        }
-
-        if (result.payment.providerRef) {
-          checkoutParams.set("providerRef", result.payment.providerRef);
-        }
-
-        redirectPath = `/listings/${result.listing.id}/checkout?${checkoutParams.toString()}`;
-      }
+      await createListing(accessToken, payload);
     }
 
     revalidatePath("/");
@@ -1173,6 +1232,8 @@ export async function saveListingDraftAction(
     price: rawPrice ? rawPrice : undefined,
     currency: formData.get("currency") || "AED",
     location: formData.get("location") || undefined,
+    latitude: formData.get("latitude"),
+    longitude: formData.get("longitude"),
   });
 
   if (!parsed.success) {
@@ -1194,6 +1255,8 @@ export async function saveListingDraftAction(
       price: parsed.data.price,
       currency: parsed.data.currency,
       location: parsed.data.location,
+      latitude: parsed.data.latitude ?? null,
+      longitude: parsed.data.longitude ?? null,
       attributes: parseAttributes(formData),
       images: parseImages(formData, parsed.data.title || "Listing draft"),
     });
@@ -1224,6 +1287,8 @@ export async function updateListingAction(
     price: formData.get("price"),
     currency: formData.get("currency") || "AED",
     location: formData.get("location"),
+    latitude: formData.get("latitude"),
+    longitude: formData.get("longitude"),
   });
 
   if (!parsed.success || !parsed.data.listingId) {
@@ -1243,6 +1308,8 @@ export async function updateListingAction(
       price: parsed.data.price,
       currency: parsed.data.currency,
       location: parsed.data.location,
+      latitude: parsed.data.latitude ?? null,
+      longitude: parsed.data.longitude ?? null,
       attributes: parseAttributes(formData),
       images: parseImages(formData, parsed.data.title),
     });

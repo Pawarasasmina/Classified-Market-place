@@ -1468,7 +1468,14 @@ function SellerOnboardingInsights({
   );
 }
 
-export default async function MyListingsPage() {
+type MyListingsPageProps = {
+  searchParams: Promise<{
+    listing?: string;
+  }>;
+};
+
+export default async function MyListingsPage(props: MyListingsPageProps) {
+  const searchParams = await props.searchParams;
   const { accessToken, user } = await requireSessionContext("/my-listings");
   const sellerProfileEnvelope = await fetchMySellerProfile(accessToken).catch(() => ({
     sellerProfile: null,

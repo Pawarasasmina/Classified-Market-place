@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -34,12 +33,13 @@ export default function RootLayout({
       data-color-profile="light"
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <Script
+      <head>
+        <script
           id="color-profile-script"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: colorProfileScript }}
         />
+      </head>
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {children}
       </body>
     </html>

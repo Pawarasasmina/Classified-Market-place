@@ -1272,6 +1272,8 @@ export class ListingsService implements OnModuleInit {
           price: listing.price,
           currency: listing.currency,
           location: listing.location,
+          latitude: null,
+          longitude: null,
           status: listing.status,
           ...this.getLifecycleDataForStatus(listing.status, category),
           attributes: listing.attributes,
@@ -1328,6 +1330,8 @@ export class ListingsService implements OnModuleInit {
       price: new Prisma.Decimal(createListingDto.price),
       currency: createListingDto.currency ?? 'AED',
       location: createListingDto.location,
+      latitude: createListingDto.latitude ?? null,
+      longitude: createListingDto.longitude ?? null,
       status,
       listingPaymentMode: paymentMode,
       ...this.getLifecycleDataForStatus(status, category),
@@ -1368,6 +1372,8 @@ export class ListingsService implements OnModuleInit {
           price: new Prisma.Decimal(createListingDto.price),
           currency: createListingDto.currency ?? 'AED',
           location: createListingDto.location,
+          latitude: createListingDto.latitude ?? null,
+          longitude: createListingDto.longitude ?? null,
         },
         orderBy: { updatedAt: 'desc' },
         include: listingInclude,
@@ -1678,6 +1684,14 @@ export class ListingsService implements OnModuleInit {
           : (existing?.price ?? new Prisma.Decimal(0)),
       currency: draftDto.currency ?? existing?.currency ?? 'AED',
       location: draftDto.location ?? existing?.location ?? '',
+      latitude:
+        draftDto.latitude !== undefined
+          ? draftDto.latitude
+          : (existing?.latitude ?? null),
+      longitude:
+        draftDto.longitude !== undefined
+          ? draftDto.longitude
+          : (existing?.longitude ?? null),
       status: ListingStatus.DRAFT,
       listingPaymentMode:
         existing?.listingPaymentMode ?? ListingPaymentMode.FREE,
@@ -1846,6 +1860,8 @@ export class ListingsService implements OnModuleInit {
       price: new Prisma.Decimal(createListingDto.price),
       currency: createListingDto.currency ?? 'AED',
       location: createListingDto.location,
+      latitude: createListingDto.latitude ?? null,
+      longitude: createListingDto.longitude ?? null,
       status,
       listingPaymentMode: paymentMode,
       ...this.getLifecycleDataForStatus(status, category),
@@ -2369,6 +2385,8 @@ export class ListingsService implements OnModuleInit {
             : undefined,
         currency: updateListingDto.currency,
         location: updateListingDto.location,
+        latitude: updateListingDto.latitude,
+        longitude: updateListingDto.longitude,
         status: nextStatus,
         ...(nextStatus
           ? this.getLifecycleDataForStatus(

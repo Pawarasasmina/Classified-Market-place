@@ -1256,6 +1256,8 @@ export type ApiListing = {
   price: number | string;
   currency: string;
   location: string;
+  latitude?: number | null;
+  longitude?: number | null;
   status: ApiListingStatus;
   listingPaymentMode?: ApiListingPaymentMode;
   attributes?: Record<string, unknown> | null;
@@ -1375,6 +1377,8 @@ export type MarketplaceListing = {
   priceLabel: string;
   priceValue: number;
   location: string;
+  latitude?: number | null;
+  longitude?: number | null;
   condition: string;
   status:
     | "Pending"
@@ -2235,6 +2239,8 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
     ),
     priceValue: Number.isNaN(priceValue) ? 0 : priceValue,
     location: listing.location,
+    latitude: listing.latitude ?? null,
+    longitude: listing.longitude ?? null,
     condition:
       typeof attributes.condition === "string"
         ? attributes.condition

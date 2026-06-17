@@ -324,6 +324,8 @@ type ListingPayload = {
   price: number;
   currency: string;
   location: string;
+  latitude?: number | null;
+  longitude?: number | null;
   status?: ApiListingStatus;
   listingPaymentMode?: ApiListingPaymentMode;
   attributes: Record<string, unknown>;
