@@ -12,6 +12,11 @@ import {
 import {
   buildMarketplaceCategoryTree,
 } from "@/lib/category-tree";
+import {
+  LocationRadiusFilter,
+  type LocationRadiusValue,
+} from "@/components/marketplace/location-radius-filter";
+import { formatDisplayLocation } from "@/lib/location-display";
 import { getListingMedia } from "@/lib/listing-media";
 import type {
   ApiListing,
@@ -28,6 +33,9 @@ type SearchPageClientProps = {
   selectedCategorySlug?: string;
   query: string;
   location: string;
+  latitude: number | null;
+  longitude: number | null;
+  radiusKilometers: number | null;
   minPrice: string;
   maxPrice: string;
   sort: "recommended" | "newest" | "price_asc" | "price_desc";
@@ -40,6 +48,9 @@ type SearchPageClientProps = {
 type SearchDraftState = {
   q: string;
   location: string;
+  latitude: number | null;
+  longitude: number | null;
+  radiusKilometers: number | null;
   minPrice: string;
   maxPrice: string;
   sort: "recommended" | "newest" | "price_asc" | "price_desc";
@@ -107,6 +118,14 @@ function getTopLevelCategory(
 ) {
   const path = buildCategoryPath(category, categoryBySlug);
   return path[0];
+}
+
+function formatRadiusLabel(radiusKilometers: number | null) {
+  if (radiusKilometers == null) {
+    return "";
+  }
+
+  return `${radiusKilometers} km radius`;
 }
 
 function DotDivider() {
@@ -426,6 +445,9 @@ export function SearchPageClient({
   selectedCategorySlug,
   query,
   location,
+  latitude,
+  longitude,
+  radiusKilometers,
   minPrice,
   maxPrice,
   sort,
@@ -443,6 +465,9 @@ export function SearchPageClient({
   const [draft, setDraft] = useState<SearchDraftState>({
     q: query,
     location,
+    latitude,
+    longitude,
+    radiusKilometers,
     minPrice,
     maxPrice,
     sort,
@@ -458,13 +483,27 @@ export function SearchPageClient({
     setDraft({
       q: query,
       location,
+      latitude,
+      longitude,
+      radiusKilometers,
       minPrice,
       maxPrice,
       sort,
       category: selectedCategorySlug ?? "",
       attributeValues,
     });
-  }, [attributeValues, location, maxPrice, minPrice, query, selectedCategorySlug, sort]);
+  }, [
+    attributeValues,
+    latitude,
+    location,
+    longitude,
+    maxPrice,
+    minPrice,
+    query,
+    radiusKilometers,
+    selectedCategorySlug,
+    sort,
+  ]);
 
   const categoryTree = useMemo(
     () => buildMarketplaceCategoryTree(categories),
@@ -499,6 +538,9 @@ export function SearchPageClient({
       Boolean(selectedCategorySlug) ||
       Boolean(query.trim()) ||
       Boolean(location.trim()) ||
+      latitude != null ||
+      longitude != null ||
+      radiusKilometers != null ||
       Boolean(minPrice.trim()) ||
       Boolean(maxPrice.trim()) ||
       Object.values(attributeValues).some((value) => value.trim().length > 0);
@@ -525,6 +567,18 @@ export function SearchPageClient({
 
         if (location.trim()) {
           params.set("location", location.trim());
+        }
+
+        if (latitude != null) {
+          params.set("centerLatitude", String(latitude));
+        }
+
+        if (longitude != null) {
+          params.set("centerLongitude", String(longitude));
+        }
+
+        if (radiusKilometers != null) {
+          params.set("radiusKilometers", String(radiusKilometers));
         }
 
         if (minPrice.trim()) {
@@ -584,18 +638,39 @@ export function SearchPageClient({
     apiBaseUrl,
     attributeValues,
     dynamicFields,
+    latitude,
     listings.length,
     location,
+    longitude,
     maxPrice,
     minPrice,
     query,
+    radiusKilometers,
     selectedCategorySlug,
     sort,
   ]);
 
   const activeFilterLabels = [
     draft.q.trim() ? `Keyword: ${draft.q.trim()}` : null,
-    draft.location.trim() ? `Location: ${draft.location.trim()}` : null,
+    draft.location.trim()
+      ? draft.radiusKilometers != null
+        ? `${formatDisplayLocation({
+            location: draft.location,
+            latitude: draft.latitude,
+            longitude: draft.longitude,
+            fallbackLabel: "Pinned map location",
+          })
+            .split(",")[0]
+            ?.trim() || "Pinned map location"} · ${draft.radiusKilometers} km`
+        : formatDisplayLocation({
+            location: draft.location,
+            latitude: draft.latitude,
+            longitude: draft.longitude,
+            fallbackLabel: "Pinned map location",
+          })
+            .split(",")[0]
+            ?.trim() || "Pinned map location"
+      : null,
     draft.minPrice.trim() ? `Min price: ${draft.minPrice.trim()}` : null,
     draft.maxPrice.trim() ? `Max price: ${draft.maxPrice.trim()}` : null,
     ...dynamicFields.flatMap((field) => {
@@ -614,6 +689,11 @@ export function SearchPageClient({
     if (nextState.q.trim()) params.set("q", nextState.q.trim());
     if (nextState.category) params.set("category", nextState.category);
     if (nextState.location.trim()) params.set("location", nextState.location.trim());
+    if (nextState.latitude != null) params.set("lat", String(nextState.latitude));
+    if (nextState.longitude != null) params.set("lng", String(nextState.longitude));
+    if (nextState.radiusKilometers != null) {
+      params.set("radiusKm", String(nextState.radiusKilometers));
+    }
     if (nextState.minPrice.trim()) params.set("minPrice", nextState.minPrice.trim());
     if (nextState.maxPrice.trim()) params.set("maxPrice", nextState.maxPrice.trim());
     if (nextState.sort !== "recommended") params.set("sort", nextState.sort);
@@ -683,11 +763,26 @@ export function SearchPageClient({
     });
   }
 
+  function handleLocationApply(value: LocationRadiusValue) {
+    const nextState = {
+      ...draft,
+      location: value.location,
+      latitude: value.latitude,
+      longitude: value.longitude,
+      radiusKilometers: value.radiusKilometers,
+    };
+    setDraft(nextState);
+    navigate(nextState);
+  }
+
   function clearExtendedFilters() {
     setDraft((current) => ({
       ...current,
       q: "",
       location: "",
+      latitude: null,
+      longitude: null,
+      radiusKilometers: null,
       minPrice: "",
       maxPrice: "",
       attributeValues: {},
@@ -716,19 +811,20 @@ export function SearchPageClient({
 
         <div className="overflow-hidden rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface)] shadow-[0_12px_28px_rgba(15,23,42,0.08)]">
           <div className="grid lg:grid-cols-[1fr_1.6fr_1fr_0.95fr_0.95fr_1.2fr]">
-            <label className="grid gap-1 border-b border-[var(--line)] px-5 py-3 lg:border-b-0 lg:border-r">
+            <div className="grid gap-1 border-b border-[var(--line)] px-5 py-3 lg:border-b-0 lg:border-r">
               <span className="text-[0.74rem] font-black text-[var(--foreground)]">
-                City
+                Location
               </span>
-              <input
-                value={draft.location}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, location: event.target.value }))
-                }
-                placeholder="City or area"
-                className="h-auto border-0 bg-transparent px-0 py-0 text-[1.02rem] text-[var(--foreground)] shadow-none outline-none placeholder:text-[var(--muted)]"
+              <LocationRadiusFilter
+                value={{
+                  location: draft.location,
+                  latitude: draft.latitude,
+                  longitude: draft.longitude,
+                  radiusKilometers: draft.radiusKilometers,
+                }}
+                onApply={handleLocationApply}
               />
-            </label>
+            </div>
 
             <label className="grid gap-1 border-b border-[var(--line)] px-5 py-3 lg:border-b-0 lg:border-r">
               <span className="text-[0.74rem] font-black text-[var(--foreground)]">
@@ -986,17 +1082,19 @@ export function SearchPageClient({
                 />
               </label>
 
-              <label className="grid gap-1.5">
-                <span className="text-sm font-bold text-[var(--foreground)]">Location</span>
-                <input
-                  value={draft.location}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, location: event.target.value }))
-                  }
-                  placeholder="City or area"
-                  className={inputClassName}
-                />
-              </label>
+              <div className="grid gap-1.5 rounded-[1.2rem] border border-[var(--line)] bg-[var(--surface-strong)] px-4 py-4">
+                <span className="text-sm font-bold text-[var(--foreground)]">
+                  Location radius
+                </span>
+                <p className="text-sm text-[var(--foreground)]">
+                  {draft.location.trim() || "Anywhere"}
+                </p>
+                <p className="text-xs text-[var(--muted)]">
+                  {draft.radiusKilometers != null
+                    ? `Showing listings within ${draft.radiusKilometers} km of the selected pin. Change it from the top location selector.`
+                    : "No radius filter is active. Use the top location selector to choose an exact area on the map."}
+                </p>
+              </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-1.5">

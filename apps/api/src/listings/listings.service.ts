@@ -522,6 +522,66 @@ function parseAttributeFilterPayload(value: string | undefined) {
   }
 }
 
+function hasCoordinateRadiusFilter(query: QueryListingsDto) {
+  return (
+    query.centerLatitude != null &&
+    query.centerLongitude != null &&
+    query.radiusKilometers != null
+  );
+}
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function calculateDistanceKilometers(
+  latitudeA: number,
+  longitudeA: number,
+  latitudeB: number,
+  longitudeB: number,
+) {
+  const earthRadiusKilometers = 6371;
+  const latitudeDelta = toRadians(latitudeB - latitudeA);
+  const longitudeDelta = toRadians(longitudeB - longitudeA);
+  const latitudeARadians = toRadians(latitudeA);
+  const latitudeBRadians = toRadians(latitudeB);
+  const haversine =
+    Math.sin(latitudeDelta / 2) * Math.sin(latitudeDelta / 2) +
+    Math.cos(latitudeARadians) *
+      Math.cos(latitudeBRadians) *
+      Math.sin(longitudeDelta / 2) *
+      Math.sin(longitudeDelta / 2);
+
+  return (
+    earthRadiusKilometers *
+    2 *
+    Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+  );
+}
+
+function filterListingsByCoordinateRadius<
+  T extends { latitude: number | null; longitude: number | null },
+>(listings: T[], query: QueryListingsDto) {
+  if (!hasCoordinateRadiusFilter(query)) {
+    return listings;
+  }
+
+  return listings.filter((listing) => {
+    if (listing.latitude == null || listing.longitude == null) {
+      return false;
+    }
+
+    return (
+      calculateDistanceKilometers(
+        query.centerLatitude!,
+        query.centerLongitude!,
+        listing.latitude,
+        listing.longitude,
+      ) <= query.radiusKilometers!
+    );
+  });
+}
+
 function normalizeAttributeComparisonValue(value: unknown) {
   if (typeof value === 'string') {
     return value.trim().toLowerCase();
@@ -1908,6 +1968,7 @@ export class ListingsService implements OnModuleInit {
       : undefined;
     const attributeFilters = parseAttributeFilterPayload(query.attributeFilters);
     const hasAttributeFilters = Object.keys(attributeFilters).length > 0;
+    const hasCoordinateRadius = hasCoordinateRadiusFilter(query);
     const now = new Date();
     const take = query.take ?? 25;
     const where: Prisma.ListingWhereInput = {
@@ -1924,7 +1985,7 @@ export class ListingsService implements OnModuleInit {
             },
           }
         : {}),
-      ...(query.location
+      ...(query.location && !hasCoordinateRadius
         ? {
             location: {
               contains: query.location,
@@ -1965,6 +2026,12 @@ export class ListingsService implements OnModuleInit {
             ],
           }
         : {}),
+      ...(hasCoordinateRadius
+        ? {
+            latitude: { not: null },
+            longitude: { not: null },
+          }
+        : {}),
     };
 
     const orderBy: Prisma.ListingOrderByWithRelationInput =
@@ -1980,7 +2047,10 @@ export class ListingsService implements OnModuleInit {
       const listings = await this.prisma.listing.findMany({
         where,
         orderBy,
-        take: hasAttributeFilters ? Math.max(take * 8, 100) : take,
+        take:
+          hasAttributeFilters || hasCoordinateRadius
+            ? Math.max(take * 8, 100)
+            : take,
         include: {
           ...rankedListingInclude,
           boosts: {
@@ -1991,7 +2061,7 @@ export class ListingsService implements OnModuleInit {
       });
 
       return this.attachSellerRatingSummaries(
-        listings
+        filterListingsByCoordinateRadius(listings, query)
           .filter((listing) =>
             listingMatchesAttributeFilters(listing, attributeFilters),
           )
@@ -2012,6 +2082,7 @@ export class ListingsService implements OnModuleInit {
       Boolean(query.categorySlug) ||
       Boolean(query.search) ||
       Boolean(query.location) ||
+      hasCoordinateRadius ||
       query.minPrice != null ||
       query.maxPrice != null ||
       hasAttributeFilters ||
@@ -2021,15 +2092,16 @@ export class ListingsService implements OnModuleInit {
       const listings = await this.prisma.listing.findMany({
         where,
         orderBy,
-        take,
+        take: hasCoordinateRadius ? Math.max(take * 12, 150) : take,
         include: rankedListingInclude,
       });
 
       return this.attachSellerRatingSummaries(
-        listings
+        filterListingsByCoordinateRadius(listings, query)
           .filter((listing) =>
             listingMatchesAttributeFilters(listing, attributeFilters),
           )
+          .slice(0, take)
           .map((listing) => withoutRankingTransactions(listing)),
       );
     }
@@ -2607,7 +2679,7 @@ export class ListingsService implements OnModuleInit {
       throw new NotFoundException('Listing not found');
     }
 
-    const updatedListing = await this.prisma.$transaction(async (tx) => {
+    const moderatedListing = await this.prisma.$transaction(async (tx) => {
       const nextListing = await tx.listing.update({
         where: { id },
         data: {
@@ -2622,7 +2694,12 @@ export class ListingsService implements OnModuleInit {
           rejectionReason:
             dto.status === ListingStatus.REJECTED ? dto.reason ?? null : null,
         },
-        include: listingInclude,
+        select: {
+          id: true,
+          sellerId: true,
+          title: true,
+          status: true,
+        },
       });
 
       if (dto.status === ListingStatus.REJECTED) {
@@ -2636,14 +2713,23 @@ export class ListingsService implements OnModuleInit {
       return nextListing;
     });
 
-    if (listing.status !== updatedListing.status) {
+    const updatedListing = await this.prisma.listing.findUnique({
+      where: { id: moderatedListing.id },
+      include: listingInclude,
+    });
+
+    if (!updatedListing) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    if (listing.status !== moderatedListing.status) {
       try {
         await this.notifications?.notifyListingStatusChanged({
-          userId: updatedListing.sellerId,
+          userId: moderatedListing.sellerId,
           actorId: user.id,
-          listingId: updatedListing.id,
-          listingTitle: updatedListing.title,
-          status: updatedListing.status,
+          listingId: moderatedListing.id,
+          listingTitle: moderatedListing.title,
+          status: moderatedListing.status,
         });
       } catch {
         this.logger.warn(

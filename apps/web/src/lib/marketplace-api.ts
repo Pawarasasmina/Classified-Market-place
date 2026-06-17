@@ -72,6 +72,9 @@ type ListingQuery = {
   sellerId?: string;
   status?: ApiListingStatus;
   location?: string;
+  centerLatitude?: number;
+  centerLongitude?: number;
+  radiusKilometers?: number;
   minPrice?: number;
   maxPrice?: number;
   sort?: "recommended" | "newest" | "price_asc" | "price_desc";
@@ -1151,6 +1154,9 @@ export async function fetchListingsStrict(query: ListingQuery = {}) {
           : undefined,
       sellerId: query.sellerId,
       location: query.location,
+      centerLatitude: query.centerLatitude,
+      centerLongitude: query.centerLongitude,
+      radiusKilometers: query.radiusKilometers,
       minPrice: query.minPrice,
       maxPrice: query.maxPrice,
       sort: query.sort,
@@ -1191,6 +1197,9 @@ export async function fetchAdminListings(
       sellerId: query.sellerId,
       status: query.status,
       location: query.location,
+      centerLatitude: query.centerLatitude,
+      centerLongitude: query.centerLongitude,
+      radiusKilometers: query.radiusKilometers,
       minPrice: query.minPrice,
       maxPrice: query.maxPrice,
       sort: query.sort,

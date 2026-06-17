@@ -1,3 +1,5 @@
+import { formatDisplayLocation } from "@/lib/location-display";
+
 export type AttributeFieldType = "text" | "number" | "select" | "toggle";
 export type SellerFieldType =
   | "text"
@@ -2094,7 +2096,10 @@ export function mapSessionUser(user: ApiUser): SessionUser {
     phone: user.phone,
     avatarUrl: user.avatarUrl,
     bio: user.bio,
-    location: user.location,
+    location: formatDisplayLocation({
+      location: user.location,
+      fallbackLabel: "Location not added",
+    }),
     phoneVerified: user.phoneVerified,
     emailVerified: user.emailVerified,
     reputationScore: user.reputationScore,
@@ -2238,7 +2243,11 @@ export function mapListing(listing: ApiListing): MarketplaceListing {
       listing.currency,
     ),
     priceValue: Number.isNaN(priceValue) ? 0 : priceValue,
-    location: listing.location,
+    location: formatDisplayLocation({
+      location: listing.location,
+      latitude: listing.latitude ?? null,
+      longitude: listing.longitude ?? null,
+    }),
     latitude: listing.latitude ?? null,
     longitude: listing.longitude ?? null,
     condition:
@@ -2411,7 +2420,10 @@ export function mapSeller(
     name: user.displayName,
     avatarUrl: user.avatarUrl,
     bio: user.bio,
-    location: user.location,
+    location: formatDisplayLocation({
+      location: user.location,
+      fallbackLabel: "Location not added",
+    }),
     verified: user.verifiedSellerStatus === "VERIFIED",
     profileStatus: user.profileStatus ?? null,
     verifiedSellerStatus: user.verifiedSellerStatus ?? null,

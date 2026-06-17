@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  defaultMapCenter,
+  googleMapsApiKey,
+  loadGoogleMapsScript,
+  type GoogleMapsWindow,
+} from "@/components/marketplace/google-maps-loader";
+import { formatDisplayLocation } from "@/lib/location-display";
 
 type LocationPickerValue = {
   location: string;
@@ -16,15 +23,6 @@ type LocationPickerProps = {
   triggerClassName?: string;
   rootClassName?: string;
 };
-
-declare global {
-  interface Window {
-    __googleMapsApiPromise?: Promise<void>;
-  }
-}
-
-const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
-const defaultMapCenter = { lat: 25.2048, lng: 55.2708 };
 
 function MapPinIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
@@ -44,68 +42,6 @@ function MapPinIcon({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
-function formatCoordinateLocation(latitude: number | null, longitude: number | null) {
-  if (latitude == null || longitude == null) {
-    return "";
-  }
-
-  return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-}
-
-function loadGoogleMapsScript() {
-  if (typeof window === "undefined") {
-    return Promise.reject(new Error("Google Maps only loads in the browser."));
-  }
-
-  const googleWindow = window as Window & {
-    google?: { maps?: any };
-  };
-
-  if (!googleMapsApiKey) {
-    return Promise.reject(
-      new Error("Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable the map picker."),
-    );
-  }
-
-  if (googleWindow.google?.maps) {
-    return Promise.resolve();
-  }
-
-  if (googleWindow.__googleMapsApiPromise) {
-    return googleWindow.__googleMapsApiPromise;
-  }
-
-  googleWindow.__googleMapsApiPromise = new Promise<void>((resolve, reject) => {
-    const existingScript = document.querySelector<HTMLScriptElement>(
-      'script[data-google-maps-loader="true"]',
-    );
-
-    if (existingScript) {
-      existingScript.addEventListener("load", () => resolve(), { once: true });
-      existingScript.addEventListener(
-        "error",
-        () => reject(new Error("Google Maps could not be loaded.")),
-        { once: true },
-      );
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
-      googleMapsApiKey,
-    )}`;
-    script.async = true;
-    script.defer = true;
-    script.dataset.googleMapsLoader = "true";
-    script.onload = () => resolve();
-    script.onerror = () =>
-      reject(new Error("Google Maps could not be loaded."));
-    document.head.appendChild(script);
-  });
-
-  return googleWindow.__googleMapsApiPromise;
-}
-
 export function LocationPicker({
   location,
   latitude,
@@ -117,7 +53,7 @@ export function LocationPicker({
   const googleWindow =
     typeof window === "undefined"
       ? undefined
-      : (window as Window & { google?: { maps?: any } });
+      : (window as GoogleMapsWindow);
   const [open, setOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [searchAddress, setSearchAddress] = useState(location);
@@ -411,24 +347,27 @@ export function LocationPicker({
   }
 
   function handleConfirm() {
-    const fallbackLocation = formatCoordinateLocation(
-      draftLatitude,
-      draftLongitude,
-    );
-
     onChange({
       location:
-        draftLocation.trim() || searchAddress.trim() || fallbackLocation,
+        draftLocation.trim() ||
+        searchAddress.trim() ||
+        formatDisplayLocation({
+          latitude: draftLatitude,
+          longitude: draftLongitude,
+        }),
       latitude: draftLatitude,
       longitude: draftLongitude,
     });
     setOpen(false);
   }
 
-  const coordinateText = formatCoordinateLocation(latitude, longitude);
-  const coordinatesLabel = coordinateText || "No exact map pin selected yet";
   const selectedAddressLabel =
-    location.trim() || coordinateText || "No location selected yet";
+    formatDisplayLocation({
+      location,
+      latitude,
+      longitude,
+      fallbackLabel: "No location selected yet",
+    });
 
   return (
     <>
@@ -446,7 +385,9 @@ export function LocationPicker({
         </button>
         <p className="text-sm text-[var(--foreground)]">{selectedAddressLabel}</p>
         <p className="text-xs text-[var(--muted)]">
-          Map pin: {coordinatesLabel}
+          {latitude != null && longitude != null
+            ? "Map pin selected"
+            : "No exact map pin selected yet"}
         </p>
         {!googleMapsApiKey ? (
           <p className="text-xs text-[var(--brand-strong)]">
@@ -506,7 +447,7 @@ export function LocationPicker({
                   </p>
                   <p className="mt-1 text-sm text-[var(--foreground)]">
                     {draftLatitude != null && draftLongitude != null
-                      ? `${draftLatitude.toFixed(6)}, ${draftLongitude.toFixed(6)}`
+                      ? "Exact map pin selected"
                       : "No pin selected"}
                   </p>
                 </div>

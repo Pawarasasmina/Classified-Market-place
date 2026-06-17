@@ -122,6 +122,9 @@ export default async function SearchPage(props: SearchPageProps) {
   const q = readFirst(searchParams.q) ?? "";
   const category = readFirst(searchParams.category) ?? "";
   const location = readFirst(searchParams.location) ?? "";
+  const latitude = numberParam(readFirst(searchParams.lat));
+  const longitude = numberParam(readFirst(searchParams.lng));
+  const radiusKilometers = numberParam(readFirst(searchParams.radiusKm));
   const minPrice = readFirst(searchParams.minPrice) ?? "";
   const maxPrice = readFirst(searchParams.maxPrice) ?? "";
   const sort = normalizeSort(readFirst(searchParams.sort));
@@ -151,6 +154,9 @@ export default async function SearchPage(props: SearchPageProps) {
     categorySlug: category || undefined,
     attributeFilters,
     location: location || undefined,
+    centerLatitude: latitude,
+    centerLongitude: longitude,
+    radiusKilometers,
     minPrice: numberParam(minPrice),
     maxPrice: numberParam(maxPrice),
     sort,
@@ -171,6 +177,9 @@ export default async function SearchPage(props: SearchPageProps) {
     !Object.keys(attributeFilters).length &&
     !q &&
     !location &&
+    !latitude &&
+    !longitude &&
+    !radiusKilometers &&
     !minPrice &&
     !maxPrice;
   const ancestorCategorySlugs = shouldShowRelated
@@ -220,6 +229,9 @@ export default async function SearchPage(props: SearchPageProps) {
       selectedCategorySlug={category || undefined}
       query={q}
       location={location}
+      latitude={latitude ?? null}
+      longitude={longitude ?? null}
+      radiusKilometers={radiusKilometers ?? null}
       minPrice={minPrice}
       maxPrice={maxPrice}
       sort={sort}

@@ -39,6 +39,27 @@ export class QueryListingsDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(-90)
+  @Max(90)
+  centerLatitude?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  centerLongitude?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(500)
+  radiusKilometers?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
   @Min(0)
   minPrice?: number;
 
