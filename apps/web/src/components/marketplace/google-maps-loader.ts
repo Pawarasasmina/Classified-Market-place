@@ -10,6 +10,17 @@ export type GoogleMapsWindow = Window & {
   google?: { maps?: any };
 };
 
+type GeocoderAddressComponent = {
+  long_name?: string;
+  short_name?: string;
+  types?: string[];
+};
+
+type GeocoderResultLike = {
+  formatted_address?: string;
+  address_components?: GeocoderAddressComponent[];
+};
+
 export const googleMapsApiKey =
   process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
@@ -65,4 +76,46 @@ export function loadGoogleMapsScript() {
   });
 
   return googleWindow.__googleMapsApiPromise;
+}
+
+function getAddressComponent(
+  result: GeocoderResultLike,
+  type: string,
+): string | null {
+  const component = result.address_components?.find((entry) =>
+    entry.types?.includes(type),
+  );
+
+  return component?.long_name?.trim() || component?.short_name?.trim() || null;
+}
+
+export function formatCompactGeocodeLabel(
+  result: GeocoderResultLike | null | undefined,
+): string {
+  if (!result) {
+    return "";
+  }
+
+  const townLikeLabel =
+    getAddressComponent(result, "locality") ||
+    getAddressComponent(result, "postal_town") ||
+    getAddressComponent(result, "administrative_area_level_2") ||
+    getAddressComponent(result, "sublocality_level_1") ||
+    getAddressComponent(result, "administrative_area_level_3") ||
+    getAddressComponent(result, "administrative_area_level_1");
+  const countryLabel = getAddressComponent(result, "country");
+
+  if (townLikeLabel && countryLabel) {
+    return `${townLikeLabel}, ${countryLabel}`;
+  }
+
+  if (townLikeLabel) {
+    return townLikeLabel;
+  }
+
+  if (countryLabel) {
+    return countryLabel;
+  }
+
+  return result.formatted_address?.trim() ?? "";
 }

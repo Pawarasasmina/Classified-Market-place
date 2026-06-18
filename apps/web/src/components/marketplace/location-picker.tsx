@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   defaultMapCenter,
+  formatCompactGeocodeLabel,
   googleMapsApiKey,
   loadGoogleMapsScript,
   type GoogleMapsWindow,
@@ -152,9 +153,11 @@ export function LocationPicker({
             return;
           }
 
-          if (status === "OK" && results[0]?.formatted_address) {
-            setDraftLocation(results[0].formatted_address);
-            setSearchAddress(results[0].formatted_address);
+          const refinedLocation = formatCompactGeocodeLabel(results[0]);
+
+          if (status === "OK" && refinedLocation) {
+            setDraftLocation(refinedLocation);
+            setSearchAddress(refinedLocation);
             setStatusMessage("Exact map location selected.");
             return;
           }
@@ -198,11 +201,13 @@ export function LocationPicker({
 
           const nextLat = point.lat();
           const nextLng = point.lng();
+          const refinedLocation =
+            formatCompactGeocodeLabel(match) || match.formatted_address || trimmed;
           updateMarker(map, nextLat, nextLng);
           setDraftLatitude(nextLat);
           setDraftLongitude(nextLng);
-          setDraftLocation(match.formatted_address ?? trimmed);
-          setSearchAddress(match.formatted_address ?? trimmed);
+          setDraftLocation(refinedLocation);
+          setSearchAddress(refinedLocation);
           setStatusMessage("Address found. Drag the pin if you need to fine-tune it.");
         },
       );
@@ -321,6 +326,8 @@ export function LocationPicker({
 
         const nextLat = point.lat();
         const nextLng = point.lng();
+        const refinedLocation =
+          formatCompactGeocodeLabel(match) || match.formatted_address || trimmed;
         const GoogleMarker = googleWindow?.google?.maps?.Marker;
 
         if (!markerRef.current && GoogleMarker) {
@@ -339,8 +346,8 @@ export function LocationPicker({
         mapRef.current.setZoom(16);
         setDraftLatitude(nextLat);
         setDraftLongitude(nextLng);
-        setDraftLocation(match.formatted_address ?? trimmed);
-        setSearchAddress(match.formatted_address ?? trimmed);
+        setDraftLocation(refinedLocation);
+        setSearchAddress(refinedLocation);
         setStatusMessage("Address found. Drag the pin if you need to fine-tune it.");
       },
     );

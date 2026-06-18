@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   defaultMapCenter,
+  formatCompactGeocodeLabel,
   googleMapsApiKey,
   loadGoogleMapsScript,
   type GoogleMapsWindow,
 } from "@/components/marketplace/google-maps-loader";
+import { useResolvedLocationLabel } from "@/components/marketplace/resolved-location-label";
 import { formatDisplayLocation } from "@/lib/location-display";
 
 export type LocationRadiusValue = {
@@ -95,6 +97,13 @@ export function LocationRadiusFilter({
   const [draftRadius, setDraftRadius] = useState<number>(
     value.radiusKilometers ?? 15,
   );
+  const resolvedButtonLocation = useResolvedLocationLabel({
+    location: value.location,
+    latitude: value.latitude,
+    longitude: value.longitude,
+    fallbackLabel: "Anywhere",
+    compact: true,
+  });
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
@@ -225,9 +234,11 @@ export function LocationRadiusFilter({
             return;
           }
 
-          if (status === "OK" && results[0]?.formatted_address) {
-            setDraftLocation(results[0].formatted_address);
-            setSearchAddress(results[0].formatted_address);
+          const refinedLocation = formatCompactGeocodeLabel(results[0]);
+
+          if (status === "OK" && refinedLocation) {
+            setDraftLocation(refinedLocation);
+            setSearchAddress(refinedLocation);
             setStatusMessage("Exact location and radius updated.");
             return;
           }
@@ -272,10 +283,12 @@ export function LocationRadiusFilter({
 
           const nextLat = point.lat();
           const nextLng = point.lng();
+          const refinedLocation =
+            formatCompactGeocodeLabel(match) || match.formatted_address || trimmed;
           setDraftLatitude(nextLat);
           setDraftLongitude(nextLng);
-          setDraftLocation(match.formatted_address ?? trimmed);
-          setSearchAddress(match.formatted_address ?? trimmed);
+          setDraftLocation(refinedLocation);
+          setSearchAddress(refinedLocation);
           updateMarker(map, nextLat, nextLng);
           setStatusMessage(
             "Location found. Drag the pin or change the radius to fine-tune it.",
@@ -410,10 +423,12 @@ export function LocationRadiusFilter({
 
         const nextLat = point.lat();
         const nextLng = point.lng();
+        const refinedLocation =
+          formatCompactGeocodeLabel(match) || match.formatted_address || trimmed;
         setDraftLatitude(nextLat);
         setDraftLongitude(nextLng);
-        setDraftLocation(match.formatted_address ?? trimmed);
-        setSearchAddress(match.formatted_address ?? trimmed);
+        setDraftLocation(refinedLocation);
+        setSearchAddress(refinedLocation);
         setStatusMessage(
           "Location found. Drag the pin or change the radius to fine-tune it.",
         );
@@ -481,14 +496,7 @@ export function LocationRadiusFilter({
       >
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate text-[0.98rem] font-medium text-[var(--foreground)]">
-            {formatDisplayLocation({
-              location: value.location,
-              latitude: value.latitude,
-              longitude: value.longitude,
-              fallbackLabel: "Anywhere",
-            })
-              .split(",")[0]
-              ?.trim() || "Anywhere"}
+            {resolvedButtonLocation || "Anywhere"}
           </span>
           {value.radiusKilometers != null ? (
             <span className="shrink-0 rounded-full border border-[var(--line)] bg-[var(--surface-strong)] px-2 py-0.5 text-[0.72rem] font-bold text-[var(--muted)]">

@@ -16,6 +16,7 @@ import {
   LocationRadiusFilter,
   type LocationRadiusValue,
 } from "@/components/marketplace/location-radius-filter";
+import { useResolvedLocationLabel } from "@/components/marketplace/resolved-location-label";
 import { formatDisplayLocation } from "@/lib/location-display";
 import { getListingMedia } from "@/lib/listing-media";
 import type {
@@ -141,6 +142,11 @@ function SearchResultCard({
 }) {
   const media = getListingMedia(listing);
   const href = previewHref(`/listings/${listing.id}`, customerPreview);
+  const resolvedLocation = useResolvedLocationLabel({
+    location: listing.location,
+    latitude: listing.latitude,
+    longitude: listing.longitude,
+  });
 
   return (
     <article className="overflow-hidden rounded-[1.7rem] border border-[var(--line)] bg-[var(--surface)] shadow-[0_22px_54px_rgba(15,23,42,0.08)]">
@@ -177,7 +183,7 @@ function SearchResultCard({
               <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
                 <span>{listing.subcategory}</span>
                 <span>•</span>
-                <span>{listing.location}</span>
+                <span>{resolvedLocation}</span>
                 <span>•</span>
                 <span>{listing.postedLabel}</span>
               </div>
@@ -244,6 +250,11 @@ function SearchResultCardModern({
   const href = previewHref(`/listings/${listing.id}`, customerPreview);
   const thumbnails = listing.imageUrls.slice(0, 3);
   const extraImages = Math.max(listing.imageUrls.length - 3, 0);
+  const resolvedLocation = useResolvedLocationLabel({
+    location: listing.location,
+    latitude: listing.latitude,
+    longitude: listing.longitude,
+  });
 
   return (
     <article className="overflow-hidden rounded-[1.45rem] border border-[var(--line)] bg-[var(--surface)] shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
@@ -349,7 +360,7 @@ function SearchResultCardModern({
 
           <p className="inline-flex items-center gap-1.5 text-[1rem] text-[var(--foreground)]">
             <span>⌖</span>
-            {listing.location}
+            {resolvedLocation}
           </p>
 
           <div className="grid gap-1 pt-2">
@@ -504,6 +515,14 @@ export function SearchPageClient({
     selectedCategorySlug,
     sort,
   ]);
+
+  const resolvedDraftLocation = useResolvedLocationLabel({
+    location: draft.location,
+    latitude: draft.latitude,
+    longitude: draft.longitude,
+    fallbackLabel: "Pinned map location",
+    compact: true,
+  });
 
   const categoryTree = useMemo(
     () => buildMarketplaceCategoryTree(categories),
@@ -678,6 +697,12 @@ export function SearchPageClient({
       return value ? [`${field.label}: ${value}`] : [];
     }),
   ].filter(Boolean) as string[];
+
+  const displayActiveFilterLabels = activeFilterLabels.map((label) =>
+    label
+      .replaceAll("Pinned map location", resolvedDraftLocation || "Pinned map location")
+      .replaceAll("Â·", "·"),
+  );
 
   const visibleListings = resolvedListings;
 
@@ -919,8 +944,8 @@ export function SearchPageClient({
                 className="flex items-center justify-between gap-3 text-left"
               >
                 <span className="truncate text-[1.02rem] text-[var(--muted)]">
-                  {activeFilterLabels.length
-                    ? `${activeFilterLabels.length} active filters`
+                  {displayActiveFilterLabels.length
+                    ? `${displayActiveFilterLabels.length} active filters`
                     : dynamicFields.length
                       ? `${dynamicFields.length} more filters`
                       : "Keyword, city, etc."}
@@ -989,9 +1014,9 @@ export function SearchPageClient({
           ) : null}
         </div>
 
-        {activeFilterLabels.length ? (
+        {displayActiveFilterLabels.length ? (
           <div className="flex flex-wrap gap-1.5">
-            {activeFilterLabels.map((label) => (
+            {displayActiveFilterLabels.map((label) => (
               <span
                 key={label}
                 className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-bold text-[var(--muted)]"
