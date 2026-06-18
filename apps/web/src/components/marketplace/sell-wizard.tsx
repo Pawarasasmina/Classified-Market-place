@@ -276,6 +276,27 @@ function hasDraftContent(draft: DraftState) {
   );
 }
 
+function buildDraftFingerprint(draft: DraftState) {
+  return JSON.stringify({
+    clientDraftKey: draft.clientDraftKey,
+    draftListingId: draft.draftListingId ?? "",
+    categorySlug: draft.categorySlug,
+    title: draft.title,
+    description: draft.description,
+    price: draft.price,
+    location: draft.location,
+    latitude: draft.latitude,
+    longitude: draft.longitude,
+    attributes: Object.entries(draft.attributes).sort(([left], [right]) =>
+      left.localeCompare(right),
+    ),
+    images: draft.images.map((image) => ({
+      id: image.id,
+      dataUrl: image.dataUrl,
+    })),
+  });
+}
+
 function moveItem<T>(items: T[], fromIndex: number, toIndex: number) {
   const nextItems = [...items];
   const [item] = nextItems.splice(fromIndex, 1);
@@ -349,6 +370,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
   const [isPreparingImages, setIsPreparingImages] = useState(false);
   const [isPhotoDropActive, setIsPhotoDropActive] = useState(false);
   const [categoryBrowsePath, setCategoryBrowsePath] = useState<string[]>([]);
+  const lastSavedFingerprintRef = useRef<string>("");
 
   const categoryTree = useMemo(() => buildCategoryTree(categories), [categories]);
   const category =
@@ -396,6 +418,10 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
         : draft,
     [draft, draftState.draftListingId]
   );
+  const draftFingerprint = useMemo(
+    () => buildDraftFingerprint(effectiveDraft),
+    [effectiveDraft],
+  );
 
   useEffect(() => {
     try {
@@ -406,14 +432,33 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
   }, []);
 
   useEffect(() => {
+    if (
+      draftState.message === "Draft saved." &&
+      draftFingerprint !== lastSavedFingerprintRef.current
+    ) {
+      lastSavedFingerprintRef.current = draftFingerprint;
+    }
+  }, [draftFingerprint, draftState.message]);
+
+  useEffect(() => {
     const handle = window.setInterval(() => {
-      if (hasDraftContent(draft)) {
+      if (
+        publishPending ||
+        draftPending ||
+        isPreparingImages ||
+        !hasDraftContent(effectiveDraft) ||
+        draftFingerprint === lastSavedFingerprintRef.current
+      ) {
+        return;
+      }
+
+      if (draftFormRef.current) {
         draftFormRef.current?.requestSubmit();
       }
     }, 30000);
 
     return () => window.clearInterval(handle);
-  }, [draft]);
+  }, [draftFingerprint, draftPending, effectiveDraft, isPreparingImages, publishPending]);
 
   function updateDraft(patch: Partial<DraftState>) {
     setDraft((current) => ({ ...current, ...patch }));
@@ -1240,7 +1285,7 @@ export function SellWizard({ categories }: { categories: MarketplaceCategory[] }
                 ) : null}
                 <button
                   type="submit"
-                  disabled={publishPending || isPreparingImages}
+                  disabled={publishPending || draftPending || isPreparingImages}
                   className="action-primary w-full px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {publishPending ? "Publishing..." : "Publish listing"}

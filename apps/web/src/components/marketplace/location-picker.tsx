@@ -3,12 +3,15 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   defaultMapCenter,
-  formatCompactGeocodeLabel,
   googleMapsApiKey,
   loadGoogleMapsScript,
   type GoogleMapsWindow,
 } from "@/components/marketplace/google-maps-loader";
 import { formatDisplayLocation } from "@/lib/location-display";
+import {
+  reverseGeocodeFree,
+  searchAddressFree,
+} from "@/lib/openstreetmap-geocoding";
 
 type LocationPickerValue = {
   location: string;
@@ -64,7 +67,6 @@ export function LocationPicker({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
-  const geocoderRef = useRef<any>(null);
 
   useEffect(() => {
     if (!open) {
@@ -140,22 +142,15 @@ export function LocationPicker({
     };
 
     const reverseGeocode = (lat: number, lng: number) => {
-      const geocoder = geocoderRef.current;
+      setStatusMessage("Refining the pinned location...");
 
-      if (!geocoder) {
-        return;
-      }
-
-      geocoder.geocode(
-        { location: { lat, lng } },
-        (results: Array<{ formatted_address?: string }> = [], status: string) => {
+      void reverseGeocodeFree(lat, lng)
+        .then((refinedLocation) => {
           if (cancelled) {
             return;
           }
 
-          const refinedLocation = formatCompactGeocodeLabel(results[0]);
-
-          if (status === "OK" && refinedLocation) {
+          if (refinedLocation) {
             setDraftLocation(refinedLocation);
             setSearchAddress(refinedLocation);
             setStatusMessage("Exact map location selected.");
@@ -163,54 +158,50 @@ export function LocationPicker({
           }
 
           setStatusMessage("Pin updated. Address label could not be refined.");
-        },
-      );
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setStatusMessage("Pin updated. Address label could not be refined.");
+          }
+        });
     };
 
     const runAddressSearch = (map: any, address: string) => {
-      const geocoder = geocoderRef.current;
       const trimmed = address.trim();
 
-      if (!trimmed || !geocoder) {
+      if (!trimmed) {
         setStatusMessage("Enter an address to search.");
         return;
       }
 
       setStatusMessage("Searching address...");
 
-      geocoder.geocode(
-        { address: trimmed },
-        (
-          results: Array<{
-            formatted_address?: string;
-            geometry?: { location?: { lat: () => number; lng: () => number } };
-          }> = [],
-          status: string,
-        ) => {
+      void searchAddressFree(trimmed)
+        .then((match) => {
           if (cancelled) {
             return;
           }
 
-          const match = results[0];
-          const point = match?.geometry?.location;
-
-          if (status !== "OK" || !match || !point) {
+          if (!match) {
             setStatusMessage("Address not found. Try a more precise search.");
             return;
           }
 
-          const nextLat = point.lat();
-          const nextLng = point.lng();
-          const refinedLocation =
-            formatCompactGeocodeLabel(match) || match.formatted_address || trimmed;
+          const nextLat = match.latitude;
+          const nextLng = match.longitude;
+          const refinedLocation = match.label || trimmed;
           updateMarker(map, nextLat, nextLng);
           setDraftLatitude(nextLat);
           setDraftLongitude(nextLng);
           setDraftLocation(refinedLocation);
           setSearchAddress(refinedLocation);
           setStatusMessage("Address found. Drag the pin if you need to fine-tune it.");
-        },
-      );
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setStatusMessage("Address search is unavailable right now.");
+          }
+        });
     };
 
     void loadGoogleMapsScript()
@@ -229,8 +220,6 @@ export function LocationPicker({
           draftLatitude != null && draftLongitude != null
             ? { lat: draftLatitude, lng: draftLongitude }
             : defaultMapCenter;
-
-        geocoderRef.current ??= new google.maps.Geocoder();
 
         if (!mapRef.current) {
           mapRef.current = new google.maps.Map(mapContainerRef.current, {
@@ -292,12 +281,11 @@ export function LocationPicker({
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!mapRef.current || !geocoderRef.current) {
+    if (!mapRef.current) {
       setStatusMessage("Google Maps is still loading.");
       return;
     }
 
-    const geocoder = geocoderRef.current;
     const trimmed = searchAddress.trim();
 
     if (!trimmed) {
@@ -307,27 +295,16 @@ export function LocationPicker({
 
     setStatusMessage("Searching address...");
 
-    geocoder.geocode(
-      { address: trimmed },
-      (
-        results: Array<{
-          formatted_address?: string;
-          geometry?: { location?: { lat: () => number; lng: () => number } };
-        }> = [],
-        status: string,
-      ) => {
-        const match = results[0];
-        const point = match?.geometry?.location;
-
-        if (status !== "OK" || !match || !point) {
+    void searchAddressFree(trimmed)
+      .then((match) => {
+        if (!match) {
           setStatusMessage("Address not found. Try a more precise search.");
           return;
         }
 
-        const nextLat = point.lat();
-        const nextLng = point.lng();
-        const refinedLocation =
-          formatCompactGeocodeLabel(match) || match.formatted_address || trimmed;
+        const nextLat = match.latitude;
+        const nextLng = match.longitude;
+        const refinedLocation = match.label || trimmed;
         const GoogleMarker = googleWindow?.google?.maps?.Marker;
 
         if (!markerRef.current && GoogleMarker) {
@@ -349,8 +326,10 @@ export function LocationPicker({
         setDraftLocation(refinedLocation);
         setSearchAddress(refinedLocation);
         setStatusMessage("Address found. Drag the pin if you need to fine-tune it.");
-      },
-    );
+      })
+      .catch(() => {
+        setStatusMessage("Address search is unavailable right now.");
+      });
   }
 
   function handleConfirm() {
