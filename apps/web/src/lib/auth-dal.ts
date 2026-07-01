@@ -2,6 +2,7 @@ import "server-only";
 
 import { unstable_noStore as noStore } from "next/cache";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import {
   fetchCurrentUser,
   MarketplaceApiError,
@@ -29,8 +30,7 @@ async function refreshSessionContext(refreshToken: string) {
   }
 }
 
-export async function getSessionContext() {
-  noStore();
+const readSessionContext = cache(async () => {
   const accessToken = await getAccessToken();
 
   if (!accessToken) {
@@ -66,6 +66,11 @@ export async function getSessionContext() {
 
     throw error;
   }
+});
+
+export async function getSessionContext() {
+  noStore();
+  return readSessionContext();
 }
 
 export async function getSessionUser() {

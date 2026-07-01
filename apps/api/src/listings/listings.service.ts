@@ -2093,7 +2093,7 @@ export class ListingsService implements OnModuleInit {
         where,
         orderBy,
         take: hasCoordinateRadius ? Math.max(take * 12, 150) : take,
-        include: rankedListingInclude,
+        include: listingListInclude,
       });
 
       return this.attachSellerRatingSummaries(
@@ -2102,7 +2102,7 @@ export class ListingsService implements OnModuleInit {
             listingMatchesAttributeFilters(listing, attributeFilters),
           )
           .slice(0, take)
-          .map((listing) => withoutRankingTransactions(listing)),
+          .map((listing) => withoutListHeavyAttributes(listing)),
       );
     }
 

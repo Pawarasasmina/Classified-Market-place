@@ -46,6 +46,42 @@ function MapPinIcon({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
+function SearchIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="h-4 w-4"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+}
+
+function XIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="h-5 w-5"
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
 export function LocationPicker({
   location,
   latitude,
@@ -384,54 +420,77 @@ export function LocationPicker({
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.55)] p-4">
-          <div className="w-full max-w-5xl rounded-2xl border border-[var(--line)] bg-white shadow-2xl">
-            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
+          <div className="relative w-full max-w-5xl overflow-hidden rounded-[1.9rem] border border-[var(--line)] bg-white shadow-[0_40px_100px_rgba(15,23,42,0.18)]">
+            <div className="border-b border-[var(--line)] bg-[radial-gradient(circle_at_top_left,rgba(109,70,255,0.12),transparent_45%),linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,1))] px-5 py-5">
               <div>
                 <p className="section-eyebrow">Location picker</p>
-                <h3 className="mt-1 text-xl font-black text-[var(--foreground)]">
+                <h3 className="mt-1 text-[1.45rem] font-black text-[var(--foreground)]">
                   Pick the exact listing location
                 </h3>
-                <p className="mt-1 text-sm text-[var(--muted)]">
+                <p className="mt-2 max-w-[34rem] text-sm text-[var(--muted)]">
                   Search an address, click on the map, or drag the pin to the exact spot.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-md border border-[var(--line)] px-3 py-2 text-sm font-semibold"
-              >
-                Close
-              </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="absolute right-5 top-5 rounded-full border border-[var(--line)] bg-white/90 p-3 text-[var(--foreground)] transition hover:border-[var(--brand)] hover:text-[var(--brand-strong)]"
+              aria-label="Close location picker"
+            >
+              <XIcon />
+            </button>
 
             <div className="grid gap-4 px-5 py-4 lg:grid-cols-[320px,minmax(0,1fr)]">
               <div className="grid gap-4">
                 <form onSubmit={handleSearchSubmit} className="grid gap-2">
                   <label className="grid gap-2">
                     <span className="text-sm font-bold">Search address</span>
-                    <input
-                      value={searchAddress}
-                      onChange={(event) => setSearchAddress(event.target.value)}
-                      placeholder="Search by address or area"
-                      className="surface-input w-full text-sm"
-                    />
+                    <div className="flex items-center gap-3 rounded-[1.1rem] border border-[var(--line)] bg-[var(--surface)] px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
+                      <SearchIcon />
+                      <input
+                        value={searchAddress}
+                        onChange={(event) => setSearchAddress(event.target.value)}
+                        placeholder="Search by address or area"
+                        className="w-full border-0 bg-transparent text-sm outline-none"
+                      />
+                    </div>
                   </label>
-                  <button className="action-primary px-4 py-2 text-sm font-semibold">
+                  <button className="action-primary inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold">
+                    <SearchIcon />
                     Search address
                   </button>
                 </form>
 
-                <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-strong)] p-4">
-                  <p className="text-sm font-bold text-[var(--foreground)]">
-                    Selected address
-                  </p>
-                  <p className="mt-2 text-sm text-[var(--muted)]">
-                    {draftLocation.trim() || "No address chosen yet."}
-                  </p>
-                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-                    Coordinates
-                  </p>
-                  <p className="mt-1 text-sm text-[var(--foreground)]">
+                <div className="grid gap-3 rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface-strong)] p-4">
+                  <div>
+                    <p className="text-sm font-bold text-[var(--foreground)]">
+                      Selected address
+                    </p>
+                    <p className="mt-2 text-sm text-[var(--muted)]">
+                      {draftLocation.trim() || "No address chosen yet."}
+                    </p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-xl border border-[var(--line)] bg-white/70 px-3 py-3">
+                      <p className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-[var(--muted)]">
+                        Latitude
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">
+                        {draftLatitude != null ? draftLatitude.toFixed(5) : "Not set"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-[var(--line)] bg-white/70 px-3 py-3">
+                      <p className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-[var(--muted)]">
+                        Longitude
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">
+                        {draftLongitude != null ? draftLongitude.toFixed(5) : "Not set"}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-[var(--foreground)]">
                     {draftLatitude != null && draftLongitude != null
                       ? "Exact map pin selected"
                       : "No pin selected"}
@@ -469,7 +528,7 @@ export function LocationPicker({
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface-strong)]">
+              <div className="overflow-hidden rounded-[1.5rem] border border-[var(--line)] bg-[var(--surface-strong)] shadow-[0_16px_36px_rgba(15,23,42,0.08)]">
                 <div
                   ref={mapContainerRef}
                   className="h-[420px] w-full bg-[linear-gradient(135deg,#f6efe6,#d7e5dd)]"

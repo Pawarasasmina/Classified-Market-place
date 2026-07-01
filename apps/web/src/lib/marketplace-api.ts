@@ -1,6 +1,7 @@
 import "server-only";
 
 import axios from "axios";
+import { unstable_cache } from "next/cache";
 import type { AssignableUserRole } from "@/lib/admin-permissions";
 import {
   mapAdvertisementBanner,
@@ -684,16 +685,7 @@ function mapAuthResponse(response: AuthResponse) {
 }
 
 export async function fetchCategories() {
-  try {
-    const categories = await apiRequest<ApiCategory[]>("/categories");
-    return categories.map(mapCategory);
-  } catch (error) {
-    if (isTransientMarketplaceError(error)) {
-      return fallbackCategories.map(mapCategory);
-    }
-
-    throw error;
-  }
+  return getCachedCategories();
 }
 
 export async function fetchAdminCategories(accessToken: string) {
@@ -704,17 +696,50 @@ export async function fetchAdminCategories(accessToken: string) {
 }
 
 export async function fetchHomeAdvertisementBanners() {
-  try {
-    const banners = await apiRequest<ApiAdvertisementBanner[]>("/advertisements/home");
-    return banners.map(mapAdvertisementBanner);
-  } catch (error) {
-    if (isTransientMarketplaceError(error)) {
-      return [];
-    }
-
-    throw error;
-  }
+  return getCachedHomeAdvertisementBanners();
 }
+
+const getCachedCategories = unstable_cache(
+  async () => {
+    try {
+      const categories = await apiRequest<ApiCategory[]>("/categories");
+      return categories.map(mapCategory);
+    } catch (error) {
+      if (isTransientMarketplaceError(error)) {
+        return fallbackCategories.map(mapCategory);
+      }
+
+      throw error;
+    }
+  },
+  ["marketplace-categories"],
+  {
+    revalidate: 300,
+    tags: ["marketplace-categories"],
+  },
+);
+
+const getCachedHomeAdvertisementBanners = unstable_cache(
+  async () => {
+    try {
+      const banners = await apiRequest<ApiAdvertisementBanner[]>(
+        "/advertisements/home",
+      );
+      return banners.map(mapAdvertisementBanner);
+    } catch (error) {
+      if (isTransientMarketplaceError(error)) {
+        return [];
+      }
+
+      throw error;
+    }
+  },
+  ["marketplace-home-advertisement-banners"],
+  {
+    revalidate: 120,
+    tags: ["marketplace-home-advertisement-banners"],
+  },
+);
 
 export async function fetchAdminAdvertisementBanners(accessToken: string) {
   const banners = await apiRequest<ApiAdvertisementBanner[]>(

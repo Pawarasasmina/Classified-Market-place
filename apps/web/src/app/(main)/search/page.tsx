@@ -15,6 +15,15 @@ type SearchPageProps = {
 };
 
 function normalizeSort(sort: string | undefined) {
+  if (!sort) return "newest" as const;
+  if (sort === "newest") return "newest" as const;
+  if (sort === "price_asc") return "price_asc" as const;
+  if (sort === "price_desc") return "price_desc" as const;
+  return "recommended" as const;
+}
+
+function normalizeSortParam(sort: string | undefined) {
+  if (!sort) return undefined;
   if (sort === "newest") return "newest" as const;
   if (sort === "price_asc") return "price_asc" as const;
   if (sort === "price_desc") return "price_desc" as const;
@@ -96,15 +105,22 @@ async function loadSearchListings(
   },
 ) {
   const listings = await fetchListings(listingQuery);
+  const isPlainBrowseRequest =
+    !options.selectedCategorySlug &&
+    !options.hasAttributeFilters &&
+    !options.hasQuery &&
+    !options.hasLocation &&
+    !options.hasMinPrice &&
+    !options.hasMaxPrice;
 
   if (
     listings.length > 0 ||
-    !options.selectedCategorySlug ||
     options.hasAttributeFilters ||
     options.hasQuery ||
     options.hasLocation ||
     options.hasMinPrice ||
-    options.hasMaxPrice
+    options.hasMaxPrice ||
+    (!options.selectedCategorySlug && !isPlainBrowseRequest)
   ) {
     return listings;
   }
@@ -127,7 +143,9 @@ export default async function SearchPage(props: SearchPageProps) {
   const radiusKilometers = numberParam(readFirst(searchParams.radiusKm));
   const minPrice = readFirst(searchParams.minPrice) ?? "";
   const maxPrice = readFirst(searchParams.maxPrice) ?? "";
-  const sort = normalizeSort(readFirst(searchParams.sort));
+  const rawSort = readFirst(searchParams.sort);
+  const sort = normalizeSort(rawSort);
+  const querySort = normalizeSortParam(rawSort);
   const customerPreview = readFirst(searchParams.view) === "customer";
 
   const categories = await fetchCategories();
@@ -159,7 +177,7 @@ export default async function SearchPage(props: SearchPageProps) {
     radiusKilometers,
     minPrice: numberParam(minPrice),
     maxPrice: numberParam(maxPrice),
-    sort,
+    sort: querySort,
     take: 12,
   };
 

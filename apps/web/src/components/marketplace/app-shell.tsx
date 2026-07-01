@@ -49,6 +49,15 @@ const desktopPrimaryNavLinkHrefs = new Set([
   "/messages",
 ]);
 
+function prefetchRouteSet(
+  prefetch: ReturnType<typeof useRouter>["prefetch"],
+  hrefs: string[],
+) {
+  for (const href of hrefs) {
+    prefetch(href);
+  }
+}
+
 function ChevronDownIcon({ className = "" }: { className?: string }) {
   return (
     <svg
@@ -169,6 +178,7 @@ function CustomerCategoryMenu({
   customerPreview: boolean;
   active: boolean;
 }) {
+  const router = useRouter();
   const tree = useMemo(
     () => buildMarketplaceCategoryTree(categories),
     [categories],
@@ -177,6 +187,22 @@ function CustomerCategoryMenu({
   const [activeSlug, setActiveSlug] = useState(tree[0]?.slug ?? "");
   const activeNode =
     tree.find((category) => category.slug === activeSlug) ?? tree[0];
+
+  useEffect(() => {
+    if (!open || !activeNode) {
+      return;
+    }
+
+    const hrefs = [
+      withCustomerPreview("/categories", customerPreview),
+      withCustomerPreview(`/search?category=${activeNode.slug}`, customerPreview),
+      ...activeNode.nestedChildren.map((child) =>
+        withCustomerPreview(`/search?category=${child.slug}`, customerPreview),
+      ),
+    ];
+
+    prefetchRouteSet(router.prefetch, hrefs);
+  }, [activeNode, customerPreview, open, router]);
 
   if (!tree.length) {
     return (
@@ -799,6 +825,7 @@ export function MarketplaceShell({
   const hasDesktopSecondaryActive = desktopSecondaryNavLinks.some((link) =>
     isActive(pathname, link.href),
   );
+  const [isRouteChanging, setIsRouteChanging] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -826,12 +853,92 @@ export function MarketplaceShell({
     }
   }, [router, shouldRedirectToAdmin]);
 
+  useEffect(() => {
+    setIsRouteChanging(false);
+  }, [pathname, searchParams]);
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const anchor = target.closest("a[href]");
+      if (!(anchor instanceof HTMLAnchorElement)) {
+        return;
+      }
+
+      const href = anchor.getAttribute("href");
+      if (
+        !href ||
+        href.startsWith("#") ||
+        anchor.target === "_blank" ||
+        anchor.hasAttribute("download")
+      ) {
+        return;
+      }
+
+      let nextUrl: URL;
+      try {
+        nextUrl = new URL(anchor.href, window.location.href);
+      } catch {
+        return;
+      }
+
+      const currentUrl = new URL(window.location.href);
+      const sameDocument =
+        nextUrl.origin === currentUrl.origin &&
+        nextUrl.pathname === currentUrl.pathname &&
+        nextUrl.search === currentUrl.search;
+
+      if (nextUrl.origin !== currentUrl.origin || sameDocument) {
+        return;
+      }
+
+      setIsRouteChanging(true);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () =>
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+  }, []);
+
+  useEffect(() => {
+    if (adminExperience) {
+      return;
+    }
+
+    const hrefs = getCustomerNavLinks(user).map((link) =>
+      withCustomerPreview(link.href, customerPreview),
+    );
+
+    prefetchRouteSet(router.prefetch, hrefs);
+  }, [adminExperience, customerPreview, router, user]);
+
   return (
     <div
       className={`min-h-screen text-[var(--foreground)] ${
         adminExperience ? "admin-shell" : ""
       }`}
     >
+      <div
+        aria-hidden="true"
+        className={`fixed inset-x-0 top-0 z-[70] h-1 origin-left bg-[var(--brand)] shadow-[0_0_22px_rgba(109,70,255,0.42)] transition-transform duration-200 ${
+          isRouteChanging ? "scale-x-100" : "scale-x-0"
+        }`}
+      />
       {showOneTap ? <GoogleOneTapPrompt nextPath={oneTapNextPath} /> : null}
       <header
         className={`marketplace-header top-0 z-40 ${

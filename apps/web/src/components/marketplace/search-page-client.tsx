@@ -6,7 +6,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  useTransition,
   type ChangeEvent,
 } from "react";
 import {
@@ -469,8 +468,8 @@ export function SearchPageClient({
 }: SearchPageClientProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [isPending, startTransition] = useTransition();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const [resolvedListings, setResolvedListings] = useState(listings);
   const [isRecoveringListings, setIsRecoveringListings] = useState(false);
   const [draft, setDraft] = useState<SearchDraftState>({
@@ -489,6 +488,22 @@ export function SearchPageClient({
   useEffect(() => {
     setResolvedListings(listings);
   }, [listings]);
+
+  useEffect(() => {
+    setIsNavigating(false);
+  }, [
+    attributeValues,
+    latitude,
+    listings,
+    location,
+    longitude,
+    maxPrice,
+    minPrice,
+    query,
+    radiusKilometers,
+    selectedCategorySlug,
+    sort,
+  ]);
 
   useEffect(() => {
     setDraft({
@@ -564,7 +579,8 @@ export function SearchPageClient({
       Boolean(maxPrice.trim()) ||
       Object.values(attributeValues).some((value) => value.trim().length > 0);
 
-    if (hasServerListings || !hasSearchContext) {
+    if (hasServerListings || isShowingRelatedListings) {
+      setIsRecoveringListings(false);
       return;
     }
 
@@ -608,7 +624,7 @@ export function SearchPageClient({
           params.set("maxPrice", maxPrice.trim());
         }
 
-        if (sort && sort !== "recommended") {
+        if (hasSearchContext && sort && sort !== "newest") {
           params.set("sort", sort);
         }
 
@@ -620,7 +636,7 @@ export function SearchPageClient({
           }),
         );
 
-        if (Object.keys(typedAttributeFilters).length > 0) {
+        if (hasSearchContext && Object.keys(typedAttributeFilters).length > 0) {
           params.set("attributeFilters", JSON.stringify(typedAttributeFilters));
         }
 
@@ -657,6 +673,7 @@ export function SearchPageClient({
     apiBaseUrl,
     attributeValues,
     dynamicFields,
+    isShowingRelatedListings,
     latitude,
     listings.length,
     location,
@@ -721,7 +738,7 @@ export function SearchPageClient({
     }
     if (nextState.minPrice.trim()) params.set("minPrice", nextState.minPrice.trim());
     if (nextState.maxPrice.trim()) params.set("maxPrice", nextState.maxPrice.trim());
-    if (nextState.sort !== "recommended") params.set("sort", nextState.sort);
+    if (nextState.sort !== "newest") params.set("sort", nextState.sort);
     if (customerPreview) params.set("view", "customer");
 
     for (const field of dynamicFields) {
@@ -736,10 +753,9 @@ export function SearchPageClient({
   }
 
   function navigate(nextState: SearchDraftState) {
-    startTransition(() => {
-      router.push(buildHref(nextState));
-      setDrawerOpen(false);
-    });
+    setIsNavigating(true);
+    router.push(buildHref(nextState));
+    setDrawerOpen(false);
   }
 
   function updateAttributeValue(fieldKey: string, value: string) {
@@ -927,8 +943,8 @@ export function SearchPageClient({
                 }
                 className="h-auto border-0 bg-transparent px-0 py-0 text-[1.02rem] text-[var(--foreground)] outline-none"
               >
-                <option value="recommended">Select</option>
                 <option value="newest">Newest</option>
+                <option value="recommended">Recommended</option>
                 <option value="price_asc">Low to high</option>
                 <option value="price_desc">High to low</option>
               </select>
@@ -1197,10 +1213,10 @@ export function SearchPageClient({
               <button
                 type="button"
                 onClick={handleApply}
-                disabled={isPending}
+                disabled={isNavigating}
                 className="inline-flex h-12 items-center justify-center rounded-2xl bg-[var(--accent)] text-sm font-black text-white disabled:opacity-70"
               >
-                {isPending ? "Applying..." : "Apply filters"}
+                {isNavigating ? "Applying..." : "Apply filters"}
               </button>
             </div>
           </aside>

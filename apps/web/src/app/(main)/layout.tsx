@@ -5,7 +5,7 @@ import { getSessionContext } from "@/lib/auth-dal";
 import { fetchCategories } from "@/lib/marketplace-api";
 import { getNotificationsApiBaseUrl } from "@/lib/notifications-api";
 
-export default async function MainLayout({
+async function MainLayoutShell({
   children,
 }: {
   children: ReactNode;
@@ -16,15 +16,25 @@ export default async function MainLayout({
   ]);
 
   return (
+    <MarketplaceShell
+      user={session?.user ?? null}
+      categories={categories}
+      accessToken={session?.accessToken ?? null}
+      notificationsApiBaseUrl={getNotificationsApiBaseUrl()}
+    >
+      {children}
+    </MarketplaceShell>
+  );
+}
+
+export default async function MainLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
     <Suspense fallback={<main>{children}</main>}>
-      <MarketplaceShell
-        user={session?.user ?? null}
-        categories={categories}
-        accessToken={session?.accessToken ?? null}
-        notificationsApiBaseUrl={getNotificationsApiBaseUrl()}
-      >
-        {children}
-      </MarketplaceShell>
+      <MainLayoutShell>{children}</MainLayoutShell>
     </Suspense>
   );
 }
